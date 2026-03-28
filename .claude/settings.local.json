@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(curl:*)",
-      "Bash(git log:*)"
+      "Bash(git log:*)",
+      "Bash(git -C /Users/hayleybuchman/Documents/aislefinder log --oneline -5)",
+      "Bash(git -C /Users/hayleybuchman/Documents/aislefinder branch:*)"
     ],
     "deny": [],
     "ask": []
