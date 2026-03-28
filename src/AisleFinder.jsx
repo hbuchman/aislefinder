@@ -94,7 +94,7 @@ const AisleFinder = () => {
     setError('');
 
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/find-stores`, {
+      const response = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/find-stores`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -147,7 +147,7 @@ const AisleFinder = () => {
       formData.append('store_id', selectedStore ? selectedStore.id : '01400943');
       formData.append('store', selectedStore ? selectedStore.name : '4500S Smiths');
 
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/process-grocery-list`, {
+      const response = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/process-grocery-list`, {
         method: 'POST',
         body: formData,
       });
