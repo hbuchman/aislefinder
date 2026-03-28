@@ -32,7 +32,7 @@ class KrogerAPI:
     AUTH_URL = 'https://api.kroger.com/v1/connect/oauth2/token'
     PRODUCT_URL = 'https://api.kroger.com/v1/products'
     LOCATIONS_URL = 'https://api.kroger.com/v1/locations'
-    CLIENT_ID = 'aislefinder3000-bbc7dn0w'
+    CLIENT_ID = 'aislefinder5000-bbcct110'
 
     #TODO need to take location as an option
     def __init__(self, store_id: str = "01400943"):
