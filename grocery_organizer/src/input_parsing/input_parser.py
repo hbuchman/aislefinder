@@ -12,9 +12,11 @@ class InputParser:
         items = []
         with open(self.file, "r") as file:
             for line in file:
-                cleaned_line = self.clean_line(line.strip().lower())
-                if cleaned_line:  # Only add non-empty lines
-                    items.append(cleaned_line)
+                # Split on commas to support comma-separated items
+                for part in line.split(','):
+                    cleaned_item = self.clean_line(part.strip().lower())
+                    if cleaned_item:
+                        items.append(cleaned_item)
 
         return items
     

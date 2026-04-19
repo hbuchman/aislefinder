@@ -16,5 +16,11 @@ __pycache__/
 # Secrets
 grocery_organizer/src/core/secrets.py
 
+# IDE
+.idea/
+
+# Build output
+build/
+
 # OS
 .DS_Store

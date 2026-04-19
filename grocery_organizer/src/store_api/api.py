@@ -132,23 +132,31 @@ class KrogerAPI:
 
         product_data = response_data['data'][0]
         
-        # Validate product relevance using both original and cleaned search terms
-        if not self._is_product_relevant(product_name, product_data) and not self._is_product_relevant(cleaned_search_term, product_data):
-            # Try to find a better match from other results
-            for alt_product in response_data['data'][:3]:  # Check first 3 results
-                if self._is_product_relevant(product_name, alt_product) or self._is_product_relevant(cleaned_search_term, alt_product):
-                    product_data = alt_product
-                    print(f"Found better match for '{product_name}': {alt_product['description']}")
-                    break
-            else:
-                # No good match found, put in "Not Found" category
-                print(f"Warning: No relevant product found for '{product_name}', adding to Not Found")
-                return FullProduct(
-                    product_name,
-                    f"{product_name} (not found in store)",
-                    "Not Found",
-                    -1  # Unknown aisle
+        # Score all results and pick the best relevant match
+        best_product = None
+        best_score = -100
+        for candidate in response_data['data'][:5]:
+            if self._is_product_relevant(product_name, candidate) or self._is_product_relevant(cleaned_search_term, candidate):
+                score = max(
+                    self._score_product(product_name, candidate),
+                    self._score_product(cleaned_search_term, candidate)
                 )
+                if score > best_score:
+                    best_score = score
+                    best_product = candidate
+
+        if best_product is None:
+            print(f"Warning: No relevant product found for '{product_name}', adding to Not Found")
+            return FullProduct(
+                product_name,
+                f"{product_name} (not found in store)",
+                "Not Found",
+                -1  # Unknown aisle
+            )
+
+        product_data = best_product
+        if product_data != response_data['data'][0]:
+            print(f"Found better match for '{product_name}': {product_data['description']}")
 
         #extract response into object
         categories = product_data.get('categories', [])
@@ -165,38 +173,79 @@ class KrogerAPI:
 
         return found_product
     
+    # Non-grocery categories that indicate a bad match
+    NON_GROCERY_KEYWORDS = [
+        'gift card', 'digital', 'download', 'membership', 'subscription',
+        'delivery fee', 'service charge', 'warranty', 'insurance',
+        'candle', 'air freshener', 'detergent', 'cleaner', 'cleaning',
+        'soap', 'shampoo', 'lotion', 'fragrance', 'scented',
+        'pet food', 'dog food', 'cat food', 'pet treat',
+        'supplement', 'vitamin',
+    ]
+
     def _is_product_relevant(self, search_term, product_data):
         """Check if the returned product is relevant to the search term"""
         search_words = set(search_term.lower().split())
         description = product_data.get('description', '').lower()
-        
+
         # Remove common words that don't help with matching
         common_words = {'the', 'and', 'or', 'with', 'in', 'on', 'at', 'to', 'for', 'of', 'a', 'an'}
         search_words = search_words - common_words
-        
+
         if not search_words:
             return True  # If only common words, accept the match
-        
+
         # Check if any search word appears in the product description
+        has_word_match = False
         for word in search_words:
             if len(word) >= 3 and word in description:
+                has_word_match = True
+                break
+
+        if not has_word_match:
+            # If search term is very short, be more lenient
+            if len(search_term.strip()) <= 3:
                 return True
-        
-        # Special cases for common mismatches
-        irrelevant_indicators = [
-            'gift card', 'digital', 'download', 'membership', 'subscription',
-            'delivery fee', 'service charge', 'warranty', 'insurance'
-        ]
-        
-        for indicator in irrelevant_indicators:
-            if indicator in description:
+            return False
+
+        # Word matched, but check it's not a non-grocery product
+        # e.g. "lemon" matches "lemon-scented candle" but that's not what we want
+        for keyword in self.NON_GROCERY_KEYWORDS:
+            if keyword in description:
                 return False
-        
-        # If search term is very short, be more lenient
-        if len(search_term.strip()) <= 3:
-            return True
-            
-        return False
+
+        return True
+
+    def _score_product(self, search_term, product_data):
+        """Score a product result for relevance. Higher is better."""
+        description = product_data.get('description', '').lower()
+        search_lower = search_term.lower().strip()
+        search_words = set(search_lower.split())
+        score = 0
+
+        # Exact match in description is best
+        if search_lower in description:
+            score += 10
+
+        # Count how many search words appear in description
+        for word in search_words:
+            if len(word) >= 3 and word in description:
+                score += 3
+
+        # Penalize non-grocery products
+        for keyword in self.NON_GROCERY_KEYWORDS:
+            if keyword in description:
+                score -= 20
+
+        # Prefer products with aisle locations (actual in-store items)
+        if product_data.get('aisleLocations'):
+            score += 5
+
+        # Prefer shorter descriptions (more likely to be the base product)
+        if len(description) < 40:
+            score += 2
+
+        return score
 
     @retry_api_call(max_retries=3, backoff_factor=1)
     def find_stores_by_zip(self, zip_code):

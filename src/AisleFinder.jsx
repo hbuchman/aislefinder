@@ -168,7 +168,7 @@ const AisleFinder = () => {
   const getItemCount = () => {
     // For files, we can't easily count items without reading the file
     // So we'll just show the text input count, or "..." if only file is selected
-    const textItems = textInput ? textInput.split('\n').filter(line => line.trim()).length : 0;
+    const textItems = textInput ? textInput.split(/[\n,]/).filter(item => item.trim()).length : 0;
     return textItems || (file ? '...' : 0);
   };
 
@@ -501,7 +501,7 @@ const AisleFinder = () => {
               <textarea
                 value={textInput}
                 onChange={(e) => setTextInput(e.target.value)}
-                placeholder="Enter grocery items, one per line:&#10;milk&#10;bread&#10;eggs&#10;apples"
+                placeholder="Enter grocery items (one per line or comma-separated):&#10;milk, bread, eggs, apples"
                 style={{
                   width: '100%',
                   height: '80px',
