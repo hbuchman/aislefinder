@@ -1,22 +1,54 @@
 import React, { useState, useEffect, useRef } from 'react';
 
+// localStorage helpers
+const loadState = (key, fallback) => {
+  try {
+    const saved = localStorage.getItem(`af_${key}`);
+    if (saved === null) return fallback;
+    return JSON.parse(saved);
+  } catch { return fallback; }
+};
+
 const AisleFinder = () => {
-  const [file, setFile] = useState(null);
-  const [textInput, setTextInput] = useState('');
+  // Persisted state (survives page refresh)
+  const [textInput, setTextInput] = useState(() => loadState('textInput', ''));
+  const [groceryList, setGroceryList] = useState(() => loadState('groceryList', ''));
+  const [zipCode, setZipCode] = useState(() => loadState('zipCode', ''));
+  const [stores, setStores] = useState(() => loadState('stores', []));
+  const [selectedStore, setSelectedStore] = useState(() => loadState('selectedStore', null));
+  const [organizeByCategory, setOrganizeByCategory] = useState(() => loadState('organizeByCategory', true));
+  const [outputFormat, setOutputFormat] = useState(() => loadState('outputFormat', 'numbered'));
+  const [shopMode, setShopMode] = useState(() => loadState('shopMode', false));
+  const [checkedItems, setCheckedItems] = useState(() => loadState('checkedItems', {}));
+  const [collapsedGroups, setCollapsedGroups] = useState(() => loadState('collapsedGroups', {}));
+
+  // Transient state (resets on refresh)
   const [loading, setLoading] = useState(false);
-  const [groceryList, setGroceryList] = useState('');
   const [error, setError] = useState('');
-  const [zipCode, setZipCode] = useState('');
-  const [stores, setStores] = useState([]);
-  const [selectedStore, setSelectedStore] = useState(null);
   const [storeSearchLoading, setStoreSearchLoading] = useState(false);
-  const [organizeByCategory, setOrganizeByCategory] = useState(true);
   const [hasSearchedStores, setHasSearchedStores] = useState(false);
   const [showSettingsPopup, setShowSettingsPopup] = useState(false);
-  const [outputFormat, setOutputFormat] = useState('numbered'); // 'markdown', 'plain', 'numbered', 'checklist'
-  const [showPreview, setShowPreview] = useState(true);
+  const [singleItemQuery, setSingleItemQuery] = useState('');
+  const [singleItemResult, setSingleItemResult] = useState(null);
+  const [singleItemLoading, setSingleItemLoading] = useState(false);
   const settingsRef = useRef(null);
-  
+
+  // Persist state to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('af_textInput', JSON.stringify(textInput));
+      localStorage.setItem('af_groceryList', JSON.stringify(groceryList));
+      localStorage.setItem('af_zipCode', JSON.stringify(zipCode));
+      localStorage.setItem('af_stores', JSON.stringify(stores));
+      localStorage.setItem('af_selectedStore', JSON.stringify(selectedStore));
+      localStorage.setItem('af_organizeByCategory', JSON.stringify(organizeByCategory));
+      localStorage.setItem('af_outputFormat', JSON.stringify(outputFormat));
+      localStorage.setItem('af_shopMode', JSON.stringify(shopMode));
+      localStorage.setItem('af_checkedItems', JSON.stringify(checkedItems));
+      localStorage.setItem('af_collapsedGroups', JSON.stringify(collapsedGroups));
+    } catch {}
+  }, [textInput, groceryList, zipCode, stores, selectedStore, organizeByCategory, outputFormat, shopMode, checkedItems, collapsedGroups]);
+
   // Close popup when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -65,17 +97,6 @@ const AisleFinder = () => {
     boxShadow: 'none'
   };
 
-  const handleFileUpload = (event) => {
-    const selectedFile = event.target.files[0];
-    if (selectedFile && selectedFile.type === 'text/plain') {
-      setFile(selectedFile);
-      setError('');
-    } else {
-      setError('Please select a valid text file');
-      setFile(null);
-    }
-  };
-
   const searchStores = async () => {
     if (!zipCode.trim()) {
       setError('Please enter a zip code');
@@ -122,28 +143,27 @@ const AisleFinder = () => {
     }
   };
 
-  const processGroceryList = async () => {
-    if (!file && !textInput.trim()) {
-      setError('Please select a file or enter grocery items');
+  const processGroceryList = async (format) => {
+    if (!textInput.trim()) {
+      setError('Please enter grocery items');
       return;
     }
 
 
     setLoading(true);
     setError('');
+    setShopMode(false);
+    setCheckedItems({});
+    setCollapsedGroups({});
+    setSingleItemResult(null);
 
     try {
       const formData = new FormData();
       
-      if (file) {
-        formData.append('file', file);
-      } else {
-        // Create a blob from text input
-        const blob = new Blob([textInput], { type: 'text/plain' });
-        formData.append('file', blob, 'grocery-list.txt');
-      }
+      const blob = new Blob([textInput], { type: 'text/plain' });
+      formData.append('file', blob, 'grocery-list.txt');
       
-      formData.append('output_format', organizeByCategory ? 'category' : 'aisle');
+      formData.append('output_format', format);
       formData.append('store_id', selectedStore ? selectedStore.id : '01400943');
       formData.append('store', selectedStore ? selectedStore.name : '4500S Smiths');
 
@@ -166,10 +186,7 @@ const AisleFinder = () => {
   };
 
   const getItemCount = () => {
-    // For files, we can't easily count items without reading the file
-    // So we'll just show the text input count, or "..." if only file is selected
-    const textItems = textInput ? textInput.split(/[\n,]/).filter(item => item.trim()).length : 0;
-    return textItems || (file ? '...' : 0);
+    return textInput ? textInput.split(/[\n,]/).filter(item => item.trim()).length : 0;
   };
 
   const copyToClipboard = async () => {
@@ -195,7 +212,6 @@ const AisleFinder = () => {
         }).join('\n');
       case 'checklist':
         return list.replace(/^## /gm, '').replace(/^- (.+)/gm, '- [ ] $1');
-      case 'markdown':
       default:
         return list;
     }
@@ -210,31 +226,7 @@ const AisleFinder = () => {
     for (let line of lines) {
       if (line.trim() === '') continue;
       
-      if (outputFormat === 'markdown' && line.startsWith('## ')) {
-        // Category/Aisle headers - make bold
-        formattedLines.push(
-          <div key={formattedLines.length} style={{ 
-            fontWeight: 'bold', 
-            margin: '12px 0 6px 0', 
-            fontSize: '14px', 
-            color: '#2c3e50' 
-          }}>
-            {line}
-          </div>
-        );
-      } else if (outputFormat === 'markdown' && line.startsWith('- ')) {
-        // Items - normal text
-        formattedLines.push(
-          <div key={formattedLines.length} style={{ 
-            margin: '2px 0', 
-            paddingLeft: '12px', 
-            fontSize: '12px',
-            color: '#2c3e50'
-          }}>
-            • {line.replace('- ', '')}
-          </div>
-        );
-      } else if (outputFormat === 'numbered' && /^\d+\.\s/.test(line)) {
+      if (outputFormat === 'numbered' && /^\d+\.\s/.test(line)) {
         // Numbered items
         formattedLines.push(
           <div key={formattedLines.length} style={{ 
@@ -290,6 +282,91 @@ const AisleFinder = () => {
     }
 
     return formattedLines;
+  };
+
+  // Shop Mode helpers
+  const parseGroceryListToGroups = (text) => {
+    const groups = [];
+    let currentGroup = null;
+    for (const line of text.split('\n')) {
+      if (line.startsWith('## ')) {
+        currentGroup = { name: line.replace('## ', ''), items: [] };
+        groups.push(currentGroup);
+      } else if (line.startsWith('- ') && currentGroup) {
+        currentGroup.items.push(line.replace('- ', ''));
+      }
+    }
+    return groups;
+  };
+
+  const getTotalItems = () => {
+    return parseGroceryListToGroups(groceryList).reduce((sum, g) => sum + g.items.length, 0);
+  };
+
+  const getCheckedCount = () => {
+    return Object.values(checkedItems).filter(Boolean).length;
+  };
+
+  const isGroupComplete = (group) => {
+    return group.items.every(item => checkedItems[`${group.name}::${item}`]);
+  };
+
+  const toggleItem = (groupName, itemName) => {
+    const key = `${groupName}::${itemName}`;
+    setCheckedItems(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const toggleGroupCollapse = (groupName) => {
+    setCollapsedGroups(prev => ({ ...prev, [groupName]: !prev[groupName] }));
+  };
+
+  const addItemToList = (result) => {
+    const groupName = result.aisle;
+    const itemName = result.item;
+    const groupHeader = `## ${groupName}`;
+    const newItem = `- ${itemName}`;
+
+    if (groceryList.includes(groupHeader)) {
+      // Group exists — insert item after the header line
+      const lines = groceryList.split('\n');
+      const headerIdx = lines.findIndex(line => line === groupHeader);
+      // Find the last item in this group (lines starting with "- " after the header)
+      let insertIdx = headerIdx + 1;
+      while (insertIdx < lines.length && lines[insertIdx].startsWith('- ')) {
+        insertIdx++;
+      }
+      lines.splice(insertIdx, 0, newItem);
+      setGroceryList(lines.join('\n'));
+    } else {
+      // Group doesn't exist — append new section
+      setGroceryList(groceryList.trimEnd() + `\n\n${groupHeader}\n${newItem}`);
+    }
+
+    setSingleItemQuery('');
+    setSingleItemResult(null);
+  };
+
+  const lookupSingleItem = async () => {
+    if (!singleItemQuery.trim()) return;
+    setSingleItemLoading(true);
+    setSingleItemResult(null);
+    try {
+      const response = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/find-item-aisle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          item: singleItemQuery.trim(),
+          store_id: selectedStore ? selectedStore.id : '01400943'
+        })
+      });
+      if (!response.ok) throw new Error('Failed to look up item');
+      const result = await response.json();
+      setSingleItemResult(result);
+    } catch (err) {
+      setSingleItemResult({ error: err.message });
+    } finally {
+      setSingleItemLoading(false);
+    }
   };
 
   return (
@@ -492,71 +569,32 @@ const AisleFinder = () => {
             Your Grocery List
           </h3>
           
-          <div style={{ display: 'flex', gap: '15px', marginBottom: '10px', alignItems: 'flex-start' }}>
-            {/* Text Input Section */}
-            <div style={{ flex: '1' }}>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', fontSize: '13px', color: '#2c3e50' }}>
-                Type or Paste Items:
-              </label>
-              <textarea
-                value={textInput}
-                onChange={(e) => setTextInput(e.target.value)}
-                placeholder="Enter grocery items (one per line or comma-separated):&#10;milk, bread, eggs, apples"
-                style={{
-                  width: '100%',
-                  height: '80px',
-                  padding: '8px',
-                  border: '2px solid #e1e8ed',
-                  borderRadius: '6px',
-                  fontSize: '12px',
-                  fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-                  resize: 'vertical',
-                  overflowY: 'auto',
-                  outline: 'none',
-                  transition: 'border-color 0.3s ease',
-                  backgroundColor: 'white',
-                  boxSizing: 'border-box'
-                }}
-                onFocus={(e) => e.target.style.borderColor = '#0091AD'}
-                onBlur={(e) => e.target.style.borderColor = '#e1e8ed'}
-              />
-            </div>
-
-            {/* File Upload Section */}
-            <div style={{ flex: '1' }}>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', fontSize: '13px', color: '#2c3e50' }}>
-                Or Upload Text File:
-              </label>
-              <input
-                type="file"
-                accept=".txt"
-                onChange={handleFileUpload}
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '2px solid #e1e8ed',
-                  borderRadius: '6px',
-                  fontSize: '12px',
-                  backgroundColor: 'white',
-                  cursor: 'pointer',
-                  boxSizing: 'border-box'
-                }}
-              />
-              
-              {file && (
-                <div style={{ 
-                  marginTop: '10px', 
-                  padding: '8px 10px', 
-                  backgroundColor: '#fef7e6', 
-                  borderRadius: '6px',
-                  border: '1px solid #F2C57C'
-                }}>
-                  <p style={{ margin: '0', fontSize: '12px', color: '#000000', fontWeight: '500' }}>
-                    Selected: <strong>{file.name}</strong>
-                  </p>
-                </div>
-              )}
-            </div>
+          <div style={{ marginBottom: '10px' }}>
+            <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', fontSize: '13px', color: '#2c3e50' }}>
+              Type or Paste Items:
+            </label>
+            <textarea
+              value={textInput}
+              onChange={(e) => setTextInput(e.target.value)}
+              placeholder="Enter grocery items (one per line or comma-separated):&#10;milk, bread, eggs, apples"
+              style={{
+                width: '100%',
+                height: '80px',
+                padding: '8px',
+                border: '2px solid #e1e8ed',
+                borderRadius: '6px',
+                fontSize: '12px',
+                fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+                resize: 'vertical',
+                overflowY: 'auto',
+                outline: 'none',
+                transition: 'border-color 0.3s ease',
+                backgroundColor: 'white',
+                boxSizing: 'border-box'
+              }}
+              onFocus={(e) => e.target.style.borderColor = '#0091AD'}
+              onBlur={(e) => e.target.style.borderColor = '#e1e8ed'}
+            />
           </div>
         </div>
 
@@ -565,10 +603,10 @@ const AisleFinder = () => {
           <button
             onClick={() => {
               setOrganizeByCategory(true);
-              processGroceryList();
+              processGroceryList('category');
             }}
-            disabled={(!file && !textInput.trim()) || loading}
-            style={(!file && !textInput.trim()) || loading ? disabledButtonStyle : buttonStyle}
+            disabled={!textInput.trim() || loading}
+            style={!textInput.trim() || loading ? disabledButtonStyle : buttonStyle}
             onMouseEnter={(e) => {
               if (!e.target.disabled) {
                 e.target.style.background = 'linear-gradient(135deg, #5ae5e6 0%, #0f4d87 100%)';
@@ -593,10 +631,10 @@ const AisleFinder = () => {
                 return;
               }
               setOrganizeByCategory(false);
-              processGroceryList();
+              processGroceryList('aisle');
             }}
-            disabled={(!file && !textInput.trim()) || loading}
-            style={(!file && !textInput.trim()) || loading ? disabledButtonStyle : buttonStyle}
+            disabled={!textInput.trim() || loading}
+            style={!textInput.trim() || loading ? disabledButtonStyle : buttonStyle}
             onMouseEnter={(e) => {
               if (!e.target.disabled) {
                 e.target.style.background = 'linear-gradient(135deg, #5ae5e6 0%, #0f4d87 100%)';
@@ -727,7 +765,7 @@ const AisleFinder = () => {
               <span className="dot3">.</span>
             </p>
             
-            <style jsx>{`
+            <style>{`
               @keyframes fadeInAndDrop {
                 0% {
                   transform: translateY(-15px);
@@ -782,26 +820,32 @@ const AisleFinder = () => {
                 <i className="fa-solid fa-list-check"></i>
                 Your Organized Shopping List
               </h3>
-              <div ref={settingsRef} style={{ display: 'flex', gap: '10px', alignItems: 'center', position: 'relative' }}>
+              <div ref={settingsRef} style={{ display: 'flex', gap: '10px', alignItems: 'center', position: 'relative', flexWrap: 'wrap' }}>
                 <button
-                  onClick={() => setShowPreview(!showPreview)}
+                  onClick={() => setShopMode(!shopMode)}
                   style={{
                     ...buttonStyle,
-                    padding: '8px',
-                    minWidth: 'auto'
+                    padding: '8px 12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    background: shopMode ? '#27ae60' : '#1E5F99'
                   }}
                   onMouseEnter={(e) => {
-                    e.target.style.background = 'linear-gradient(135deg, #5ae5e6 0%, #0f4d87 100%)';
-                    e.target.style.transform = 'translateY(-2px)';
-                    e.target.style.boxShadow = '0 4px 12px rgba(110, 250, 251, 0.4)';
+                    e.currentTarget.style.background = shopMode
+                      ? 'linear-gradient(135deg, #2ecc71 0%, #1a9c4e 100%)'
+                      : 'linear-gradient(135deg, #5ae5e6 0%, #0f4d87 100%)';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(110, 250, 251, 0.4)';
                   }}
                   onMouseLeave={(e) => {
-                    e.target.style.background = '#1E5F99';
-                    e.target.style.transform = 'translateY(0px)';
-                    e.target.style.boxShadow = '0 2px 8px rgba(110, 250, 251, 0.3)';
+                    e.currentTarget.style.background = shopMode ? '#27ae60' : '#1E5F99';
+                    e.currentTarget.style.transform = 'translateY(0px)';
+                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(110, 250, 251, 0.3)';
                   }}
                 >
-                  <i className={showPreview ? "fa-solid fa-edit" : "fa-solid fa-eye"}></i>
+                  <i className="fa-solid fa-basket-shopping"></i>
+                  {shopMode ? 'Exit Shop Mode' : 'Shop Mode'}
                 </button>
                 <button
                   onClick={copyToClipboard}
@@ -823,21 +867,23 @@ const AisleFinder = () => {
                   onClick={() => setShowSettingsPopup(!showSettingsPopup)}
                   style={{
                     ...buttonStyle,
-                    padding: '8px',
-                    minWidth: 'auto'
+                    padding: '8px 12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
                   }}
                   onMouseEnter={(e) => {
-                    e.target.style.background = 'linear-gradient(135deg, #5ae5e6 0%, #0f4d87 100%)';
-                    e.target.style.transform = 'translateY(-2px)';
-                    e.target.style.boxShadow = '0 4px 12px rgba(110, 250, 251, 0.4)';
+                    e.currentTarget.style.background = 'linear-gradient(135deg, #5ae5e6 0%, #0f4d87 100%)';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(110, 250, 251, 0.4)';
                   }}
                   onMouseLeave={(e) => {
-                    e.target.style.background = '#1E5F99';
-                    e.target.style.transform = 'translateY(0px)';
-                    e.target.style.boxShadow = '0 2px 8px rgba(110, 250, 251, 0.3)';
+                    e.currentTarget.style.background = '#1E5F99';
+                    e.currentTarget.style.transform = 'translateY(0px)';
+                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(110, 250, 251, 0.3)';
                   }}
                 >
-                  <i className="fa-solid fa-gear"></i>
+                  <i className="fa-solid fa-cog"></i>
                 </button>
                 
                 {/* Settings Popup */}
@@ -858,17 +904,6 @@ const AisleFinder = () => {
                       Output Format
                     </h4>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
-                        <input
-                          type="radio"
-                          name="outputFormat"
-                          value="markdown"
-                          checked={outputFormat === 'markdown'}
-                          onChange={(e) => setOutputFormat(e.target.value)}
-                          style={{ cursor: 'pointer' }}
-                        />
-                        <span>Markdown (## Headers, - Items)</span>
-                      </label>
                       <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
                         <input
                           type="radio"
@@ -908,8 +943,207 @@ const AisleFinder = () => {
               </div>
             </div>
             
-            {showPreview ? (
-              <div 
+            {shopMode ? (
+              <div style={{
+                backgroundColor: 'white',
+                padding: '15px',
+                borderRadius: '6px',
+                border: '2px solid #e9ecef',
+                minHeight: '300px'
+              }}>
+                {/* Progress bar */}
+                <div style={{ marginBottom: '15px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: '600', color: '#2c3e50' }}>
+                      Progress: {getCheckedCount()}/{getTotalItems()} items
+                    </span>
+                    <span style={{ fontSize: '12px', color: '#6c757d' }}>
+                      {getTotalItems() > 0 ? Math.round((getCheckedCount() / getTotalItems()) * 100) : 0}%
+                    </span>
+                  </div>
+                  <div style={{
+                    height: '8px',
+                    backgroundColor: '#e9ecef',
+                    borderRadius: '4px',
+                    overflow: 'hidden'
+                  }}>
+                    <div style={{
+                      height: '100%',
+                      width: `${getTotalItems() > 0 ? (getCheckedCount() / getTotalItems()) * 100 : 0}%`,
+                      backgroundColor: '#27ae60',
+                      borderRadius: '4px',
+                      transition: 'width 0.3s ease'
+                    }} />
+                  </div>
+                </div>
+
+                {/* Single Item Lookup */}
+                <div style={{
+                  marginBottom: '15px',
+                  padding: '10px',
+                  backgroundColor: '#f0f9ff',
+                  borderRadius: '6px',
+                  border: '1px solid #bee3f8'
+                }}>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <input
+                      type="text"
+                      value={singleItemQuery}
+                      onChange={(e) => setSingleItemQuery(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') lookupSingleItem(); }}
+                      placeholder="Quick lookup: type an item to find its aisle"
+                      style={{
+                        flex: 1,
+                        padding: '6px 10px',
+                        border: '2px solid #e1e8ed',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        outline: 'none',
+                        transition: 'border-color 0.3s ease'
+                      }}
+                      onFocus={(e) => e.target.style.borderColor = '#0091AD'}
+                      onBlur={(e) => e.target.style.borderColor = '#e1e8ed'}
+                    />
+                    <button
+                      onClick={lookupSingleItem}
+                      disabled={singleItemLoading || !singleItemQuery.trim()}
+                      style={{
+                        ...(singleItemLoading || !singleItemQuery.trim() ? disabledButtonStyle : buttonStyle),
+                        padding: '6px 12px',
+                        fontSize: '11px'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!e.target.disabled) {
+                          e.target.style.background = 'linear-gradient(135deg, #5ae5e6 0%, #0f4d87 100%)';
+                          e.target.style.transform = 'translateY(-2px)';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!e.target.disabled) {
+                          e.target.style.background = '#1E5F99';
+                          e.target.style.transform = 'translateY(0px)';
+                        }
+                      }}
+                    >
+                      {singleItemLoading ? '...' : 'Find Aisle'}
+                    </button>
+                  </div>
+                  {singleItemResult && !singleItemResult.error && (
+                    <div style={{ marginTop: '8px', fontSize: '12px', color: '#2c3e50', padding: '6px 8px', backgroundColor: '#e8f5e9', borderRadius: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span><strong>{singleItemResult.item}</strong> — {singleItemResult.aisle}</span>
+                      <button
+                        onClick={() => addItemToList(singleItemResult)}
+                        style={{
+                          ...buttonStyle,
+                          padding: '4px 10px',
+                          fontSize: '11px',
+                          background: '#27ae60',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'linear-gradient(135deg, #2ecc71 0%, #1a9c4e 100%)';
+                          e.currentTarget.style.transform = 'translateY(-1px)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = '#27ae60';
+                          e.currentTarget.style.transform = 'translateY(0px)';
+                        }}
+                      >
+                        <i className="fa-solid fa-plus"></i> Add to List
+                      </button>
+                    </div>
+                  )}
+                  {singleItemResult && singleItemResult.error && (
+                    <div style={{ marginTop: '8px', fontSize: '12px', color: '#cc6600', padding: '6px 8px', backgroundColor: '#ffe4cc', borderRadius: '4px' }}>
+                      Could not find item
+                    </div>
+                  )}
+                </div>
+
+                {/* Interactive checklist */}
+                {parseGroceryListToGroups(groceryList).map((group) => {
+                  const complete = isGroupComplete(group);
+                  const collapsed = collapsedGroups[group.name] !== undefined
+                    ? collapsedGroups[group.name]
+                    : complete;
+
+                  return (
+                    <div key={group.name} style={{ marginBottom: '10px' }}>
+                      <div
+                        onClick={() => toggleGroupCollapse(group.name)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '8px 10px',
+                          backgroundColor: complete ? '#d4edda' : '#f8f9fa',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontWeight: '600',
+                          fontSize: '13px',
+                          color: complete ? '#155724' : '#2c3e50',
+                          transition: 'background-color 0.2s ease'
+                        }}
+                      >
+                        <i className={collapsed ? "fa-solid fa-chevron-right" : "fa-solid fa-chevron-down"}
+                           style={{ fontSize: '10px', width: '12px' }} />
+                        {group.name}
+                        <span style={{ marginLeft: 'auto', fontSize: '11px', fontWeight: '400', color: '#6c757d' }}>
+                          {group.items.filter(item => checkedItems[`${group.name}::${item}`]).length}/{group.items.length}
+                        </span>
+                        {complete && <i className="fa-solid fa-check" style={{ color: '#27ae60', fontSize: '12px' }} />}
+                      </div>
+
+                      {!collapsed && (
+                        <div style={{ paddingLeft: '12px', marginTop: '4px' }}>
+                          {group.items.map((item, idx) => (
+                            <div
+                              key={`${group.name}::${item}::${idx}`}
+                              onClick={() => toggleItem(group.name, item)}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                padding: '6px 8px',
+                                cursor: 'pointer',
+                                fontSize: '12px',
+                                color: checkedItems[`${group.name}::${item}`] ? '#95a5a6' : '#2c3e50',
+                                textDecoration: checkedItems[`${group.name}::${item}`] ? 'line-through' : 'none',
+                                transition: 'all 0.2s ease',
+                                borderRadius: '4px'
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+                              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                            >
+                              <div style={{
+                                width: '18px',
+                                height: '18px',
+                                borderRadius: '4px',
+                                border: `2px solid ${checkedItems[`${group.name}::${item}`] ? '#27ae60' : '#bdc3c7'}`,
+                                backgroundColor: checkedItems[`${group.name}::${item}`] ? '#27ae60' : 'white',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                                transition: 'all 0.2s ease'
+                              }}>
+                                {checkedItems[`${group.name}::${item}`] && (
+                                  <i className="fa-solid fa-check" style={{ color: 'white', fontSize: '10px' }} />
+                                )}
+                              </div>
+                              {item}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div
                 style={{
                   backgroundColor: 'white',
                   padding: '15px',
@@ -921,29 +1155,6 @@ const AisleFinder = () => {
               >
                 {formatGroceryList(groceryList)}
               </div>
-            ) : (
-              <textarea
-                value={groceryList}
-                onChange={(e) => setGroceryList(e.target.value)}
-                style={{
-                  width: '100%',
-                  backgroundColor: 'white',
-                  padding: '15px',
-                  borderRadius: '6px',
-                  border: '2px solid #e9ecef',
-                  minHeight: '300px',
-                  resize: 'vertical',
-                  color: '#2c3e50',
-                  fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-                  fontSize: '12px',
-                  lineHeight: '1.4',
-                  boxSizing: 'border-box',
-                  outline: 'none',
-                  transition: 'border-color 0.3s ease'
-                }}
-                onFocus={(e) => e.target.style.borderColor = '#0091AD'}
-                onBlur={(e) => e.target.style.borderColor = '#e9ecef'}
-              />
             )}
           </div>
         )}

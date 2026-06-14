@@ -5,6 +5,7 @@ GroceryListProcessor - Main orchestrator for the grocery list parsing system
 from typing import List, Dict, Optional, Tuple
 from pathlib import Path
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from grocery_organizer.src.input_parsing.input_parser import InputParser
 from grocery_organizer.src.output_formatting.output_formatter import OutputFormatter
 
@@ -33,12 +34,17 @@ class GroceryListProcessor:
         parser = InputParser(self.file)
         grocery_list = parser.text_parser()
 
-        # Call API
+        # Call API (parallel for speed)
         api_client = KrogerAPI(store_id=self.store_id)
+        api_client.get_auth_token()  # Pre-fetch token before parallel calls
 
-        product_data = []
-        for item in grocery_list:
-            product_data.append(api_client.find_product(item))
+        product_data = [None] * len(grocery_list)
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = {executor.submit(api_client.find_product, item): i
+                       for i, item in enumerate(grocery_list)}
+            for future in as_completed(futures):
+                idx = futures[future]
+                product_data[idx] = future.result()
 
         formatter = OutputFormatter(product_data, self.output_format)
 

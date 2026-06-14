@@ -3,6 +3,7 @@ import requests
 import time
 import os
 import re
+import threading
 from functools import wraps
 
 from grocery_organizer.src.core.models import FullProduct
@@ -39,33 +40,40 @@ class KrogerAPI:
         self.store_id = store_id
         self.access_token = None
         self.token_expiration = 0
+        self._token_lock = threading.Lock()
 
     @retry_api_call(max_retries=3, backoff_factor=1)
     def get_auth_token(self):
+        # Fast path: token is still valid (no lock needed for read)
         if self.access_token is not None and time.time() < self.token_expiration:
             return self.access_token
 
-        client_secret = os.getenv('KROGER_CLIENT_SECRET')
-        if not client_secret:
-            raise ValueError("KROGER_CLIENT_SECRET environment variable is required")
-        
-        auth_code = self.CLIENT_ID + ':' + client_secret
+        with self._token_lock:
+            # Re-check after acquiring lock (another thread may have refreshed)
+            if self.access_token is not None and time.time() < self.token_expiration:
+                return self.access_token
 
-        headers = {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Authorization': 'Basic ' + base64.b64encode(auth_code.encode('utf-8')).decode('utf-8')
-        }
-        data = {'grant_type': 'client_credentials', 'scope': 'product.compact'}
+            client_secret = os.getenv('KROGER_CLIENT_SECRET')
+            if not client_secret:
+                raise ValueError("KROGER_CLIENT_SECRET environment variable is required")
 
-        response = requests.post(self.AUTH_URL, headers = headers, data=data)
-        response.raise_for_status()  # Raise an exception for bad status codes
+            auth_code = self.CLIENT_ID + ':' + client_secret
 
-        response_data = response.json()
-        token = response_data['access_token']
-        self.access_token = token
-        self.token_expiration = time.time() + response_data['expires_in'] - 60 #refresh one minute before our token expires
+            headers = {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Authorization': 'Basic ' + base64.b64encode(auth_code.encode('utf-8')).decode('utf-8')
+            }
+            data = {'grant_type': 'client_credentials', 'scope': 'product.compact'}
 
-        return token
+            response = requests.post(self.AUTH_URL, headers = headers, data=data)
+            response.raise_for_status()
+
+            response_data = response.json()
+            token = response_data['access_token']
+            self.access_token = token
+            self.token_expiration = time.time() + response_data['expires_in'] - 60
+
+            return token
 
     def _preprocess_search_term(self, product_name):
         """Clean up search term by removing numbers, quantities, and filler words"""

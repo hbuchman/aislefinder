@@ -7,7 +7,12 @@
       "Bash(git -C /Users/hayleybuchman/Documents/aislefinder branch:*)",
       "Bash(git fsck:*)",
       "Bash(git update-index:*)",
-      "Bash(git read-tree:*)"
+      "Bash(git read-tree:*)",
+      "Bash(git ls-tree:*)",
+      "Bash(echo:*)",
+      "Bash(git diff-tree:*)",
+      "Bash(npx react-scripts build:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []

@@ -70,6 +70,43 @@ def find_stores():
         traceback.print_exc()
         return jsonify({'error': f'Server error: {str(e)}'}), 500
 
+@app.route('/api/find-item-aisle', methods=['POST'])
+def find_item_aisle():
+    try:
+        data = request.get_json()
+        if not data or 'item' not in data:
+            return jsonify({'error': 'Item name is required'}), 400
+
+        item = data['item'].strip()
+        if not item:
+            return jsonify({'error': 'Item name cannot be empty'}), 400
+
+        store_id = data.get('store_id', '01400943')
+
+        api_client = KrogerAPI(store_id=store_id)
+        product = api_client.find_product(item)
+
+        result = {
+            'item': item,
+            'found_product': product.found_product,
+            'category': product.category,
+            'aisle_number': product.aisle_number
+        }
+
+        if product.aisle_number > 0:
+            result['aisle'] = f'Aisle {product.aisle_number}'
+        elif product.category != 'Not Found':
+            result['aisle'] = product.category
+        else:
+            result['aisle'] = 'Not found in store'
+
+        return jsonify(result), 200
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Server error: {str(e)}'}), 500
+
 @app.route('/api/health', methods=['GET'])
 def health_check():
     return jsonify({'status': 'healthy'}), 200
