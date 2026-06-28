@@ -370,6 +370,15 @@ const AisleFinder = () => {
     setCheckedItems(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
+  const toggleGroup = (group) => {
+    const allChecked = group.items.every(item => checkedItems[`${group.name}::${item}`]);
+    const updates = {};
+    group.items.forEach(item => {
+      updates[`${group.name}::${item}`] = !allChecked;
+    });
+    setCheckedItems(prev => ({ ...prev, ...updates }));
+  };
+
   const toggleGroupCollapse = (groupName) => {
     setCollapsedGroups(prev => ({ ...prev, [groupName]: !prev[groupName] }));
   };
@@ -593,13 +602,32 @@ const AisleFinder = () => {
                           >
                             <i className="fa-solid fa-grip-vertical" style={{ color: complete ? 'rgba(255,255,255,0.6)' : '#bdc3c7', fontSize: '12px' }} />
                           </div>
+                          <div
+                            onClick={(e) => { e.stopPropagation(); toggleGroup(group); }}
+                            style={{
+                              width: '20px',
+                              height: '20px',
+                              borderRadius: '4px',
+                              border: `2px solid ${complete ? 'rgba(255,255,255,0.6)' : '#bdc3c7'}`,
+                              backgroundColor: complete ? 'rgba(255,255,255,0.25)' : 'white',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease'
+                            }}
+                          >
+                            {complete && (
+                              <i className="fa-solid fa-check" style={{ color: 'white', fontSize: '11px' }} />
+                            )}
+                          </div>
                           <i className={collapsed ? "fa-solid fa-chevron-right" : "fa-solid fa-chevron-down"}
                              style={{ fontSize: '10px', width: '12px' }} />
                           {group.name}
                           <span style={{ marginLeft: 'auto', fontSize: '11px', fontWeight: '400', color: complete ? 'rgba(255,255,255,0.8)' : '#6c757d' }}>
                             {group.items.filter(item => checkedItems[`${group.name}::${item}`]).length}/{group.items.length}
                           </span>
-                          {complete && <i className="fa-solid fa-check" style={{ color: 'white', fontSize: '12px' }} />}
                         </div>
 
                         {!collapsed && (
