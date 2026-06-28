@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import confetti from 'canvas-confetti';
 
@@ -9,6 +9,10 @@ const loadState = (key, fallback) => {
     if (saved === null) return fallback;
     return JSON.parse(saved);
   } catch { return fallback; }
+};
+
+const saveState = (key, value) => {
+  try { localStorage.setItem(`af_${key}`, JSON.stringify(value)); } catch {}
 };
 
 const AisleFinder = () => {
@@ -35,44 +39,24 @@ const AisleFinder = () => {
   const [singleItemResult, setSingleItemResult] = useState(null);
   const [singleItemLoading, setSingleItemLoading] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
-  const settingsRef = useRef(null);
+  const [copyFeedback, setCopyFeedback] = useState('');
   const hasFiredConfetti = useRef(false);
   const confettiCanvasRef = useRef(null);
   const confettiInstance = useRef(null);
+  const textareaRef = useRef(null);
 
-  // Persist state to localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem('af_textInput', JSON.stringify(textInput));
-      localStorage.setItem('af_groceryList', JSON.stringify(groceryList));
-      localStorage.setItem('af_zipCode', JSON.stringify(zipCode));
-      localStorage.setItem('af_stores', JSON.stringify(stores));
-      localStorage.setItem('af_selectedStore', JSON.stringify(selectedStore));
-      localStorage.setItem('af_organizeByCategory', JSON.stringify(organizeByCategory));
-      localStorage.setItem('af_outputFormat', JSON.stringify(outputFormat));
-      localStorage.setItem('af_shopMode', JSON.stringify(shopMode));
-      localStorage.setItem('af_checkedItems', JSON.stringify(checkedItems));
-      localStorage.setItem('af_collapsedGroups', JSON.stringify(collapsedGroups));
-      localStorage.setItem('af_customCategoryOrder', JSON.stringify(customCategoryOrder));
-    } catch {}
-  }, [textInput, groceryList, zipCode, stores, selectedStore, organizeByCategory, outputFormat, shopMode, checkedItems, collapsedGroups, customCategoryOrder]);
-
-  // Close popup when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (settingsRef.current && !settingsRef.current.contains(event.target)) {
-        setShowSettingsPopup(false);
-      }
-    };
-
-    if (showSettingsPopup) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showSettingsPopup]);
+  // Persist individual state values on change
+  useEffect(() => { saveState('textInput', textInput); }, [textInput]);
+  useEffect(() => { saveState('groceryList', groceryList); }, [groceryList]);
+  useEffect(() => { saveState('zipCode', zipCode); }, [zipCode]);
+  useEffect(() => { saveState('stores', stores); }, [stores]);
+  useEffect(() => { saveState('selectedStore', selectedStore); }, [selectedStore]);
+  useEffect(() => { saveState('organizeByCategory', organizeByCategory); }, [organizeByCategory]);
+  useEffect(() => { saveState('outputFormat', outputFormat); }, [outputFormat]);
+  useEffect(() => { saveState('shopMode', shopMode); }, [shopMode]);
+  useEffect(() => { saveState('checkedItems', checkedItems); }, [checkedItems]);
+  useEffect(() => { saveState('collapsedGroups', collapsedGroups); }, [collapsedGroups]);
+  useEffect(() => { saveState('customCategoryOrder', customCategoryOrder); }, [customCategoryOrder]);
 
   // Lock body scroll when shop mode overlay is active
   useEffect(() => {
@@ -101,16 +85,46 @@ const AisleFinder = () => {
     }
   }, [shopMode]);
 
+  // Auto-resize textarea to fit content
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    const maxHeight = window.innerHeight * 0.45;
+    el.style.height = Math.min(el.scrollHeight, maxHeight) + 'px';
+  }, [textInput]);
+
+  // Parse grocery list markdown into groups
+  const parseGroceryListToGroups = useCallback((text) => {
+    if (!text) return [];
+    const groups = [];
+    let currentGroup = null;
+    for (const line of text.split('\n')) {
+      if (line.startsWith('## ')) {
+        currentGroup = { name: line.replace('## ', ''), items: [] };
+        groups.push(currentGroup);
+      } else if (line.startsWith('- ') && currentGroup) {
+        currentGroup.items.push(line.replace('- ', ''));
+      }
+    }
+    return groups;
+  }, []);
+
+  // Memoize total/checked counts
+  const totalItems = useMemo(() => {
+    return parseGroceryListToGroups(groceryList).reduce((sum, g) => sum + g.items.length, 0);
+  }, [groceryList, parseGroceryListToGroups]);
+
+  const checkedCount = useMemo(() => {
+    return Object.values(checkedItems).filter(Boolean).length;
+  }, [checkedItems]);
+
   // Confetti celebration when all items checked
   useEffect(() => {
-    const total = getTotalItems();
-    const checked = getCheckedCount();
-
-    if (total > 0 && checked === total && shopMode && !hasFiredConfetti.current) {
+    if (totalItems > 0 && checkedCount === totalItems && shopMode && !hasFiredConfetti.current) {
       hasFiredConfetti.current = true;
       setShowCelebration(true);
 
-      // Wait a tick for the canvas ref to be available
       setTimeout(() => {
         const fire = confettiInstance.current;
         if (!fire) return;
@@ -136,11 +150,11 @@ const AisleFinder = () => {
       }, 0);
     }
 
-    if (total > 0 && checked < total) {
+    if (totalItems > 0 && checkedCount < totalItems) {
       hasFiredConfetti.current = false;
       setShowCelebration(false);
     }
-  }, [checkedItems, shopMode]); // getTotalItems/getCheckedCount are stable helpers
+  }, [checkedItems, shopMode, totalItems, checkedCount]);
 
   const isValidZipCode = (zip) => /^\d{5}(-\d{4})?$/.test(zip.trim());
 
@@ -150,27 +164,6 @@ const AisleFinder = () => {
     if (/^\d{1,5}$/.test(trimmed)) return false;
     if (/^\d{5}-\d{1,4}$/.test(trimmed)) return false;
     return !isValidZipCode(trimmed);
-  };
-
-  // Shared button style
-  const buttonStyle = {
-    background: '#1E5F99',
-    color: 'white',
-    padding: '8px 16px',
-    border: 'none',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    fontSize: '12px',
-    fontWeight: '600',
-    transition: 'all 0.3s ease',
-    boxShadow: '0 2px 8px rgba(110, 250, 251, 0.3)'
-  };
-
-  const disabledButtonStyle = {
-    ...buttonStyle,
-    background: '#bdc3c7',
-    cursor: 'not-allowed',
-    boxShadow: 'none'
   };
 
   const searchStores = async () => {
@@ -265,23 +258,8 @@ const AisleFinder = () => {
     return textInput ? textInput.split(/[\n,]/).filter(item => item.trim()).length : 0;
   };
 
-  // Parse grocery list markdown into groups
-  const parseGroceryListToGroups = (text) => {
-    const groups = [];
-    let currentGroup = null;
-    for (const line of text.split('\n')) {
-      if (line.startsWith('## ')) {
-        currentGroup = { name: line.replace('## ', ''), items: [] };
-        groups.push(currentGroup);
-      } else if (line.startsWith('- ') && currentGroup) {
-        currentGroup.items.push(line.replace('- ', ''));
-      }
-    }
-    return groups;
-  };
-
   // Apply user's custom category order to groups
-  const applyCustomOrder = (groups) => {
+  const applyCustomOrder = useCallback((groups) => {
     if (!customCategoryOrder || customCategoryOrder.length === 0) return groups;
 
     const orderMap = {};
@@ -295,13 +273,13 @@ const AisleFinder = () => {
       if (aIdx !== bIdx) return aIdx - bIdx;
       return a.name.localeCompare(b.name);
     });
-  };
+  }, [customCategoryOrder]);
 
   // Memoize ordered groups
   const orderedGroups = useMemo(() => {
     if (!groceryList) return [];
     return applyCustomOrder(parseGroceryListToGroups(groceryList));
-  }, [groceryList, customCategoryOrder]); // parseGroceryListToGroups/applyCustomOrder are stable helpers
+  }, [groceryList, customCategoryOrder, parseGroceryListToGroups, applyCustomOrder]);
 
   // Rebuild markdown from ordered groups (for clipboard)
   const buildMarkdownFromGroups = (groups) => {
@@ -317,9 +295,11 @@ const AisleFinder = () => {
       const orderedMarkdown = buildMarkdownFromGroups(orderedGroups);
       const formattedList = formatGroceryListForCopy(orderedMarkdown);
       await navigator.clipboard.writeText(formattedList);
-      alert('Grocery list copied to clipboard!');
+      setCopyFeedback('Copied!');
+      setTimeout(() => setCopyFeedback(''), 2000);
     } catch (err) {
-      setError('Failed to copy to clipboard');
+      setCopyFeedback('Copy failed');
+      setTimeout(() => setCopyFeedback(''), 2000);
     }
   };
 
@@ -351,14 +331,6 @@ const AisleFinder = () => {
     reordered.splice(result.destination.index, 0, removed);
 
     setCustomCategoryOrder(reordered.map(g => g.name));
-  };
-
-  const getTotalItems = () => {
-    return parseGroceryListToGroups(groceryList).reduce((sum, g) => sum + g.items.length, 0);
-  };
-
-  const getCheckedCount = () => {
-    return Object.values(checkedItems).filter(Boolean).length;
   };
 
   const isGroupComplete = (group) => {
@@ -437,23 +409,6 @@ const AisleFinder = () => {
     }
   };
 
-  // Shared hover handlers for buttons
-  const handleButtonHoverEnter = (e) => {
-    if (!e.currentTarget.disabled) {
-      e.currentTarget.style.background = 'linear-gradient(135deg, #5ae5e6 0%, #0f4d87 100%)';
-      e.currentTarget.style.transform = 'translateY(-2px)';
-      e.currentTarget.style.boxShadow = '0 4px 12px rgba(110, 250, 251, 0.4)';
-    }
-  };
-
-  const handleButtonHoverLeave = (e) => {
-    if (!e.currentTarget.disabled) {
-      e.currentTarget.style.background = '#1E5F99';
-      e.currentTarget.style.transform = 'translateY(0px)';
-      e.currentTarget.style.boxShadow = '0 2px 8px rgba(110, 250, 251, 0.3)';
-    }
-  };
-
   // Render the interactive shop mode checklist content (used in overlay)
   const renderShopModeContent = () => (
     <>
@@ -461,10 +416,10 @@ const AisleFinder = () => {
       <div style={{ marginBottom: '15px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
           <span style={{ fontSize: '13px', fontWeight: '600', color: '#2c3e50' }}>
-            Progress: {getCheckedCount()}/{getTotalItems()} items
+            Progress: {checkedCount}/{totalItems} items
           </span>
           <span style={{ fontSize: '12px', color: '#6c757d' }}>
-            {getTotalItems() > 0 ? Math.round((getCheckedCount() / getTotalItems()) * 100) : 0}%
+            {totalItems > 0 ? Math.round((checkedCount / totalItems) * 100) : 0}%
           </span>
         </div>
         <div style={{
@@ -475,7 +430,7 @@ const AisleFinder = () => {
         }}>
           <div style={{
             height: '100%',
-            width: `${getTotalItems() > 0 ? (getCheckedCount() / getTotalItems()) * 100 : 0}%`,
+            width: `${totalItems > 0 ? (checkedCount / totalItems) * 100 : 0}%`,
             backgroundColor: '#27ae60',
             borderRadius: '4px',
             transition: 'width 0.3s ease'
@@ -497,12 +452,6 @@ const AisleFinder = () => {
           <h3 style={{ margin: '0', color: '#17893F', fontSize: '1.2rem' }}>
             Shopping Complete!
           </h3>
-          <style>{`
-            @keyframes celebrationFadeIn {
-              from { opacity: 0; transform: scale(0.9); }
-              to { opacity: 1; transform: scale(1); }
-            }
-          `}</style>
         </div>
       )}
 
@@ -521,6 +470,7 @@ const AisleFinder = () => {
             onChange={(e) => setSingleItemQuery(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') lookupSingleItem(); }}
             placeholder="Quick lookup: type an item to find its aisle"
+            className="af-input"
             style={{
               flex: 1,
               padding: '6px 10px',
@@ -530,19 +480,15 @@ const AisleFinder = () => {
               outline: 'none',
               transition: 'border-color 0.3s ease'
             }}
-            onFocus={(e) => e.target.style.borderColor = '#0091AD'}
-            onBlur={(e) => e.target.style.borderColor = '#e1e8ed'}
           />
           <button
             onClick={lookupSingleItem}
             disabled={singleItemLoading || !singleItemQuery.trim()}
+            className="af-btn"
             style={{
-              ...(singleItemLoading || !singleItemQuery.trim() ? disabledButtonStyle : buttonStyle),
               padding: '6px 12px',
               fontSize: '11px'
             }}
-            onMouseEnter={handleButtonHoverEnter}
-            onMouseLeave={handleButtonHoverLeave}
           >
             {singleItemLoading ? '...' : 'Find'}
           </button>
@@ -598,9 +544,9 @@ const AisleFinder = () => {
                           <div
                             {...provided.dragHandleProps}
                             onClick={(e) => e.stopPropagation()}
-                            style={{ display: 'flex', alignItems: 'center', cursor: 'grab', touchAction: 'none' }}
+                            style={{ display: 'flex', alignItems: 'center', cursor: 'grab', padding: '8px 4px 8px 0', margin: '-8px 0' }}
                           >
-                            <i className="fa-solid fa-grip-vertical" style={{ color: complete ? 'rgba(255,255,255,0.6)' : '#bdc3c7', fontSize: '12px' }} />
+                            <i className="fa-solid fa-grip-vertical" style={{ color: complete ? 'rgba(255,255,255,0.6)' : '#bdc3c7', fontSize: '14px' }} />
                           </div>
                           <div
                             onClick={(e) => { e.stopPropagation(); toggleGroup(group); }}
@@ -636,6 +582,7 @@ const AisleFinder = () => {
                               <div
                                 key={`${group.name}::${item}::${idx}`}
                                 onClick={() => toggleItem(group.name, item)}
+                                className="af-checklist-item"
                                 style={{
                                   display: 'flex',
                                   alignItems: 'center',
@@ -648,8 +595,6 @@ const AisleFinder = () => {
                                   transition: 'all 0.2s ease',
                                   borderRadius: '4px'
                                 }}
-                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                               >
                                 <div style={{
                                   width: '18px',
@@ -691,9 +636,140 @@ const AisleFinder = () => {
       backgroundColor: 'white',
       padding: '10px',
       fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-      position: 'relative'
+      position: 'relative',
+      colorScheme: 'light'
     }}>
-      {/* Background shopping cart pattern */}
+      {/* Global styles for hover effects, animations, and mobile */}
+      <style>{`
+        .af-btn {
+          background: #1E5F99;
+          color: white;
+          padding: 8px 16px;
+          border: none;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 12px;
+          font-weight: 600;
+          transition: all 0.3s ease;
+          box-shadow: 0 2px 8px rgba(110, 250, 251, 0.3);
+        }
+        .af-btn:hover:not(:disabled) {
+          background: linear-gradient(135deg, #5ae5e6 0%, #0f4d87 100%);
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(110, 250, 251, 0.4);
+        }
+        .af-btn:active:not(:disabled) {
+          transform: translateY(0px);
+        }
+        .af-btn:disabled {
+          background: #bdc3c7;
+          cursor: not-allowed;
+          box-shadow: none;
+        }
+        .af-btn-green {
+          background: #27ae60;
+          color: white;
+          padding: 10px 24px;
+          border: none;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 600;
+          transition: all 0.3s ease;
+          box-shadow: 0 2px 8px rgba(110, 250, 251, 0.3);
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .af-btn-green:hover {
+          background: linear-gradient(135deg, #2ecc71 0%, #1a9c4e 100%);
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(39, 174, 96, 0.4);
+        }
+        .af-btn-green:active {
+          transform: translateY(0px);
+        }
+        .af-link-paypal {
+          display: inline-block;
+          background: linear-gradient(135deg, #ffc439 0%, #ff7730 100%);
+          color: white;
+          padding: 3px 8px;
+          border-radius: 3px;
+          text-decoration: none;
+          font-size: 9px;
+          font-weight: 600;
+          transition: all 0.3s ease;
+          box-shadow: 0 1px 3px rgba(255, 196, 57, 0.3);
+        }
+        .af-link-paypal:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 2px 4px rgba(255, 196, 57, 0.4);
+        }
+        .af-link-bug {
+          display: inline-block;
+          background: linear-gradient(135deg, #ff4757 0%, #c44569 100%);
+          color: white;
+          padding: 3px 8px;
+          border-radius: 3px;
+          text-decoration: none;
+          font-size: 9px;
+          font-weight: 500;
+          transition: all 0.3s ease;
+          box-shadow: 0 1px 3px rgba(255, 71, 87, 0.3);
+        }
+        .af-link-bug:hover {
+          background: linear-gradient(135deg, #ff3742 0%, #b03a5e 100%);
+          box-shadow: 0 2px 6px rgba(255, 71, 87, 0.4);
+          transform: translateY(-1px);
+        }
+        .af-input:focus {
+          border-color: #0091AD !important;
+        }
+        .af-checklist-item:hover {
+          background-color: #f8f9fa;
+        }
+        .af-settings-backdrop {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.2);
+          z-index: 999;
+        }
+        .af-copy-toast {
+          position: absolute;
+          top: -30px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: #2c3e50;
+          color: white;
+          padding: 4px 12px;
+          border-radius: 4px;
+          font-size: 11px;
+          font-weight: 500;
+          white-space: nowrap;
+          pointer-events: none;
+          animation: toastFade 2s ease-out forwards;
+        }
+        @keyframes toastFade {
+          0%, 70% { opacity: 1; }
+          100% { opacity: 0; }
+        }
+        @keyframes celebrationFadeIn {
+          from { opacity: 0; transform: scale(0.9); }
+          to { opacity: 1; transform: scale(1); }
+        }
+        @keyframes iconPulse {
+          0%, 100% { opacity: 0.15; transform: scale(1); }
+          50% { opacity: 1; transform: scale(1.2); }
+        }
+        .loading-icon-0 { animation: iconPulse 2s ease-in-out 0.0s infinite; }
+        .loading-icon-1 { animation: iconPulse 2s ease-in-out 0.4s infinite; }
+        .loading-icon-2 { animation: iconPulse 2s ease-in-out 0.8s infinite; }
+      `}</style>
+
+      {/* Background shopping cart pattern — reduced count for mobile performance */}
       <div style={{
         position: 'absolute',
         top: 0,
@@ -705,13 +781,13 @@ const AisleFinder = () => {
         pointerEvents: 'none',
         overflow: 'hidden'
       }}>
-        {Array.from({ length: 50 }, (_, i) => (
+        {Array.from({ length: 20 }, (_, i) => (
           <div
             key={i}
             style={{
               position: 'absolute',
-              left: `${(i % 10) * 10}%`,
-              top: `${Math.floor(i / 10) * 20}%`,
+              left: `${(i % 5) * 20 + 5}%`,
+              top: `${Math.floor(i / 5) * 25 + 5}%`,
               fontSize: '60px',
               color: '#6c757d',
               transform: `rotate(${(i % 4) * 15 - 22.5}deg)`,
@@ -766,30 +842,29 @@ const AisleFinder = () => {
             Includes Pick 'N Save, Harris Teeter, Ralphs, King Soopers, City Market, Dillons, Smith's, Fry's, QFC, and more
           </p>
 
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '15px' }}>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap' }}>
             <input
               type="text"
               value={zipCode}
               onChange={(e) => setZipCode(e.target.value)}
               placeholder="Enter ZIP code"
+              className="af-input"
               style={{
                 padding: '8px 12px',
                 border: '2px solid #e1e8ed',
                 borderRadius: '6px',
                 fontSize: '13px',
-                minWidth: '150px',
+                minWidth: '120px',
+                flex: '1 1 150px',
+                maxWidth: '200px',
                 transition: 'border-color 0.3s ease',
                 outline: 'none'
               }}
-              onFocus={(e) => e.target.style.borderColor = '#0091AD'}
-              onBlur={(e) => e.target.style.borderColor = '#e1e8ed'}
             />
             <button
               onClick={searchStores}
               disabled={storeSearchLoading}
-              style={storeSearchLoading ? disabledButtonStyle : buttonStyle}
-              onMouseEnter={handleButtonHoverEnter}
-              onMouseLeave={handleButtonHoverLeave}
+              className="af-btn"
             >
               {storeSearchLoading ? 'Searching...' : 'Find Stores'}
             </button>
@@ -808,11 +883,11 @@ const AisleFinder = () => {
                 }}
                 style={{
                   padding: '8px 12px',
-                  border: selectedStore ? '2px solid #0091AD' : '2px solid #e1e8ed',
+                  border: '2px solid #0091AD',
                   borderRadius: '6px',
                   fontSize: '13px',
                   width: '100%',
-                  backgroundColor: selectedStore ? '#f0f9ff' : 'white',
+                  backgroundColor: '#f0f9ff',
                   cursor: 'pointer',
                   outline: 'none'
                 }}
@@ -878,41 +953,39 @@ const AisleFinder = () => {
               Type or Paste Items:
             </label>
             <textarea
+              ref={textareaRef}
               value={textInput}
               onChange={(e) => setTextInput(e.target.value)}
               placeholder="Enter grocery items (one per line or comma-separated):&#10;milk, bread, eggs, apples"
+              className="af-input"
               style={{
                 width: '100%',
-                height: '80px',
+                minHeight: '80px',
                 padding: '8px',
                 border: '2px solid #e1e8ed',
                 borderRadius: '6px',
-                fontSize: '12px',
+                fontSize: '16px',
                 fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-                resize: 'vertical',
-                overflowY: 'auto',
+                resize: 'none',
+                overflow: 'hidden',
                 outline: 'none',
                 transition: 'border-color 0.3s ease',
                 backgroundColor: 'white',
                 boxSizing: 'border-box'
               }}
-              onFocus={(e) => e.target.style.borderColor = '#0091AD'}
-              onBlur={(e) => e.target.style.borderColor = '#e1e8ed'}
             />
           </div>
         </div>
 
         {/* Organization Buttons */}
-        <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', marginBottom: '15px' }}>
+        <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', marginBottom: '15px', flexWrap: 'wrap' }}>
           <button
             onClick={() => {
               setOrganizeByCategory(true);
               processGroceryList('category');
             }}
             disabled={!textInput.trim() || loading}
-            style={!textInput.trim() || loading ? disabledButtonStyle : buttonStyle}
-            onMouseEnter={handleButtonHoverEnter}
-            onMouseLeave={handleButtonHoverLeave}
+            className="af-btn"
           >
             {loading && organizeByCategory ? 'Processing...' : 'Organize by Category'}
           </button>
@@ -926,9 +999,7 @@ const AisleFinder = () => {
               processGroceryList('aisle');
             }}
             disabled={!textInput.trim() || loading}
-            style={!textInput.trim() || loading ? disabledButtonStyle : buttonStyle}
-            onMouseEnter={handleButtonHoverEnter}
-            onMouseLeave={handleButtonHoverLeave}
+            className="af-btn"
           >
             {loading && !organizeByCategory ? 'Processing...' : 'Organize by Aisle'}
           </button>
@@ -986,18 +1057,6 @@ const AisleFinder = () => {
             <p style={{ margin: '0', color: '#2c3e50', fontSize: '14px', fontWeight: '500' }}>
               Processing {getItemCount()} items...
             </p>
-
-            <style>{`
-              @keyframes iconPulse {
-                0%, 100% { opacity: 0.15; transform: scale(1); }
-                50% { opacity: 1; transform: scale(1.2); }
-              }
-              .loading-icon-0 { animation: iconPulse 2s ease-in-out 0.0s infinite; }
-              .loading-icon-1 { animation: iconPulse 2s ease-in-out 0.4s infinite; }
-              .loading-icon-2 { animation: iconPulse 2s ease-in-out 0.8s infinite; }
-              .loading-icon-3 { animation: iconPulse 2s ease-in-out 1.2s infinite; }
-              .loading-icon-4 { animation: iconPulse 2s ease-in-out 1.6s infinite; }
-            `}</style>
           </div>
         )}
 
@@ -1016,84 +1075,23 @@ const AisleFinder = () => {
                 <i className="fa-solid fa-list-check"></i>
                 Your Organized Shopping List
               </h3>
-              <div ref={settingsRef} style={{ display: 'flex', gap: '10px', alignItems: 'center', position: 'relative', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', position: 'relative' }}>
                 <button
                   onClick={copyToClipboard}
-                  style={buttonStyle}
-                  onMouseEnter={handleButtonHoverEnter}
-                  onMouseLeave={handleButtonHoverLeave}
+                  className="af-btn"
                 >
                   Copy to Clipboard
                 </button>
+                {copyFeedback && (
+                  <span className="af-copy-toast">{copyFeedback}</span>
+                )}
                 <button
                   onClick={() => setShowSettingsPopup(!showSettingsPopup)}
-                  style={{
-                    ...buttonStyle,
-                    padding: '8px 12px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px'
-                  }}
-                  onMouseEnter={handleButtonHoverEnter}
-                  onMouseLeave={handleButtonHoverLeave}
+                  className="af-btn"
+                  style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '6px' }}
                 >
-                  <i className="fa-solid fa-cog"></i>
+                  <i className="fa-solid fa-gear"></i>
                 </button>
-
-                {/* Settings Popup */}
-                {showSettingsPopup && (
-                  <div style={{
-                    position: 'absolute',
-                    top: '40px',
-                    right: '0',
-                    background: 'white',
-                    border: '2px solid #e9ecef',
-                    borderRadius: '8px',
-                    padding: '15px',
-                    boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
-                    zIndex: 1000,
-                    minWidth: '200px'
-                  }}>
-                    <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', fontWeight: '600', color: '#2c3e50' }}>
-                      Output Format
-                    </h4>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
-                        <input
-                          type="radio"
-                          name="outputFormat"
-                          value="numbered"
-                          checked={outputFormat === 'numbered'}
-                          onChange={(e) => setOutputFormat(e.target.value)}
-                          style={{ cursor: 'pointer' }}
-                        />
-                        <span>Numbered List (1. 2. 3.)</span>
-                      </label>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
-                        <input
-                          type="radio"
-                          name="outputFormat"
-                          value="checklist"
-                          checked={outputFormat === 'checklist'}
-                          onChange={(e) => setOutputFormat(e.target.value)}
-                          style={{ cursor: 'pointer' }}
-                        />
-                        <span>Checklist (- [ ] Items)</span>
-                      </label>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
-                        <input
-                          type="radio"
-                          name="outputFormat"
-                          value="plain"
-                          checked={outputFormat === 'plain'}
-                          onChange={(e) => setOutputFormat(e.target.value)}
-                          style={{ cursor: 'pointer' }}
-                        />
-                        <span>Plain Text</span>
-                      </label>
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
 
@@ -1101,25 +1099,7 @@ const AisleFinder = () => {
             <div style={{ textAlign: 'center', marginBottom: '15px' }}>
               <button
                 onClick={() => setShopMode(true)}
-                style={{
-                  ...buttonStyle,
-                  padding: '10px 24px',
-                  fontSize: '14px',
-                  background: '#27ae60',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '8px'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'linear-gradient(135deg, #2ecc71 0%, #1a9c4e 100%)';
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(39, 174, 96, 0.4)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = '#27ae60';
-                  e.currentTarget.style.transform = 'translateY(0px)';
-                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(110, 250, 251, 0.3)';
-                }}
+                className="af-btn-green"
               >
                 <i className="fa-solid fa-basket-shopping"></i>
                 Shop
@@ -1165,6 +1145,7 @@ const AisleFinder = () => {
                                   fontSize: '14px',
                                   color: '#2c3e50',
                                   margin: '12px 0 6px 0',
+                                  padding: '4px 0',
                                   cursor: 'grab',
                                   display: 'flex',
                                   alignItems: 'center',
@@ -1172,7 +1153,7 @@ const AisleFinder = () => {
                                   userSelect: 'none'
                                 }}
                               >
-                                <i className="fa-solid fa-grip-vertical" style={{ color: '#bdc3c7', fontSize: '12px' }} />
+                                <i className="fa-solid fa-grip-vertical" style={{ color: '#bdc3c7', fontSize: '14px' }} />
                                 {group.name}
                               </div>
                               {group.items.map((item, idx) => {
@@ -1211,26 +1192,7 @@ const AisleFinder = () => {
             href="https://www.paypal.com/donate/?business=ECTSEQ2MFSE4Y&no_recurring=0&item_name=Thanks+for+supporting+Aisle+Finder%21+Your+donation+pays+for+development+and+hosting+costs.&currency_code=USD"
             target="_blank"
             rel="noopener noreferrer"
-            style={{
-              display: 'inline-block',
-              background: 'linear-gradient(135deg, #ffc439 0%, #ff7730 100%)',
-              color: 'white',
-              padding: '3px 8px',
-              borderRadius: '3px',
-              textDecoration: 'none',
-              fontSize: '9px',
-              fontWeight: '600',
-              transition: 'all 0.3s ease',
-              boxShadow: '0 1px 3px rgba(255, 196, 57, 0.3)'
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.transform = 'translateY(-1px)';
-              e.target.style.boxShadow = '0 2px 4px rgba(255, 196, 57, 0.4)';
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.transform = 'translateY(0px)';
-              e.target.style.boxShadow = '0 1px 3px rgba(255, 196, 57, 0.3)';
-            }}
+            className="af-link-paypal"
           >
             Support via PayPal
           </a>
@@ -1239,33 +1201,80 @@ const AisleFinder = () => {
             href="https://github.com/hbuchman/aislefinder/issues"
             target="_blank"
             rel="noopener noreferrer"
-            style={{
-              display: 'inline-block',
-              background: 'linear-gradient(135deg, #ff4757 0%, #c44569 100%)',
-              color: 'white',
-              padding: '3px 8px',
-              borderRadius: '3px',
-              textDecoration: 'none',
-              fontSize: '9px',
-              fontWeight: '500',
-              transition: 'all 0.3s ease',
-              boxShadow: '0 1px 3px rgba(255, 71, 87, 0.3)'
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.background = 'linear-gradient(135deg, #ff3742 0%, #b03a5e 100%)';
-              e.target.style.boxShadow = '0 2px 6px rgba(255, 71, 87, 0.4)';
-              e.target.style.transform = 'translateY(-1px)';
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.background = 'linear-gradient(135deg, #ff4757 0%, #c44569 100%)';
-              e.target.style.boxShadow = '0 1px 3px rgba(255, 71, 87, 0.3)';
-              e.target.style.transform = 'translateY(0px)';
-            }}
+            className="af-link-bug"
           >
             Report a Bug
           </a>
         </div>
       </div>
+
+      {/* Settings Popup with backdrop */}
+      {showSettingsPopup && (
+        <>
+          <div className="af-settings-backdrop" onClick={() => setShowSettingsPopup(false)} />
+          <div style={{
+            position: 'fixed',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            background: 'white',
+            border: '2px solid #e9ecef',
+            borderRadius: '8px',
+            padding: '20px',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+            zIndex: 1000,
+            minWidth: '220px',
+            maxWidth: 'calc(100vw - 40px)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <h4 style={{ margin: '0', fontSize: '14px', fontWeight: '600', color: '#2c3e50' }}>
+                Output Format
+              </h4>
+              <button
+                onClick={() => setShowSettingsPopup(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6c757d', fontSize: '16px', padding: '4px' }}
+              >
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
+                <input
+                  type="radio"
+                  name="outputFormat"
+                  value="numbered"
+                  checked={outputFormat === 'numbered'}
+                  onChange={(e) => setOutputFormat(e.target.value)}
+                  style={{ cursor: 'pointer' }}
+                />
+                <span>Numbered List (1. 2. 3.)</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
+                <input
+                  type="radio"
+                  name="outputFormat"
+                  value="checklist"
+                  checked={outputFormat === 'checklist'}
+                  onChange={(e) => setOutputFormat(e.target.value)}
+                  style={{ cursor: 'pointer' }}
+                />
+                <span>Checklist (- [ ] Items)</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
+                <input
+                  type="radio"
+                  name="outputFormat"
+                  value="plain"
+                  checked={outputFormat === 'plain'}
+                  onChange={(e) => setOutputFormat(e.target.value)}
+                  style={{ cursor: 'pointer' }}
+                />
+                <span>Plain Text</span>
+              </label>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Shop Mode Fullscreen Overlay */}
       {shopMode && groceryList && (
@@ -1278,6 +1287,8 @@ const AisleFinder = () => {
           zIndex: 9999,
           backgroundColor: 'white',
           overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch',
+          overscrollBehavior: 'contain',
           fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
         }}>
           {/* Confetti canvas - renders on top of the overlay */}
@@ -1300,6 +1311,7 @@ const AisleFinder = () => {
             backgroundColor: 'white',
             zIndex: 10,
             borderBottom: '2px solid #e9ecef',
+            paddingTop: 'env(safe-area-inset-top, 0px)'
           }}>
             <div style={{
               display: 'flex',
@@ -1327,14 +1339,8 @@ const AisleFinder = () => {
                   setShowCelebration(false);
                   hasFiredConfetti.current = false;
                 }}
-                style={{
-                  ...buttonStyle,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px'
-                }}
-                onMouseEnter={handleButtonHoverEnter}
-                onMouseLeave={handleButtonHoverLeave}
+                className="af-btn"
+                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
               >
                 <i className="fa-solid fa-xmark"></i>
                 Exit
@@ -1343,7 +1349,12 @@ const AisleFinder = () => {
           </div>
 
           {/* Scrollable shop mode content */}
-          <div style={{ maxWidth: '900px', margin: '0 auto', padding: '20px' }}>
+          <div style={{
+            maxWidth: '900px',
+            margin: '0 auto',
+            padding: '20px',
+            paddingBottom: 'calc(20px + env(safe-area-inset-bottom, 0px))'
+          }}>
             {renderShopModeContent()}
           </div>
         </div>
