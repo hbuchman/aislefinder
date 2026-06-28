@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import confetti from 'canvas-confetti';
 
 // localStorage helpers
 const loadState = (key, fallback) => {
@@ -21,6 +23,7 @@ const AisleFinder = () => {
   const [shopMode, setShopMode] = useState(() => loadState('shopMode', false));
   const [checkedItems, setCheckedItems] = useState(() => loadState('checkedItems', {}));
   const [collapsedGroups, setCollapsedGroups] = useState(() => loadState('collapsedGroups', {}));
+  const [customCategoryOrder, setCustomCategoryOrder] = useState(() => loadState('customCategoryOrder', null));
 
   // Transient state (resets on refresh)
   const [loading, setLoading] = useState(false);
@@ -31,7 +34,11 @@ const AisleFinder = () => {
   const [singleItemQuery, setSingleItemQuery] = useState('');
   const [singleItemResult, setSingleItemResult] = useState(null);
   const [singleItemLoading, setSingleItemLoading] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
   const settingsRef = useRef(null);
+  const hasFiredConfetti = useRef(false);
+  const confettiCanvasRef = useRef(null);
+  const confettiInstance = useRef(null);
 
   // Persist state to localStorage
   useEffect(() => {
@@ -46,8 +53,9 @@ const AisleFinder = () => {
       localStorage.setItem('af_shopMode', JSON.stringify(shopMode));
       localStorage.setItem('af_checkedItems', JSON.stringify(checkedItems));
       localStorage.setItem('af_collapsedGroups', JSON.stringify(collapsedGroups));
+      localStorage.setItem('af_customCategoryOrder', JSON.stringify(customCategoryOrder));
     } catch {}
-  }, [textInput, groceryList, zipCode, stores, selectedStore, organizeByCategory, outputFormat, shopMode, checkedItems, collapsedGroups]);
+  }, [textInput, groceryList, zipCode, stores, selectedStore, organizeByCategory, outputFormat, shopMode, checkedItems, collapsedGroups, customCategoryOrder]);
 
   // Close popup when clicking outside
   useEffect(() => {
@@ -65,15 +73,83 @@ const AisleFinder = () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [showSettingsPopup]);
-  
+
+  // Lock body scroll when shop mode overlay is active
+  useEffect(() => {
+    if (shopMode) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [shopMode]);
+
+  // Create confetti instance bound to the overlay canvas
+  useEffect(() => {
+    if (confettiCanvasRef.current && !confettiInstance.current) {
+      confettiInstance.current = confetti.create(confettiCanvasRef.current, { resize: true });
+    }
+  });
+
+  // Clean up confetti instance when shop mode closes
+  useEffect(() => {
+    if (!shopMode && confettiInstance.current) {
+      confettiInstance.current.reset();
+      confettiInstance.current = null;
+    }
+  }, [shopMode]);
+
+  // Confetti celebration when all items checked
+  useEffect(() => {
+    const total = getTotalItems();
+    const checked = getCheckedCount();
+
+    if (total > 0 && checked === total && shopMode && !hasFiredConfetti.current) {
+      hasFiredConfetti.current = true;
+      setShowCelebration(true);
+
+      // Wait a tick for the canvas ref to be available
+      setTimeout(() => {
+        const fire = confettiInstance.current;
+        if (!fire) return;
+
+        const duration = 3000;
+        const end = Date.now() + duration;
+
+        const frame = () => {
+          fire({
+            particleCount: 4,
+            angle: 90,
+            spread: 160,
+            startVelocity: 25,
+            origin: { x: Math.random(), y: 0 },
+            colors: ['#5ae5e6', '#1E5F99', '#27ae60', '#ffc439']
+          });
+
+          if (Date.now() < end) {
+            requestAnimationFrame(frame);
+          }
+        };
+        frame();
+      }, 0);
+    }
+
+    if (total > 0 && checked < total) {
+      hasFiredConfetti.current = false;
+      setShowCelebration(false);
+    }
+  }, [checkedItems, shopMode]); // getTotalItems/getCheckedCount are stable helpers
+
   const isValidZipCode = (zip) => /^\d{5}(-\d{4})?$/.test(zip.trim());
-  
+
   const shouldShowZipError = (zip) => {
     const trimmed = zip.trim();
-    if (!trimmed) return false; // Don't show error for empty field
-    if (/^\d{1,5}$/.test(trimmed)) return false; // Still typing valid digits (1-5 digits)
-    if (/^\d{5}-\d{1,4}$/.test(trimmed)) return false; // Still typing extended format
-    return !isValidZipCode(trimmed); // Show error for invalid formats
+    if (!trimmed) return false;
+    if (/^\d{1,5}$/.test(trimmed)) return false;
+    if (/^\d{5}-\d{1,4}$/.test(trimmed)) return false;
+    return !isValidZipCode(trimmed);
   };
 
   // Shared button style
@@ -103,9 +179,7 @@ const AisleFinder = () => {
       return;
     }
 
-    // Validate ZIP code format
     if (!isValidZipCode(zipCode)) {
-      // Don't call setError here, we'll handle this in the UI with hasSearchedStores
       setHasSearchedStores(true);
       setStores([]);
       return;
@@ -130,9 +204,9 @@ const AisleFinder = () => {
       const result = await response.json();
       setStores(result.stores || []);
       setHasSearchedStores(true);
-      
+
       if (result.stores && result.stores.length > 0) {
-        setSelectedStore(result.stores[0]); // Auto-select first store
+        setSelectedStore(result.stores[0]);
       }
     } catch (err) {
       setError('Error searching stores: ' + err.message);
@@ -149,20 +223,22 @@ const AisleFinder = () => {
       return;
     }
 
-
     setLoading(true);
     setError('');
+    setGroceryList('');
     setShopMode(false);
     setCheckedItems({});
     setCollapsedGroups({});
     setSingleItemResult(null);
+    setShowCelebration(false);
+    hasFiredConfetti.current = false;
 
     try {
       const formData = new FormData();
-      
+
       const blob = new Blob([textInput], { type: 'text/plain' });
       formData.append('file', blob, 'grocery-list.txt');
-      
+
       formData.append('output_format', format);
       formData.append('store_id', selectedStore ? selectedStore.id : '01400943');
       formData.append('store', selectedStore ? selectedStore.name : '4500S Smiths');
@@ -189,9 +265,57 @@ const AisleFinder = () => {
     return textInput ? textInput.split(/[\n,]/).filter(item => item.trim()).length : 0;
   };
 
+  // Parse grocery list markdown into groups
+  const parseGroceryListToGroups = (text) => {
+    const groups = [];
+    let currentGroup = null;
+    for (const line of text.split('\n')) {
+      if (line.startsWith('## ')) {
+        currentGroup = { name: line.replace('## ', ''), items: [] };
+        groups.push(currentGroup);
+      } else if (line.startsWith('- ') && currentGroup) {
+        currentGroup.items.push(line.replace('- ', ''));
+      }
+    }
+    return groups;
+  };
+
+  // Apply user's custom category order to groups
+  const applyCustomOrder = (groups) => {
+    if (!customCategoryOrder || customCategoryOrder.length === 0) return groups;
+
+    const orderMap = {};
+    customCategoryOrder.forEach((name, index) => {
+      orderMap[name] = index;
+    });
+
+    return [...groups].sort((a, b) => {
+      const aIdx = orderMap[a.name] !== undefined ? orderMap[a.name] : customCategoryOrder.length;
+      const bIdx = orderMap[b.name] !== undefined ? orderMap[b.name] : customCategoryOrder.length;
+      if (aIdx !== bIdx) return aIdx - bIdx;
+      return a.name.localeCompare(b.name);
+    });
+  };
+
+  // Memoize ordered groups
+  const orderedGroups = useMemo(() => {
+    if (!groceryList) return [];
+    return applyCustomOrder(parseGroceryListToGroups(groceryList));
+  }, [groceryList, customCategoryOrder]); // parseGroceryListToGroups/applyCustomOrder are stable helpers
+
+  // Rebuild markdown from ordered groups (for clipboard)
+  const buildMarkdownFromGroups = (groups) => {
+    return groups.map(g => {
+      const header = `## ${g.name}`;
+      const items = g.items.map(i => `- ${i}`).join('\n');
+      return `${header}\n${items}`;
+    }).join('\n\n');
+  };
+
   const copyToClipboard = async () => {
     try {
-      const formattedList = formatGroceryListForCopy(groceryList);
+      const orderedMarkdown = buildMarkdownFromGroups(orderedGroups);
+      const formattedList = formatGroceryListForCopy(orderedMarkdown);
       await navigator.clipboard.writeText(formattedList);
       alert('Grocery list copied to clipboard!');
     } catch (err) {
@@ -217,86 +341,16 @@ const AisleFinder = () => {
     }
   };
 
-  const formatGroceryList = (text) => {
-    // First convert to the selected output format
-    const formattedText = formatGroceryListForCopy(text);
-    const lines = formattedText.split('\n');
-    const formattedLines = [];
-    
-    for (let line of lines) {
-      if (line.trim() === '') continue;
-      
-      if (outputFormat === 'numbered' && /^\d+\.\s/.test(line)) {
-        // Numbered items
-        formattedLines.push(
-          <div key={formattedLines.length} style={{ 
-            margin: '2px 0', 
-            paddingLeft: '12px', 
-            fontSize: '12px',
-            color: '#2c3e50'
-          }}>
-            {line}
-          </div>
-        );
-      } else if (outputFormat === 'checklist' && line.startsWith('- [ ] ')) {
-        // Checklist items
-        formattedLines.push(
-          <div key={formattedLines.length} style={{ 
-            margin: '2px 0', 
-            paddingLeft: '12px', 
-            fontSize: '12px',
-            color: '#2c3e50'
-          }}>
-            ☐ {line.replace('- [ ] ', '')}
-          </div>
-        );
-      } else if (outputFormat === 'checklist' && line.startsWith('## ')) {
-        // Checklist category headers - make bold
-        formattedLines.push(
-          <div key={formattedLines.length} style={{ 
-            fontWeight: 'bold', 
-            margin: '12px 0 6px 0', 
-            fontSize: '14px', 
-            color: '#2c3e50' 
-          }}>
-            {line.replace('## ', '')}
-          </div>
-        );
-      } else if (line.trim()) {
-        // Headers in numbered format or other content
-        const isHeader = (outputFormat === 'numbered' && !line.match(/^[\d\-•]/));
-        const shouldBeBold = isHeader && outputFormat !== 'plain';
-        formattedLines.push(
-          <div key={formattedLines.length} style={{ 
-            margin: '2px 0', 
-            fontSize: '12px',
-            color: '#2c3e50',
-            fontWeight: shouldBeBold ? 'bold' : 'normal',
-            marginTop: isHeader ? '12px' : '2px',
-            marginBottom: isHeader ? '6px' : '2px'
-          }}>
-            {line.replace(/^## /, '')}
-          </div>
-        );
-      }
-    }
+  // Drag-and-drop handler
+  const handleDragEnd = (result) => {
+    if (!result.destination) return;
+    if (result.destination.index === result.source.index) return;
 
-    return formattedLines;
-  };
+    const reordered = Array.from(orderedGroups);
+    const [removed] = reordered.splice(result.source.index, 1);
+    reordered.splice(result.destination.index, 0, removed);
 
-  // Shop Mode helpers
-  const parseGroceryListToGroups = (text) => {
-    const groups = [];
-    let currentGroup = null;
-    for (const line of text.split('\n')) {
-      if (line.startsWith('## ')) {
-        currentGroup = { name: line.replace('## ', ''), items: [] };
-        groups.push(currentGroup);
-      } else if (line.startsWith('- ') && currentGroup) {
-        currentGroup.items.push(line.replace('- ', ''));
-      }
-    }
-    return groups;
+    setCustomCategoryOrder(reordered.map(g => g.name));
   };
 
   const getTotalItems = () => {
@@ -327,10 +381,8 @@ const AisleFinder = () => {
     const newItem = `- ${itemName}`;
 
     if (groceryList.includes(groupHeader)) {
-      // Group exists — insert item after the header line
       const lines = groceryList.split('\n');
       const headerIdx = lines.findIndex(line => line === groupHeader);
-      // Find the last item in this group (lines starting with "- " after the header)
       let insertIdx = headerIdx + 1;
       while (insertIdx < lines.length && lines[insertIdx].startsWith('- ')) {
         insertIdx++;
@@ -338,9 +390,12 @@ const AisleFinder = () => {
       lines.splice(insertIdx, 0, newItem);
       setGroceryList(lines.join('\n'));
     } else {
-      // Group doesn't exist — append new section
       setGroceryList(groceryList.trimEnd() + `\n\n${groupHeader}\n${newItem}`);
     }
+
+    // Dismiss celebration when a new item is added
+    setShowCelebration(false);
+    hasFiredConfetti.current = false;
 
     setSingleItemQuery('');
     setSingleItemResult(null);
@@ -361,7 +416,11 @@ const AisleFinder = () => {
       });
       if (!response.ok) throw new Error('Failed to look up item');
       const result = await response.json();
-      setSingleItemResult(result);
+      if (result && !result.error) {
+        addItemToList(result);
+      } else {
+        setSingleItemResult(result);
+      }
     } catch (err) {
       setSingleItemResult({ error: err.message });
     } finally {
@@ -369,9 +428,238 @@ const AisleFinder = () => {
     }
   };
 
+  // Shared hover handlers for buttons
+  const handleButtonHoverEnter = (e) => {
+    if (!e.currentTarget.disabled) {
+      e.currentTarget.style.background = 'linear-gradient(135deg, #5ae5e6 0%, #0f4d87 100%)';
+      e.currentTarget.style.transform = 'translateY(-2px)';
+      e.currentTarget.style.boxShadow = '0 4px 12px rgba(110, 250, 251, 0.4)';
+    }
+  };
+
+  const handleButtonHoverLeave = (e) => {
+    if (!e.currentTarget.disabled) {
+      e.currentTarget.style.background = '#1E5F99';
+      e.currentTarget.style.transform = 'translateY(0px)';
+      e.currentTarget.style.boxShadow = '0 2px 8px rgba(110, 250, 251, 0.3)';
+    }
+  };
+
+  // Render the interactive shop mode checklist content (used in overlay)
+  const renderShopModeContent = () => (
+    <>
+      {/* Progress bar */}
+      <div style={{ marginBottom: '15px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+          <span style={{ fontSize: '13px', fontWeight: '600', color: '#2c3e50' }}>
+            Progress: {getCheckedCount()}/{getTotalItems()} items
+          </span>
+          <span style={{ fontSize: '12px', color: '#6c757d' }}>
+            {getTotalItems() > 0 ? Math.round((getCheckedCount() / getTotalItems()) * 100) : 0}%
+          </span>
+        </div>
+        <div style={{
+          height: '8px',
+          backgroundColor: '#e9ecef',
+          borderRadius: '4px',
+          overflow: 'hidden'
+        }}>
+          <div style={{
+            height: '100%',
+            width: `${getTotalItems() > 0 ? (getCheckedCount() / getTotalItems()) * 100 : 0}%`,
+            backgroundColor: '#27ae60',
+            borderRadius: '4px',
+            transition: 'width 0.3s ease'
+          }} />
+        </div>
+      </div>
+
+      {/* Celebration banner */}
+      {showCelebration && (
+        <div style={{
+          textAlign: 'center',
+          padding: '20px',
+          margin: '15px 0',
+          background: 'linear-gradient(135deg, #BCF0D3 0%, #f0f9ff 50%, #79E2A6 100%)',
+          borderRadius: '12px',
+          border: '2px solid #27ae60',
+          animation: 'celebrationFadeIn 0.5s ease-out'
+        }}>
+          <h3 style={{ margin: '0', color: '#17893F', fontSize: '1.2rem' }}>
+            Shopping Complete!
+          </h3>
+          <style>{`
+            @keyframes celebrationFadeIn {
+              from { opacity: 0; transform: scale(0.9); }
+              to { opacity: 1; transform: scale(1); }
+            }
+          `}</style>
+        </div>
+      )}
+
+      {/* Single Item Lookup */}
+      <div style={{
+        marginBottom: '15px',
+        padding: '10px',
+        backgroundColor: '#f0f9ff',
+        borderRadius: '6px',
+        border: '1px solid #bee3f8'
+      }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <input
+            type="text"
+            value={singleItemQuery}
+            onChange={(e) => setSingleItemQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') lookupSingleItem(); }}
+            placeholder="Quick lookup: type an item to find its aisle"
+            style={{
+              flex: 1,
+              padding: '6px 10px',
+              border: '2px solid #e1e8ed',
+              borderRadius: '6px',
+              fontSize: '12px',
+              outline: 'none',
+              transition: 'border-color 0.3s ease'
+            }}
+            onFocus={(e) => e.target.style.borderColor = '#0091AD'}
+            onBlur={(e) => e.target.style.borderColor = '#e1e8ed'}
+          />
+          <button
+            onClick={lookupSingleItem}
+            disabled={singleItemLoading || !singleItemQuery.trim()}
+            style={{
+              ...(singleItemLoading || !singleItemQuery.trim() ? disabledButtonStyle : buttonStyle),
+              padding: '6px 12px',
+              fontSize: '11px'
+            }}
+            onMouseEnter={handleButtonHoverEnter}
+            onMouseLeave={handleButtonHoverLeave}
+          >
+            {singleItemLoading ? '...' : 'Find'}
+          </button>
+        </div>
+        {singleItemResult && singleItemResult.error && (
+          <div style={{ marginTop: '8px', fontSize: '12px', color: '#ff7730', padding: '6px 8px', backgroundColor: '#fff0e6', borderRadius: '4px' }}>
+            Could not find item
+          </div>
+        )}
+      </div>
+
+      {/* Interactive checklist with drag-to-reorder */}
+      <DragDropContext onDragEnd={handleDragEnd}>
+        <Droppable droppableId="shop-category-list">
+          {(provided) => (
+            <div ref={provided.innerRef} {...provided.droppableProps}>
+              {orderedGroups.map((group, index) => {
+                const complete = isGroupComplete(group);
+                const collapsed = collapsedGroups[group.name] !== undefined
+                  ? collapsedGroups[group.name]
+                  : complete;
+
+                return (
+                  <Draggable key={group.name} draggableId={`shop-${group.name}`} index={index}>
+                    {(provided, snapshot) => (
+                      <div
+                        ref={provided.innerRef}
+                        {...provided.draggableProps}
+                        style={{
+                          ...provided.draggableProps.style,
+                          marginBottom: '10px',
+                          borderRadius: '6px',
+                          border: snapshot.isDragging ? '1px dashed #0091AD' : '1px solid transparent',
+                          backgroundColor: snapshot.isDragging ? '#f0f9ff' : 'transparent'
+                        }}
+                      >
+                        <div
+                          onClick={() => toggleGroupCollapse(group.name)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '8px 10px',
+                            backgroundColor: complete ? '#27ae60' : '#f8f9fa',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontWeight: '600',
+                            fontSize: '13px',
+                            color: complete ? 'white' : '#2c3e50',
+                            transition: 'background-color 0.2s ease'
+                          }}
+                        >
+                          <div
+                            {...provided.dragHandleProps}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ display: 'flex', alignItems: 'center', cursor: 'grab', touchAction: 'none' }}
+                          >
+                            <i className="fa-solid fa-grip-vertical" style={{ color: complete ? 'rgba(255,255,255,0.6)' : '#bdc3c7', fontSize: '12px' }} />
+                          </div>
+                          <i className={collapsed ? "fa-solid fa-chevron-right" : "fa-solid fa-chevron-down"}
+                             style={{ fontSize: '10px', width: '12px' }} />
+                          {group.name}
+                          <span style={{ marginLeft: 'auto', fontSize: '11px', fontWeight: '400', color: complete ? 'rgba(255,255,255,0.8)' : '#6c757d' }}>
+                            {group.items.filter(item => checkedItems[`${group.name}::${item}`]).length}/{group.items.length}
+                          </span>
+                          {complete && <i className="fa-solid fa-check" style={{ color: 'white', fontSize: '12px' }} />}
+                        </div>
+
+                        {!collapsed && (
+                          <div style={{ paddingLeft: '12px', marginTop: '4px' }}>
+                            {group.items.map((item, idx) => (
+                              <div
+                                key={`${group.name}::${item}::${idx}`}
+                                onClick={() => toggleItem(group.name, item)}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '8px',
+                                  padding: '6px 8px',
+                                  cursor: 'pointer',
+                                  fontSize: '12px',
+                                  color: checkedItems[`${group.name}::${item}`] ? '#95a5a6' : '#2c3e50',
+                                  textDecoration: checkedItems[`${group.name}::${item}`] ? 'line-through' : 'none',
+                                  transition: 'all 0.2s ease',
+                                  borderRadius: '4px'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                              >
+                                <div style={{
+                                  width: '18px',
+                                  height: '18px',
+                                  borderRadius: '4px',
+                                  border: `2px solid ${checkedItems[`${group.name}::${item}`] ? '#27ae60' : '#bdc3c7'}`,
+                                  backgroundColor: checkedItems[`${group.name}::${item}`] ? '#27ae60' : 'white',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  flexShrink: 0,
+                                  transition: 'all 0.2s ease'
+                                }}>
+                                  {checkedItems[`${group.name}::${item}`] && (
+                                    <i className="fa-solid fa-check" style={{ color: 'white', fontSize: '10px' }} />
+                                  )}
+                                </div>
+                                {item}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </Draggable>
+                );
+              })}
+              {provided.placeholder}
+            </div>
+          )}
+        </Droppable>
+      </DragDropContext>
+    </>
+  );
+
   return (
-    <div style={{ 
-      minHeight: '100vh', 
+    <div style={{
+      minHeight: '100vh',
       backgroundColor: 'white',
       padding: '10px',
       fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
@@ -408,22 +696,22 @@ const AisleFinder = () => {
       </div>
       <div style={{ maxWidth: '900px', margin: '0 auto', position: 'relative', zIndex: 2 }}>
         {/* Header */}
-        <div style={{ 
-          textAlign: 'center', 
+        <div style={{
+          textAlign: 'center',
           marginBottom: '15px',
-          background: 'linear-gradient(135deg, #6EFAFB 0%, #1E5F99 100%)',
+          background: 'linear-gradient(135deg, #5ae5e6 0%, #1E5F99 100%)',
           padding: '12px',
           borderRadius: '8px',
           boxShadow: '0 2px 8px rgba(46, 134, 171, 0.3)',
         }}>
-          <h1 style={{ 
-            color: 'white', 
-            margin: '0', 
+          <h1 style={{
+            color: 'white',
+            margin: '0',
             fontSize: '1.5rem',
             fontWeight: '700',
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center', 
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             gap: '15px',
             textShadow: '0 2px 4px rgba(0,0,0,0.3)'
           }}>
@@ -434,10 +722,10 @@ const AisleFinder = () => {
 
 
         {/* Store Finder Section */}
-        <div style={{ 
-          marginBottom: '20px', 
-          padding: '15px', 
-          backgroundColor: '#f8f9fa', 
+        <div style={{
+          marginBottom: '20px',
+          padding: '15px',
+          backgroundColor: '#f8f9fa',
           borderRadius: '8px',
           boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
           border: '1px solid #e9ecef'
@@ -449,7 +737,7 @@ const AisleFinder = () => {
           <p style={{ margin: '0 0 10px 0', fontSize: '10px', color: '#6c757d' }}>
             Includes Pick 'N Save, Harris Teeter, Ralphs, King Soopers, City Market, Dillons, Smith's, Fry's, QFC, and more
           </p>
-          
+
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '15px' }}>
             <input
               type="text"
@@ -472,20 +760,8 @@ const AisleFinder = () => {
               onClick={searchStores}
               disabled={storeSearchLoading}
               style={storeSearchLoading ? disabledButtonStyle : buttonStyle}
-              onMouseEnter={(e) => {
-                if (!e.target.disabled) {
-                  e.target.style.background = 'linear-gradient(135deg, #5ae5e6 0%, #0f4d87 100%)';
-                  e.target.style.transform = 'translateY(-2px)';
-                  e.target.style.boxShadow = '0 4px 12px rgba(110, 250, 251, 0.4)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!e.target.disabled) {
-                  e.target.style.background = '#1E5F99';
-                  e.target.style.transform = 'translateY(0px)';
-                  e.target.style.boxShadow = '0 2px 8px rgba(110, 250, 251, 0.3)';
-                }
-              }}
+              onMouseEnter={handleButtonHoverEnter}
+              onMouseLeave={handleButtonHoverLeave}
             >
               {storeSearchLoading ? 'Searching...' : 'Find Stores'}
             </button>
@@ -524,14 +800,14 @@ const AisleFinder = () => {
 
           {/* Show ZIP code validation error immediately */}
           {!storeSearchLoading && shouldShowZipError(zipCode) && (
-            <div style={{ 
-              marginTop: '10px', 
-              padding: '6px 8px', 
-              backgroundColor: '#ffe4cc', 
+            <div style={{
+              marginTop: '10px',
+              padding: '6px 8px',
+              backgroundColor: '#fff0e6',
               borderRadius: '4px',
-              border: '1px solid #ffcc99'
+              border: '1px solid #ffd6b3'
             }}>
-              <p style={{ margin: '0', fontSize: '10px', color: '#cc6600', fontWeight: '500' }}>
+              <p style={{ margin: '0', fontSize: '10px', color: '#ff7730', fontWeight: '500' }}>
                 Please enter a valid ZIP code (5 digits or 5 digits-4 digits)
               </p>
             </div>
@@ -539,14 +815,14 @@ const AisleFinder = () => {
 
           {/* Show no stores found message after search */}
           {!storeSearchLoading && hasSearchedStores && stores.length === 0 && zipCode && isValidZipCode(zipCode) && (
-            <div style={{ 
-              marginTop: '10px', 
-              padding: '6px 8px', 
-              backgroundColor: '#ffe4cc', 
+            <div style={{
+              marginTop: '10px',
+              padding: '6px 8px',
+              backgroundColor: '#fff0e6',
               borderRadius: '4px',
-              border: '1px solid #ffcc99'
+              border: '1px solid #ffd6b3'
             }}>
-              <p style={{ margin: '0', fontSize: '10px', color: '#cc6600', fontWeight: '500' }}>
+              <p style={{ margin: '0', fontSize: '10px', color: '#ff7730', fontWeight: '500' }}>
                 No stores found near ZIP code {zipCode}. Try a different ZIP code or organize by category.
               </p>
             </div>
@@ -554,12 +830,12 @@ const AisleFinder = () => {
 
 
         </div>
-      
+
         {/* Grocery List Input Section */}
-        <div style={{ 
-          marginBottom: '20px', 
-          padding: '15px', 
-          backgroundColor: '#f8f9fa', 
+        <div style={{
+          marginBottom: '20px',
+          padding: '15px',
+          backgroundColor: '#f8f9fa',
           borderRadius: '8px',
           boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
           border: '1px solid #e9ecef'
@@ -568,7 +844,7 @@ const AisleFinder = () => {
             <i className="fa-solid fa-cart-shopping"></i>
             Your Grocery List
           </h3>
-          
+
           <div style={{ marginBottom: '10px' }}>
             <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', fontSize: '13px', color: '#2c3e50' }}>
               Type or Paste Items:
@@ -607,20 +883,8 @@ const AisleFinder = () => {
             }}
             disabled={!textInput.trim() || loading}
             style={!textInput.trim() || loading ? disabledButtonStyle : buttonStyle}
-            onMouseEnter={(e) => {
-              if (!e.target.disabled) {
-                e.target.style.background = 'linear-gradient(135deg, #5ae5e6 0%, #0f4d87 100%)';
-                e.target.style.transform = 'translateY(-2px)';
-                e.target.style.boxShadow = '0 4px 12px rgba(110, 250, 251, 0.4)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!e.target.disabled) {
-                e.target.style.background = '#1E5F99';
-                e.target.style.transform = 'translateY(0px)';
-                e.target.style.boxShadow = '0 2px 8px rgba(110, 250, 251, 0.3)';
-              }
-            }}
+            onMouseEnter={handleButtonHoverEnter}
+            onMouseLeave={handleButtonHoverLeave}
           >
             {loading && organizeByCategory ? 'Processing...' : 'Organize by Category'}
           </button>
@@ -635,20 +899,8 @@ const AisleFinder = () => {
             }}
             disabled={!textInput.trim() || loading}
             style={!textInput.trim() || loading ? disabledButtonStyle : buttonStyle}
-            onMouseEnter={(e) => {
-              if (!e.target.disabled) {
-                e.target.style.background = 'linear-gradient(135deg, #5ae5e6 0%, #0f4d87 100%)';
-                e.target.style.transform = 'translateY(-2px)';
-                e.target.style.boxShadow = '0 4px 12px rgba(110, 250, 251, 0.4)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!e.target.disabled) {
-                e.target.style.background = '#1E5F99';
-                e.target.style.transform = 'translateY(0px)';
-                e.target.style.boxShadow = '0 2px 8px rgba(110, 250, 251, 0.3)';
-              }
-            }}
+            onMouseEnter={handleButtonHoverEnter}
+            onMouseLeave={handleButtonHoverLeave}
           >
             {loading && !organizeByCategory ? 'Processing...' : 'Organize by Aisle'}
           </button>
@@ -657,14 +909,14 @@ const AisleFinder = () => {
         {/* Error Message */}
         {error && (
           <div style={{
-            backgroundColor: '#ffe4cc',
-            color: '#cc6600',
+            backgroundColor: '#fff0e6',
+            color: '#ff7730',
             padding: '8px 12px',
             borderRadius: '4px',
             marginBottom: '15px',
             fontSize: '11px',
             fontWeight: '500',
-            border: '1px solid #ffcc99'
+            border: '1px solid #ffd6b3'
           }}>
             {error}
           </div>
@@ -682,135 +934,51 @@ const AisleFinder = () => {
             textAlign: 'center'
           }}>
             <div style={{
-              position: 'relative',
-              width: '80px',
-              height: '60px',
-              margin: '0 auto 20px',
-              display: 'inline-block'
+              display: 'flex',
+              justifyContent: 'center',
+              gap: '16px',
+              marginBottom: '20px',
+              fontSize: '24px'
             }}>
-              {/* Shopping Cart Icon */}
-              <div style={{
-                position: 'absolute',
-                bottom: '0',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                fontSize: '40px',
-                color: '#0091AD'
-              }}>
-                <i className="fa-solid fa-basket-shopping"></i>
-              </div>
-              
-              {/* Static Items in Cart - no more disappearing! */}
-              <div style={{
-                position: 'absolute',
-                top: '28px',
-                left: '32px',
-                fontSize: '10px',
-                color: '#FF0000',
-                opacity: 0,
-                animation: 'fadeInAndDrop 0.8s ease-out 0.5s forwards'
-              }}>
-                <i className="fa-solid fa-apple-whole"></i>
-              </div>
-              <div style={{
-                position: 'absolute',
-                top: '30px',
-                left: '40px',
-                fontSize: '11px',
-                color: '#FF8C00',
-                opacity: 0,
-                animation: 'fadeInAndDrop 0.8s ease-out 1.0s forwards'
-              }}>
-                <i className="fa-solid fa-carrot"></i>
-              </div>
-              <div style={{
-                position: 'absolute',
-                top: '32px',
-                left: '48px',
-                fontSize: '10px',
-                color: '#32CD32',
-                opacity: 0,
-                animation: 'fadeInAndDrop 0.8s ease-out 1.5s forwards'
-              }}>
-                <i className="fa-solid fa-apple-whole"></i>
-              </div>
-              <div style={{
-                position: 'absolute',
-                top: '34px',
-                left: '36px',
-                fontSize: '11px',
-                color: '#FF7F00',
-                opacity: 0,
-                animation: 'fadeInAndDrop 0.8s ease-out 2.0s forwards'
-              }}>
-                <i className="fa-solid fa-carrot"></i>
-              </div>
-              <div style={{
-                position: 'absolute',
-                top: '36px',
-                left: '44px',
-                fontSize: '10px',
-                color: '#FF6347',
-                opacity: 0,
-                animation: 'fadeInAndDrop 0.8s ease-out 2.5s forwards'
-              }}>
-                <i className="fa-solid fa-carrot"></i>
-              </div>
+              {[
+                { icon: 'fa-basket-shopping', color: '#ff4757' },
+                { icon: 'fa-apple-whole', color: '#2ecc71' },
+                { icon: 'fa-wheat-awn', color: '#ffc439' }
+              ].map((item, i) => (
+                <div
+                  key={i}
+                  className={`loading-icon-${i}`}
+                  style={{ color: item.color, opacity: 0.15 }}
+                >
+                  <i className={`fa-solid ${item.icon}`}></i>
+                </div>
+              ))}
             </div>
-            
+
             <p style={{ margin: '0', color: '#2c3e50', fontSize: '14px', fontWeight: '500' }}>
-              Processing {getItemCount()} items
-              <span className="dot1">.</span>
-              <span className="dot2">.</span>
-              <span className="dot3">.</span>
+              Processing {getItemCount()} items...
             </p>
-            
+
             <style>{`
-              @keyframes fadeInAndDrop {
-                0% {
-                  transform: translateY(-15px);
-                  opacity: 0;
-                }
-                100% {
-                  transform: translateY(0px);
-                  opacity: 1;
-                }
+              @keyframes iconPulse {
+                0%, 100% { opacity: 0.15; transform: scale(1); }
+                50% { opacity: 1; transform: scale(1.2); }
               }
-              
-              .dot1, .dot2, .dot3 {
-                animation: dotFade 1.5s infinite;
-              }
-              
-              .dot1 {
-                animation-delay: 0s;
-              }
-              
-              .dot2 {
-                animation-delay: 0.3s;
-              }
-              
-              .dot3 {
-                animation-delay: 0.6s;
-              }
-              
-              @keyframes dotFade {
-                0%, 60%, 100% {
-                  opacity: 0;
-                }
-                30% {
-                  opacity: 1;
-                }
-              }
+              .loading-icon-0 { animation: iconPulse 2s ease-in-out 0.0s infinite; }
+              .loading-icon-1 { animation: iconPulse 2s ease-in-out 0.4s infinite; }
+              .loading-icon-2 { animation: iconPulse 2s ease-in-out 0.8s infinite; }
+              .loading-icon-3 { animation: iconPulse 2s ease-in-out 1.2s infinite; }
+              .loading-icon-4 { animation: iconPulse 2s ease-in-out 1.6s infinite; }
             `}</style>
           </div>
         )}
 
         {/* Results Section */}
         {groceryList && !loading && (
-          <div style={{ 
+          <div style={{
             marginTop: '15px',
-            padding: '15px', 
-            backgroundColor: '#f8f9fa', 
+            padding: '15px',
+            backgroundColor: '#f8f9fa',
             borderRadius: '8px',
             boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
             border: '1px solid #e9ecef'
@@ -822,44 +990,10 @@ const AisleFinder = () => {
               </h3>
               <div ref={settingsRef} style={{ display: 'flex', gap: '10px', alignItems: 'center', position: 'relative', flexWrap: 'wrap' }}>
                 <button
-                  onClick={() => setShopMode(!shopMode)}
-                  style={{
-                    ...buttonStyle,
-                    padding: '8px 12px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    background: shopMode ? '#27ae60' : '#1E5F99'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = shopMode
-                      ? 'linear-gradient(135deg, #2ecc71 0%, #1a9c4e 100%)'
-                      : 'linear-gradient(135deg, #5ae5e6 0%, #0f4d87 100%)';
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(110, 250, 251, 0.4)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = shopMode ? '#27ae60' : '#1E5F99';
-                    e.currentTarget.style.transform = 'translateY(0px)';
-                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(110, 250, 251, 0.3)';
-                  }}
-                >
-                  <i className="fa-solid fa-basket-shopping"></i>
-                  {shopMode ? 'Exit Shop Mode' : 'Shop Mode'}
-                </button>
-                <button
                   onClick={copyToClipboard}
                   style={buttonStyle}
-                  onMouseEnter={(e) => {
-                    e.target.style.background = 'linear-gradient(135deg, #5ae5e6 0%, #0f4d87 100%)';
-                    e.target.style.transform = 'translateY(-2px)';
-                    e.target.style.boxShadow = '0 4px 12px rgba(110, 250, 251, 0.4)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.background = '#1E5F99';
-                    e.target.style.transform = 'translateY(0px)';
-                    e.target.style.boxShadow = '0 2px 8px rgba(110, 250, 251, 0.3)';
-                  }}
+                  onMouseEnter={handleButtonHoverEnter}
+                  onMouseLeave={handleButtonHoverLeave}
                 >
                   Copy to Clipboard
                 </button>
@@ -872,20 +1006,12 @@ const AisleFinder = () => {
                     alignItems: 'center',
                     gap: '6px'
                   }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'linear-gradient(135deg, #5ae5e6 0%, #0f4d87 100%)';
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(110, 250, 251, 0.4)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = '#1E5F99';
-                    e.currentTarget.style.transform = 'translateY(0px)';
-                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(110, 250, 251, 0.3)';
-                  }}
+                  onMouseEnter={handleButtonHoverEnter}
+                  onMouseLeave={handleButtonHoverLeave}
                 >
                   <i className="fa-solid fa-cog"></i>
                 </button>
-                
+
                 {/* Settings Popup */}
                 {showSettingsPopup && (
                   <div style={{
@@ -942,225 +1068,110 @@ const AisleFinder = () => {
                 )}
               </div>
             </div>
-            
-            {shopMode ? (
-              <div style={{
-                backgroundColor: 'white',
-                padding: '15px',
-                borderRadius: '6px',
-                border: '2px solid #e9ecef',
-                minHeight: '300px'
-              }}>
-                {/* Progress bar */}
-                <div style={{ marginBottom: '15px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-                    <span style={{ fontSize: '13px', fontWeight: '600', color: '#2c3e50' }}>
-                      Progress: {getCheckedCount()}/{getTotalItems()} items
-                    </span>
-                    <span style={{ fontSize: '12px', color: '#6c757d' }}>
-                      {getTotalItems() > 0 ? Math.round((getCheckedCount() / getTotalItems()) * 100) : 0}%
-                    </span>
-                  </div>
-                  <div style={{
-                    height: '8px',
-                    backgroundColor: '#e9ecef',
-                    borderRadius: '4px',
-                    overflow: 'hidden'
-                  }}>
-                    <div style={{
-                      height: '100%',
-                      width: `${getTotalItems() > 0 ? (getCheckedCount() / getTotalItems()) * 100 : 0}%`,
-                      backgroundColor: '#27ae60',
-                      borderRadius: '4px',
-                      transition: 'width 0.3s ease'
-                    }} />
-                  </div>
-                </div>
 
-                {/* Single Item Lookup */}
-                <div style={{
-                  marginBottom: '15px',
-                  padding: '10px',
-                  backgroundColor: '#f0f9ff',
-                  borderRadius: '6px',
-                  border: '1px solid #bee3f8'
-                }}>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <input
-                      type="text"
-                      value={singleItemQuery}
-                      onChange={(e) => setSingleItemQuery(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') lookupSingleItem(); }}
-                      placeholder="Quick lookup: type an item to find its aisle"
-                      style={{
-                        flex: 1,
-                        padding: '6px 10px',
-                        border: '2px solid #e1e8ed',
-                        borderRadius: '6px',
-                        fontSize: '12px',
-                        outline: 'none',
-                        transition: 'border-color 0.3s ease'
-                      }}
-                      onFocus={(e) => e.target.style.borderColor = '#0091AD'}
-                      onBlur={(e) => e.target.style.borderColor = '#e1e8ed'}
-                    />
-                    <button
-                      onClick={lookupSingleItem}
-                      disabled={singleItemLoading || !singleItemQuery.trim()}
-                      style={{
-                        ...(singleItemLoading || !singleItemQuery.trim() ? disabledButtonStyle : buttonStyle),
-                        padding: '6px 12px',
-                        fontSize: '11px'
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!e.target.disabled) {
-                          e.target.style.background = 'linear-gradient(135deg, #5ae5e6 0%, #0f4d87 100%)';
-                          e.target.style.transform = 'translateY(-2px)';
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!e.target.disabled) {
-                          e.target.style.background = '#1E5F99';
-                          e.target.style.transform = 'translateY(0px)';
-                        }
-                      }}
-                    >
-                      {singleItemLoading ? '...' : 'Find Aisle'}
-                    </button>
-                  </div>
-                  {singleItemResult && !singleItemResult.error && (
-                    <div style={{ marginTop: '8px', fontSize: '12px', color: '#2c3e50', padding: '6px 8px', backgroundColor: '#e8f5e9', borderRadius: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span><strong>{singleItemResult.item}</strong> — {singleItemResult.aisle}</span>
-                      <button
-                        onClick={() => addItemToList(singleItemResult)}
-                        style={{
-                          ...buttonStyle,
-                          padding: '4px 10px',
-                          fontSize: '11px',
-                          background: '#27ae60',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = 'linear-gradient(135deg, #2ecc71 0%, #1a9c4e 100%)';
-                          e.currentTarget.style.transform = 'translateY(-1px)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = '#27ae60';
-                          e.currentTarget.style.transform = 'translateY(0px)';
-                        }}
-                      >
-                        <i className="fa-solid fa-plus"></i> Add to List
-                      </button>
-                    </div>
-                  )}
-                  {singleItemResult && singleItemResult.error && (
-                    <div style={{ marginTop: '8px', fontSize: '12px', color: '#cc6600', padding: '6px 8px', backgroundColor: '#ffe4cc', borderRadius: '4px' }}>
-                      Could not find item
-                    </div>
-                  )}
-                </div>
-
-                {/* Interactive checklist */}
-                {parseGroceryListToGroups(groceryList).map((group) => {
-                  const complete = isGroupComplete(group);
-                  const collapsed = collapsedGroups[group.name] !== undefined
-                    ? collapsedGroups[group.name]
-                    : complete;
-
-                  return (
-                    <div key={group.name} style={{ marginBottom: '10px' }}>
-                      <div
-                        onClick={() => toggleGroupCollapse(group.name)}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          padding: '8px 10px',
-                          backgroundColor: complete ? '#d4edda' : '#f8f9fa',
-                          borderRadius: '6px',
-                          cursor: 'pointer',
-                          fontWeight: '600',
-                          fontSize: '13px',
-                          color: complete ? '#155724' : '#2c3e50',
-                          transition: 'background-color 0.2s ease'
-                        }}
-                      >
-                        <i className={collapsed ? "fa-solid fa-chevron-right" : "fa-solid fa-chevron-down"}
-                           style={{ fontSize: '10px', width: '12px' }} />
-                        {group.name}
-                        <span style={{ marginLeft: 'auto', fontSize: '11px', fontWeight: '400', color: '#6c757d' }}>
-                          {group.items.filter(item => checkedItems[`${group.name}::${item}`]).length}/{group.items.length}
-                        </span>
-                        {complete && <i className="fa-solid fa-check" style={{ color: '#27ae60', fontSize: '12px' }} />}
-                      </div>
-
-                      {!collapsed && (
-                        <div style={{ paddingLeft: '12px', marginTop: '4px' }}>
-                          {group.items.map((item, idx) => (
-                            <div
-                              key={`${group.name}::${item}::${idx}`}
-                              onClick={() => toggleItem(group.name, item)}
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '8px',
-                                padding: '6px 8px',
-                                cursor: 'pointer',
-                                fontSize: '12px',
-                                color: checkedItems[`${group.name}::${item}`] ? '#95a5a6' : '#2c3e50',
-                                textDecoration: checkedItems[`${group.name}::${item}`] ? 'line-through' : 'none',
-                                transition: 'all 0.2s ease',
-                                borderRadius: '4px'
-                              }}
-                              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-                              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                            >
-                              <div style={{
-                                width: '18px',
-                                height: '18px',
-                                borderRadius: '4px',
-                                border: `2px solid ${checkedItems[`${group.name}::${item}`] ? '#27ae60' : '#bdc3c7'}`,
-                                backgroundColor: checkedItems[`${group.name}::${item}`] ? '#27ae60' : 'white',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                flexShrink: 0,
-                                transition: 'all 0.2s ease'
-                              }}>
-                                {checkedItems[`${group.name}::${item}`] && (
-                                  <i className="fa-solid fa-check" style={{ color: 'white', fontSize: '10px' }} />
-                                )}
-                              </div>
-                              {item}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div
+            {/* Draggable category groups */}
+            <div style={{ textAlign: 'center', marginBottom: '15px' }}>
+              <button
+                onClick={() => setShopMode(true)}
                 style={{
-                  backgroundColor: 'white',
-                  padding: '15px',
-                  borderRadius: '6px',
-                  border: '2px solid #e9ecef',
-                  minHeight: '300px',
-                  color: '#2c3e50'
+                  ...buttonStyle,
+                  padding: '10px 24px',
+                  fontSize: '14px',
+                  background: '#27ae60',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'linear-gradient(135deg, #2ecc71 0%, #1a9c4e 100%)';
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(39, 174, 96, 0.4)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = '#27ae60';
+                  e.currentTarget.style.transform = 'translateY(0px)';
+                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(110, 250, 251, 0.3)';
                 }}
               >
-                {formatGroceryList(groceryList)}
-              </div>
-            )}
+                <i className="fa-solid fa-basket-shopping"></i>
+                Shop
+              </button>
+            </div>
+
+            <DragDropContext onDragEnd={handleDragEnd}>
+              <Droppable droppableId="category-list">
+                {(provided) => (
+                  <div
+                    ref={provided.innerRef}
+                    {...provided.droppableProps}
+                    style={{
+                      backgroundColor: 'white',
+                      padding: '15px',
+                      borderRadius: '6px',
+                      border: '2px solid #e9ecef',
+                      minHeight: '300px',
+                      color: '#2c3e50'
+                    }}
+                  >
+                    {(() => {
+                      let itemCounter = 0;
+                      return orderedGroups.map((group, index) => (
+                        <Draggable key={group.name} draggableId={group.name} index={index}>
+                          {(provided, snapshot) => (
+                            <div
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              style={{
+                                ...provided.draggableProps.style,
+                                marginBottom: '12px',
+                                backgroundColor: snapshot.isDragging ? '#f0f9ff' : 'transparent',
+                                borderRadius: '6px',
+                                border: snapshot.isDragging ? '1px dashed #0091AD' : '1px solid transparent',
+                                padding: snapshot.isDragging ? '8px' : '0'
+                              }}
+                            >
+                              <div
+                                {...provided.dragHandleProps}
+                                style={{
+                                  fontWeight: 'bold',
+                                  fontSize: '14px',
+                                  color: '#2c3e50',
+                                  margin: '12px 0 6px 0',
+                                  cursor: 'grab',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '8px',
+                                  userSelect: 'none'
+                                }}
+                              >
+                                <i className="fa-solid fa-grip-vertical" style={{ color: '#bdc3c7', fontSize: '12px' }} />
+                                {group.name}
+                              </div>
+                              {group.items.map((item, idx) => {
+                                itemCounter++;
+                                return (
+                                  <div key={idx} style={{ margin: '2px 0', paddingLeft: '24px', fontSize: '12px', color: '#2c3e50' }}>
+                                    {outputFormat === 'checklist' ? `\u2610 ${item}` :
+                                     outputFormat === 'numbered' ? `${itemCounter}. ${item}` :
+                                     item}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </Draggable>
+                      ));
+                    })()}
+                    {provided.placeholder}
+                  </div>
+                )}
+              </Droppable>
+            </DragDropContext>
           </div>
         )}
 
         {/* Footer with PayPal and Bug Report */}
-        <div style={{ 
+        <div style={{
           marginTop: '10px',
           display: 'flex',
           justifyContent: 'flex-end',
@@ -1195,9 +1206,9 @@ const AisleFinder = () => {
           >
             Support via PayPal
           </a>
-          
+
           <a
-            href="https://github.com/Soapsuds/aislefinder/issues"
+            href="https://github.com/hbuchman/aislefinder/issues"
             target="_blank"
             rel="noopener noreferrer"
             style={{
@@ -1227,6 +1238,88 @@ const AisleFinder = () => {
           </a>
         </div>
       </div>
+
+      {/* Shop Mode Fullscreen Overlay */}
+      {shopMode && groceryList && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 9999,
+          backgroundColor: 'white',
+          overflowY: 'auto',
+          fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+        }}>
+          {/* Confetti canvas - renders on top of the overlay */}
+          <canvas
+            ref={confettiCanvasRef}
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              pointerEvents: 'none',
+              zIndex: 10000
+            }}
+          />
+          {/* Sticky header */}
+          <div style={{
+            position: 'sticky',
+            top: 0,
+            backgroundColor: 'white',
+            zIndex: 10,
+            borderBottom: '2px solid #e9ecef',
+          }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              maxWidth: '900px',
+              margin: '0 auto',
+              padding: '12px 20px'
+            }}>
+              <h3 style={{
+                margin: 0,
+                fontSize: '1.2rem',
+                fontWeight: '600',
+                color: '#2c3e50',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <i className="fa-solid fa-basket-shopping" style={{ color: '#27ae60' }}></i>
+                Shop
+              </h3>
+              <button
+                onClick={() => {
+                  setShopMode(false);
+                  setShowCelebration(false);
+                  hasFiredConfetti.current = false;
+                }}
+                style={{
+                  ...buttonStyle,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+                onMouseEnter={handleButtonHoverEnter}
+                onMouseLeave={handleButtonHoverLeave}
+              >
+                <i className="fa-solid fa-xmark"></i>
+                Exit
+              </button>
+            </div>
+          </div>
+
+          {/* Scrollable shop mode content */}
+          <div style={{ maxWidth: '900px', margin: '0 auto', padding: '20px' }}>
+            {renderShopModeContent()}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

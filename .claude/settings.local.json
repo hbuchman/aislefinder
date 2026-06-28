@@ -12,7 +12,15 @@
       "Bash(echo:*)",
       "Bash(git diff-tree:*)",
       "Bash(npx react-scripts build:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(ls:*)",
+      "Bash(PYTHONPATH=/Users/hayleybuchman/Documents/aislefinder python -m pytest:*)",
+      "Bash(PYTHONPATH=/Users/hayleybuchman/Documents/aislefinder python3 -m pytest:*)",
+      "Bash(/Users/hayleybuchman/Documents/aislefinder/venv/bin/pip install pytest)",
+      "Bash(PYTHONPATH=/Users/hayleybuchman/Documents/aislefinder /Users/hayleybuchman/Documents/aislefinder/venv/bin/python -m pytest:*)",
+      "Bash(/Users/hayleybuchman/Documents/aislefinder/venv/bin/python:*)",
+      "Bash(/Users/hayleybuchman/Documents/aislefinder/venv/bin/python3.14:*)",
+      "Bash(PYTHONPATH=/Users/hayleybuchman/Documents/aislefinder /Users/hayleybuchman/Documents/aislefinder/venv/bin/python3.14 -m pytest /Users/hayleybuchman/Documents/aislefinder/grocery_organizer/tests/test_word_matching.py -v)"
     ],
     "deny": [],
     "ask": []

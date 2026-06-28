@@ -44,7 +44,18 @@ class GroceryListProcessor:
                        for i, item in enumerate(grocery_list)}
             for future in as_completed(futures):
                 idx = futures[future]
-                product_data[idx] = future.result()
+                try:
+                    product_data[idx] = future.result()
+                except Exception as e:
+                    from grocery_organizer.src.core.models import FullProduct
+                    item_name = grocery_list[idx]
+                    print(f"Failed to look up '{item_name}': {e}")
+                    product_data[idx] = FullProduct(
+                        item_name,
+                        f"{item_name} (lookup failed)",
+                        "Not Found",
+                        -1
+                    )
 
         formatter = OutputFormatter(product_data, self.output_format)
 

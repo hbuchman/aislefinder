@@ -89,7 +89,6 @@ class KrogerAPI:
             r'\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(lbs?|pounds?|gallons?|cartons?|loaves?|dozens?|bunches?|heads?)\b',  # written numbers with units
             r'\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+',  # written numbers
             r'\ba\s+dozen\b',  # "a dozen"
-            r'\b\d+\s+',  # any remaining standalone numbers
         ]
         
         for pattern in quantity_patterns:
@@ -97,7 +96,7 @@ class KrogerAPI:
         
         # Remove filler words that don't help with product matching
         filler_words = [
-            'of', 'a', 'an', 'the', 'some', 'any', 'fresh', 'organic', 'natural',
+            'of', 'a', 'an', 'the', 'some', 'any',
             'large', 'small', 'medium', 'big', 'little', 'extra', 'super',
             'pack', 'package', 'container', 'bag', 'box', 'jar', 'can', 'bottle'
         ]
@@ -191,6 +190,30 @@ class KrogerAPI:
         'supplement', 'vitamin',
     ]
 
+    @staticmethod
+    def _normalize(text):
+        """Remove hyphens and apostrophes for fuzzy comparison"""
+        return text.replace('-', '').replace("'", '')
+
+    def _fuzzy_word_match(self, search_word, description):
+        """Check if a search word matches any word in the description.
+
+        Uses word-level comparison to avoid false positives like "ice" matching "rice".
+        Allows prefix/suffix overlap so "cheezit" matches "cheezits" and vice versa.
+        """
+        word_norm = self._normalize(search_word.lower())
+        desc_words = self._normalize(description.lower()).split()
+        for dw in desc_words:
+            # Exact word match
+            if word_norm == dw:
+                return True
+            # One word starts with the other (handles plurals, brand variants)
+            # e.g. "cheezit" and "cheezits", "chip" and "chips"
+            if len(word_norm) >= 3 and len(dw) >= 3:
+                if dw.startswith(word_norm) or word_norm.startswith(dw):
+                    return True
+        return False
+
     def _is_product_relevant(self, search_term, product_data):
         """Check if the returned product is relevant to the search term"""
         search_words = set(search_term.lower().split())
@@ -199,27 +222,31 @@ class KrogerAPI:
         # Remove common words that don't help with matching
         common_words = {'the', 'and', 'or', 'with', 'in', 'on', 'at', 'to', 'for', 'of', 'a', 'an'}
         search_words = search_words - common_words
+        # Only consider words long enough to be meaningful
+        matchable_words = [w for w in search_words if len(w) >= 3]
 
-        if not search_words:
-            return True  # If only common words, accept the match
+        if not matchable_words:
+            return True  # If only common/short words, accept the match
 
-        # Check if any search word appears in the product description
-        has_word_match = False
-        for word in search_words:
-            if len(word) >= 3 and word in description:
-                has_word_match = True
-                break
+        # Count how many search words appear in the product description
+        matched_count = sum(1 for word in matchable_words
+                           if self._fuzzy_word_match(word, description))
 
-        if not has_word_match:
+        # For multi-word searches, require at least half of words to match
+        # For single-word searches, require that one word to match
+        required = max(1, (len(matchable_words) + 1) // 2)
+        if matched_count < required:
             # If search term is very short, be more lenient
             if len(search_term.strip()) <= 3:
                 return True
             return False
 
-        # Word matched, but check it's not a non-grocery product
+        # Words matched, but check it's not a non-grocery product
         # e.g. "lemon" matches "lemon-scented candle" but that's not what we want
+        # Only filter if the blocked keyword is NOT part of what the user searched for
+        search_lower = search_term.lower()
         for keyword in self.NON_GROCERY_KEYWORDS:
-            if keyword in description:
+            if keyword in description and keyword not in search_lower:
                 return False
 
         return True
@@ -227,30 +254,41 @@ class KrogerAPI:
     def _score_product(self, search_term, product_data):
         """Score a product result for relevance. Higher is better."""
         description = product_data.get('description', '').lower()
+        description_norm = self._normalize(description)
         search_lower = search_term.lower().strip()
+        search_lower_norm = self._normalize(search_lower)
         search_words = set(search_lower.split())
         score = 0
 
-        # Exact match in description is best
-        if search_lower in description:
+        # Full description matches the search term (best possible match)
+        desc_words = set(description.split())
+        search_word_set = set(search_lower.split())
+        if desc_words == search_word_set or set(description_norm.split()) == set(search_lower_norm.split()):
+            score += 15
+
+        # Exact phrase match in description
+        if search_lower in description or search_lower_norm in description_norm:
             score += 10
 
         # Count how many search words appear in description
         for word in search_words:
-            if len(word) >= 3 and word in description:
+            if len(word) >= 3 and self._fuzzy_word_match(word, description):
                 score += 3
 
-        # Penalize non-grocery products
+        # Penalize non-grocery products, but not if the user searched for that keyword
         for keyword in self.NON_GROCERY_KEYWORDS:
-            if keyword in description:
+            if keyword in description and keyword not in search_lower:
                 score -= 20
 
         # Prefer products with aisle locations (actual in-store items)
         if product_data.get('aisleLocations'):
             score += 5
 
-        # Prefer shorter descriptions (more likely to be the base product)
-        if len(description) < 40:
+        # Prefer shorter descriptions (closer to base product)
+        desc_len = len(description)
+        if desc_len < 20:
+            score += 4
+        elif desc_len < 40:
             score += 2
 
         return score

@@ -27,21 +27,25 @@ class OutputFormatter:
         def sort_key(element):
             key, products = element
             if isinstance(key, str):
-                # Special category ordering for optimal shopping
+                lower_key = key.lower()
                 if key == "Produce":
-                    return (0, "Produce")  # First - fresh items
+                    return (0, 0, "Produce")
+                elif key == "Bakery":
+                    return (0, 1, "Bakery")
                 elif key == "Deli":
-                    return (0, "Deli")  # Second - fresh items  
-                elif key.lower() in ["frozen", "frozen foods", "frozen section"]:
-                    return (3, key)  # Near end for food safety
-                elif key.lower() in ["dairy", "milk", "dairy products"]:
-                    return (3, key)  # Near end for food safety
+                    return (0, 2, "Deli")
+                elif lower_key in ["meat & seafood", "meat and seafood"]:
+                    return (0, 3, key)
+                elif lower_key in ["dairy", "milk", "dairy products"]:
+                    return (3, 0, key)
+                elif lower_key in ["frozen", "frozen foods", "frozen section"]:
+                    return (3, 1, key)
                 elif key == "Not Found":
-                    return (4, key)  # Last
+                    return (4, 0, key)
                 else:
-                    return (1, key)  # Other categories after produce/deli, before frozen/dairy
+                    return (1, 0, key)  # Alphabetical
             else:
-                return (2, key)  # Numbered aisles in ascending order
+                return (2, key, "")  # Numbered aisles in ascending order
 
         # Sort all items
         sorted_items = sorted(aisle_groups.items(), key=sort_key)
@@ -67,18 +71,23 @@ class OutputFormatter:
         
         # Use same optimal shopping order as aisle format
         def category_sort_key(category):
+            lower_cat = category.lower()
             if category == "Produce":
-                return (0, "Produce")
+                return (0, 0, "Produce")
+            elif category == "Bakery":
+                return (0, 1, "Bakery")
             elif category == "Deli":
-                return (0, "Deli")
-            elif category.lower() in ["frozen", "frozen foods", "frozen section"]:
-                return (2, category)
-            elif category.lower() in ["dairy", "milk", "dairy products"]:
-                return (2, category)
+                return (0, 2, "Deli")
+            elif lower_cat in ["meat & seafood", "meat and seafood"]:
+                return (0, 3, category)
+            elif lower_cat in ["dairy", "milk", "dairy products"]:
+                return (2, 0, category)
+            elif lower_cat in ["frozen", "frozen foods", "frozen section"]:
+                return (2, 1, category)
             elif category == "Not Found":
-                return (3, category)
+                return (3, 0, category)
             else:
-                return (1, category)
+                return (1, 0, category)
         
         sorted_categories = sorted(grouped_items.keys(), key=category_sort_key)
         

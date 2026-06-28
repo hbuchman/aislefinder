@@ -31,6 +31,9 @@ class InputParser:
         # Remove numbered lists: 1., 2), etc.
         line = re.sub(r'^[\s]*\d+[.)]\s*', '', line)
         
+        # Remove parentheses and brackets
+        line = re.sub(r'[()[\]{}]', '', line)
+
         # Remove extra whitespace
         line = line.strip()
         
