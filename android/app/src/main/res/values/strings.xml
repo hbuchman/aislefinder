@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Aisle Finder</string>
+    <string name="title_activity_main">Aisle Finder</string>
+    <string name="package_name">com.aislefinder.app</string>
+    <string name="custom_url_scheme">com.aislefinder.app</string>
+</resources>

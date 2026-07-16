@@ -9,10 +9,20 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "dev": "react-scripts start"
+    "dev": "react-scripts start",
+    "ios:build": "REACT_APP_API_URL=https://aislefinder3000.com react-scripts build && cap sync ios",
+    "ios:open": "cap open ios",
+    "android:build": "REACT_APP_API_URL=https://aislefinder3000.com react-scripts build && cap sync android",
+    "android:open": "cap open android"
   },
   "dependencies": {
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/cli": "^8.4.1",
+    "@capacitor/core": "^8.4.1",
+    "@capacitor/ios": "^8.4.1",
+    "@capacitor/preferences": "^8.0.1",
     "@hello-pangea/dnd": "^18.0.1",
+    "amazon-cognito-identity-js": "^6.3.20",
     "canvas-confetti": "^1.9.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
