@@ -10,7 +10,7 @@ Tests cover:
 
 import pytest
 from unittest.mock import patch
-from grocery_organizer.src.store_api.api import KrogerAPI
+from grocery_organizer.src.store_api.kroger import KrogerAPI
 
 
 @pytest.fixture
