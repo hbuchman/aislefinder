@@ -2,25 +2,30 @@ import base64
 import requests
 import time
 import os
-import re
 import threading
 from functools import wraps
 
 from grocery_organizer.src.core.models import FullProduct
+from grocery_organizer.src.store_api.search_terms import preprocess_search_term
 
 def retry_api_call(max_retries=3, backoff_factor=1):
-    """Decorator to retry API calls with exponential backoff"""
+    """Retry network failures with exponential backoff.
+
+    Only requests.RequestException is retried — deterministic errors
+    (bad config, malformed response parsing) would fail identically on
+    every attempt, so they propagate immediately.
+    """
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
             for attempt in range(max_retries):
                 try:
                     return func(*args, **kwargs)
-                except (requests.exceptions.RequestException, KeyError, IndexError, ValueError) as e:
+                except requests.exceptions.RequestException as e:
                     if attempt == max_retries - 1:
                         print(f"API call failed after {max_retries} attempts: {e}")
                         raise
-                    
+
                     wait_time = backoff_factor * (2 ** attempt)
                     print(f"API call attempt {attempt + 1} failed: {e}. Retrying in {wait_time} seconds...")
                     time.sleep(wait_time)
@@ -29,13 +34,17 @@ def retry_api_call(max_retries=3, backoff_factor=1):
     return decorator
 
 class KrogerAPI:
+    """Client for the Kroger Products and Locations APIs.
+
+    find_product() returns a FullProduct; find_stores_by_zip() returns store
+    dicts with id, name, address, and distance.
+    """
 
     AUTH_URL = 'https://api.kroger.com/v1/connect/oauth2/token'
     PRODUCT_URL = 'https://api.kroger.com/v1/products'
     LOCATIONS_URL = 'https://api.kroger.com/v1/locations'
     CLIENT_ID = 'aislefinder5000-bbcct110'
 
-    #TODO need to take location as an option
     def __init__(self, store_id: str = "01400943"):
         self.store_id = store_id
         self.access_token = None
@@ -76,50 +85,16 @@ class KrogerAPI:
             return token
 
     def _preprocess_search_term(self, product_name):
-        """Clean up search term by removing numbers, quantities, and filler words"""
-        # Convert to lowercase for processing
-        cleaned = product_name.lower().strip()
-        
-        # Remove common quantity words and numbers
-        quantity_patterns = [
-            r'\b\d+\s*(lbs?|pounds?|oz|ounces?|grams?|kg|kilograms?)\b',  # weights
-            r'\b\d+\s*(gallons?|quarts?|pints?|cups?|liters?|ml)\b',      # volumes
-            r'\b\d+\s*(packs?|packages?|boxes?|bags?|containers?|jars?|cans?|bottles?)\b',  # containers
-            r'\b\d+\s*(loaves?|cartons?|dozens?|bunches?|heads?)\b',      # specific units
-            r'\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(lbs?|pounds?|gallons?|cartons?|loaves?|dozens?|bunches?|heads?)\b',  # written numbers with units
-            r'\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+',  # written numbers
-            r'\ba\s+dozen\b',  # "a dozen"
-        ]
-        
-        for pattern in quantity_patterns:
-            cleaned = re.sub(pattern, ' ', cleaned)
-        
-        # Remove filler words that don't help with product matching
-        filler_words = [
-            'of', 'a', 'an', 'the', 'some', 'any',
-            'large', 'small', 'medium', 'big', 'little', 'extra', 'super',
-            'pack', 'package', 'container', 'bag', 'box', 'jar', 'can', 'bottle'
-        ]
-        
-        # Split into words and filter
-        words = cleaned.split()
-        filtered_words = [word for word in words if word not in filler_words and len(word) > 1]
-        
-        # Rejoin and clean up extra spaces
-        result = ' '.join(filtered_words).strip()
-        
-        # If we filtered everything out, use original term
-        if not result:
-            result = product_name.strip()
-            
-        return result
+        """Clean up a search term (shared logic in search_terms.py)."""
+        return preprocess_search_term(product_name)
 
     @retry_api_call(max_retries=3, backoff_factor=1)
-    def find_product(self, product_name):
+    def _search_best_match(self, product_name):
+        """Search the Products API and return the best-scoring raw product dict, or None."""
         # Clean up the search term before calling API
         cleaned_search_term = self._preprocess_search_term(product_name)
         print(f"Searching for '{product_name}' -> cleaned: '{cleaned_search_term}'")
-        
+
         #Prepare API Request
         token = self.get_auth_token()
         headers = {'Authorization': 'Bearer ' + token, 'Cache-Control': 'no-cache'}
@@ -128,21 +103,15 @@ class KrogerAPI:
         response.raise_for_status()  # Raise an exception for bad status codes
 
         response_data = response.json()
-        if not response_data.get('data') or len(response_data['data']) == 0:
-            print(f"No product data found for: {product_name}, adding to Not Found")
-            return FullProduct(
-                product_name,
-                f"{product_name} (not found in store)",
-                "Not Found",
-                -1  # Unknown aisle
-            )
+        candidates = response_data.get('data') or []
+        if not candidates:
+            print(f"No product data found for: {product_name}")
+            return None
 
-        product_data = response_data['data'][0]
-        
-        # Score all results and pick the best relevant match
+        # Score the top results and pick the best relevant match
         best_product = None
         best_score = -100
-        for candidate in response_data['data'][:5]:
+        for candidate in candidates[:5]:
             if self._is_product_relevant(product_name, candidate) or self._is_product_relevant(cleaned_search_term, candidate):
                 score = max(
                     self._score_product(product_name, candidate),
@@ -153,7 +122,15 @@ class KrogerAPI:
                     best_product = candidate
 
         if best_product is None:
-            print(f"Warning: No relevant product found for '{product_name}', adding to Not Found")
+            print(f"Warning: No relevant product found for '{product_name}'")
+        elif best_product is not candidates[0]:
+            print(f"Found better match for '{product_name}': {best_product['description']}")
+
+        return best_product
+
+    def find_product(self, product_name):
+        product_data = self._search_best_match(product_name)
+        if product_data is None:
             return FullProduct(
                 product_name,
                 f"{product_name} (not found in store)",
@@ -161,25 +138,80 @@ class KrogerAPI:
                 -1  # Unknown aisle
             )
 
-        product_data = best_product
-        if product_data != response_data['data'][0]:
-            print(f"Found better match for '{product_name}': {product_data['description']}")
-
-        #extract response into object
+        # Extract response into object
         categories = product_data.get('categories', [])
         category = categories[0] if categories else 'Unknown'
+        category = self._normalize_category(category)
         aisle_locations = product_data.get('aisleLocations', [])
         aisle_number = int(aisle_locations[0]['number']) if aisle_locations else -1
 
-        found_product = FullProduct(
+        return FullProduct(
             product_name,
             product_data['description'],
             category,
             aisle_number
         )
 
-        return found_product
-    
+    def find_item_details(self, product_name):
+        """Full details for the shop screen's item help view.
+
+        Returns name, brand, size, category, front image URL, and the
+        in-aisle location (aisle/side/shelf/bay), or None if no relevant
+        product was found.
+        """
+        product_data = self._search_best_match(product_name)
+        if product_data is None:
+            return None
+
+        categories = product_data.get('categories', [])
+        items = product_data.get('items', [])
+        aisle_locations = product_data.get('aisleLocations', [])
+        location = None
+        if aisle_locations:
+            loc = aisle_locations[0]
+            location = {
+                'aisle': loc.get('number'),
+                'side': loc.get('side'),  # 'L' or 'R'
+                'shelf': loc.get('shelfNumber'),
+                'bay': loc.get('bayNumber'),
+                'description': loc.get('description'),
+            }
+
+        return {
+            'name': product_data.get('description'),
+            'brand': product_data.get('brand'),
+            'size': items[0].get('size') if items else None,
+            'category': self._normalize_category(categories[0]) if categories else None,
+            'image': self._front_image_url(product_data),
+            'location': location,
+        }
+
+    @staticmethod
+    def _front_image_url(product_data):
+        """Medium front-perspective image URL, falling back to any image/size."""
+        images = product_data.get('images', [])
+        front = next((img for img in images if img.get('perspective') == 'front'), None)
+        image = front or (images[0] if images else None)
+        if not image:
+            return None
+        sizes = {s.get('size'): s.get('url') for s in image.get('sizes', [])}
+        return sizes.get('medium') or sizes.get('large') or next(iter(sizes.values()), None)
+
+
+    # Map Kroger categories to more intuitive shopper-friendly names
+    CATEGORY_MAP = {
+        'breakfast': 'Dairy',
+        'eggs & egg substitutes': 'Dairy',
+        'cold cereal': 'Breakfast & Cereal',
+        'candy': 'Snacks',
+        'cookies & crackers': 'Snacks',
+    }
+
+    @classmethod
+    def _normalize_category(cls, category):
+        """Map API categories to more intuitive names for shoppers."""
+        return cls.CATEGORY_MAP.get(category.lower(), category)
+
     # Non-grocery categories that indicate a bad match
     NON_GROCERY_KEYWORDS = [
         'gift card', 'digital', 'download', 'membership', 'subscription',
@@ -200,6 +232,7 @@ class KrogerAPI:
 
         Uses word-level comparison to avoid false positives like "ice" matching "rice".
         Allows prefix/suffix overlap so "cheezit" matches "cheezits" and vice versa.
+        Also allows suffix matching for compound words like "berries" in "strawberries".
         """
         word_norm = self._normalize(search_word.lower())
         desc_words = self._normalize(description.lower()).split()
@@ -207,10 +240,13 @@ class KrogerAPI:
             # Exact word match
             if word_norm == dw:
                 return True
-            # One word starts with the other (handles plurals, brand variants)
-            # e.g. "cheezit" and "cheezits", "chip" and "chips"
             if len(word_norm) >= 3 and len(dw) >= 3:
+                # Prefix: one word starts with the other (plurals, brand variants)
                 if dw.startswith(word_norm) or word_norm.startswith(dw):
+                    return True
+                # Suffix: search word is a suffix of description word
+                # e.g. "berries" matches "strawberries", "fish" matches "swordfish"
+                if len(word_norm) >= 5 and dw.endswith(word_norm):
                     return True
         return False
 
@@ -284,6 +320,16 @@ class KrogerAPI:
         if product_data.get('aisleLocations'):
             score += 5
 
+        # Prefer fresh categories over frozen when user didn't ask for frozen
+        categories = product_data.get('categories', [])
+        cat_lower = categories[0].lower() if categories else ''
+        if 'frozen' not in search_lower:
+            if cat_lower in ['produce', 'fresh fruits & vegetables', 'fresh vegetables',
+                             'fresh fruits', 'bakery', 'deli', 'meat & seafood']:
+                score += 5
+            elif 'frozen' in cat_lower:
+                score -= 5
+
         # Prefer shorter descriptions (closer to base product)
         desc_len = len(description)
         if desc_len < 20:
@@ -299,25 +345,32 @@ class KrogerAPI:
         token = self.get_auth_token()
         headers = {'Authorization': 'Bearer ' + token, 'Cache-Control': 'no-cache'}
         payload = {'filter.zipCode.near': zip_code, 'filter.radiusInMiles': 25, 'filter.limit': 10}
-        
+
         response = requests.get(self.LOCATIONS_URL, headers=headers, params=payload)
         response.raise_for_status()  # Raise an exception for bad status codes
-        
-        response_data = response.json()
-        locations_data = response_data.get('data', [])
-        
+
+        return self._parse_locations(response.json().get('data', []))
+
+    @staticmethod
+    def _parse_locations(locations_data):
+        """Convert raw Kroger locations into store dicts for the store picker.
+
+        Skips fuel kiosks (they match zip searches but carry junk aisle data)
+        and leaves distance as None when the API omits it, so the frontend
+        shows nothing rather than a misleading "0.0 mi".
+        """
         stores = []
         for location in locations_data:
             if not all(key in location for key in ['locationId', 'name', 'address']):
                 continue  # Skip malformed location data
-                
+            if 'fuel' in location['name'].lower():
+                continue
+
             addr = location['address']
-            store = {
+            stores.append({
                 'id': location['locationId'],
                 'name': location['name'],
                 'address': f"{addr.get('addressLine1', '')}, {addr.get('city', '')}, {addr.get('state', '')} {addr.get('zipCode', '')}",
-                'distance': location.get('distance', 0)
-            }
-            stores.append(store)
-            
+                'distance': location.get('distance'),
+            })
         return stores
