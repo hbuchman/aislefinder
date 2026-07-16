@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>API Response Viewer</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f0f2f5; color: #222; padding: 24px; }
+
+  .top-bar { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; flex-wrap: wrap; }
+  h1 { font-size: 1.3rem; white-space: nowrap; }
+  .search-form { display: flex; gap: 8px; flex: 1; max-width: 480px; }
+  .search-form input {
+    flex: 1; padding: 9px 14px; border: 1.5px solid #cdd5e0; border-radius: 7px;
+    font-size: 0.9rem; font-family: inherit; outline: none;
+  }
+  .search-form input:focus { border-color: #1B4F9B; }
+  .search-form button {
+    padding: 9px 18px; background: #1B4F9B; color: white; border: none;
+    border-radius: 7px; font-size: 0.88rem; font-weight: 600; cursor: pointer;
+  }
+  .search-form button:hover { background: #163e7a; }
+  .search-form button:disabled { background: #8baad4; cursor: default; }
+
+  .grid { display: grid; grid-template-columns: 1fr; gap: 20px; max-width: 720px; }
+
+  .panel { background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+  .panel-header { padding: 14px 18px; font-weight: 700; font-size: 1rem; display: flex; align-items: center; gap: 10px; }
+  .kroger-header { background: #1B4F9B; color: white; }
+  .badge { background: rgba(255,255,255,0.25); border-radius: 4px; padding: 2px 8px; font-size: 0.7rem; font-weight: 600; flex-shrink: 0; }
+
+  .meta-bar { padding: 8px 18px; background: #f8f9fa; border-bottom: 1px solid #e9ecef; font-size: 0.78rem; color: #555; display: flex; gap: 16px; flex-wrap: wrap; }
+  .meta-bar strong { color: #222; }
+
+  .product-list { padding: 14px 18px; display: flex; flex-direction: column; gap: 16px; }
+
+  .product-card { border: 1px solid #e9ecef; border-radius: 8px; overflow: hidden; }
+  .product-title { background: #f8f9fa; padding: 10px 14px; font-weight: 600; font-size: 0.9rem; border-bottom: 1px solid #e9ecef; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px; }
+  .product-title span { font-size: 0.75rem; font-weight: 400; color: #666; }
+
+  .fields { padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
+  .field { display: grid; grid-template-columns: 160px 1fr; gap: 6px; font-size: 0.8rem; }
+  .field-name { color: #888; font-family: monospace; font-size: 0.75rem; padding-top: 1px; }
+  .field-value { color: #222; }
+  .field-value.used { background: #e8f4e8; border-radius: 4px; padding: 1px 6px; color: #1a7a1a; font-weight: 600; }
+  .field-value.warn { background: #fff3cd; border-radius: 4px; padding: 1px 6px; color: #856404; }
+  .tag { display: inline-block; background: #e9ecef; border-radius: 3px; padding: 1px 6px; font-size: 0.72rem; margin: 1px; }
+  .tag.green { background: #d4edda; color: #155724; }
+
+  .section-label { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #aaa; margin-top: 8px; margin-bottom: 2px; padding-bottom: 4px; border-bottom: 1px solid #f0f0f0; }
+
+  .aisle-box { background: #e8f4e8; border: 1px solid #c3e6cb; border-radius: 6px; padding: 8px 12px; margin: 0 14px 14px; }
+  .aisle-box .aisle-label { font-size: 0.7rem; color: #155724; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .aisle-box .aisle-fields { display: flex; flex-wrap: wrap; gap: 8px; font-size: 0.78rem; }
+  .aisle-box .af { display: flex; flex-direction: column; }
+  .aisle-box .af-k { color: #888; font-family: monospace; font-size: 0.68rem; }
+  .aisle-box .af-v { color: #155724; font-weight: 600; }
+
+  .legend { margin-bottom: 16px; display: flex; gap: 14px; flex-wrap: wrap; align-items: center; font-size: 0.78rem; }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 3px; }
+  .dot-used { background: #d4edda; border: 1px solid #c3e6cb; }
+  .dot-warn { background: #fff3cd; border: 1px solid #ffeeba; }
+
+  .note { background: #f0f7ff; border: 1px solid #bee3f8; border-radius: 6px; padding: 10px 14px; font-size: 0.8rem; color: #2c5282; margin-bottom: 16px; }
+  .note strong { color: #1a365d; }
+
+  .loading { padding: 32px; text-align: center; color: #888; font-size: 0.9rem; }
+  .error-msg { margin: 14px 18px; background: #fde8e8; border: 1px solid #f5c6cb; border-radius: 6px; padding: 10px 14px; font-size: 0.82rem; color: #721c24; }
+
+  .kroger-meta-term { font-style: italic; }
+
+  .bottom-note { margin-top: 24px; background: white; border-radius: 10px; padding: 18px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); font-size: 0.82rem; color: #444; }
+  .bottom-note ul { margin-top: 8px; padding-left: 20px; line-height: 1.9; }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <h1>Kroger API Explorer</h1>
+  <form class="search-form" id="searchForm">
+    <input type="text" id="searchInput" placeholder="Search an item... (e.g. lemons, greek yogurt)" autocomplete="off" />
+    <button type="submit" id="searchBtn">Search</button>
+  </form>
+</div>
+
+<div class="legend">
+  <span style="font-weight:600; font-size:0.8rem;">Legend:</span>
+  <div class="legend-item"><div class="legend-dot dot-used"></div> Used by AisleFinder</div>
+  <div class="legend-item"><div class="legend-dot dot-warn"></div> Not available / fallback needed</div>
+</div>
+
+<div class="note">
+  <strong>What AisleFinder uses:</strong>
+  <code>description</code> (product name) &nbsp;·&nbsp;
+  <code>categories[0]</code> (department fallback) &nbsp;·&nbsp;
+  <code>aisleLocations[0].number</code> (aisle, Kroger only) &nbsp;·&nbsp;
+  <code>items[0].price.regular</code> (not yet used, available)
+</div>
+
+<div class="grid">
+
+  <!-- KROGER PANEL -->
+  <div class="panel">
+    <div class="panel-header kroger-header">
+      Kroger API
+      <span class="badge" id="krogerBadge">loading…</span>
+    </div>
+    <div class="meta-bar">
+      <div><strong>Endpoint</strong> GET api.kroger.com/v1/products</div>
+      <div><strong>Store</strong> 01400943 (Smith's, SLC)</div>
+      <div><strong>Auth</strong> OAuth2 Bearer token</div>
+      <div id="krogerMetaTerm"></div>
+    </div>
+    <div id="krogerResults" class="product-list">
+      <div class="loading">Searching…</div>
+    </div>
+  </div>
+
+</div><!-- /grid -->
+
+<div class="bottom-note">
+  <strong>Key takeaways:</strong>
+  <ul>
+    <li><strong>Kroger aisle data</strong> is per-store and highly specific — bay, shelf, facings. Only ~30–50% of results include <code>aisleLocations</code>.</li>
+    <li><strong>The API</strong> returns price, stock, ratings, brand — none currently used by AisleFinder but available.</li>
+  </ul>
+</div>
+
+<script>
+const API_BASE = '';
+
+function esc(str) {
+  return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function tag(label, green) {
+  return `<span class="tag${green ? ' green' : ''}">${esc(label)}</span>`;
+}
+
+function renderAisleBox(locs) {
+  if (!locs || locs.length === 0) {
+    return `<div class="field">
+      <div class="field-name">aisleLocations</div>
+      <div class="field-value warn">[ ] — empty for this item</div>
+    </div>`;
+  }
+  const loc = locs[0];
+  const fields = ['number','description','bayNumber','side','shelfNumber','shelfPositionInBay','numberOfFacings'];
+  const pills = fields
+    .filter(k => loc[k] != null)
+    .map(k => `<div class="af"><span class="af-k">${esc(k)}</span><span class="af-v">${esc(loc[k])}</span></div>`)
+    .join('');
+  return `
+    <div class="field"><div class="field-name">aisleLocations[0]</div><div class="field-value"></div></div>
+    </div>
+    <div class="aisle-box">
+      <div class="aisle-label">✓ Aisle data returned</div>
+      <div class="aisle-fields">${pills}</div>
+    </div>
+    <div class="fields">`;
+}
+
+function renderFulfillment(f) {
+  if (!f) return '';
+  const keys = ['curbside','delivery','inStore','shipToHome'];
+  return keys.filter(k => f[k]).map(k => tag(k, true)).join('');
+}
+
+function renderProduct(p) {
+  const cats = p.categories || [];
+  const category = cats[0] || '—';
+  const items = p.items || [];
+  const item0 = items[0] || {};
+  const price = item0.price;
+  const inv = item0.inventory;
+  const ful = item0.fulfillment;
+  const ratings = p.ratingsAndReviews;
+  const aisles = p.aisleLocations || [];
+
+  const priceStr = price && price.regular ? `$${Number(price.regular).toFixed(2)}` : null;
+  const sizeStr = item0.size || null;
+  const stockStr = inv && inv.stockLevel ? inv.stockLevel : null;
+  const stockGreen = stockStr === 'HIGH' || stockStr === 'AVAILABLE';
+  const fulHtml = ful ? renderFulfillment(ful) : '';
+
+  const decls = (p.manufacturerDeclarations || []).map(d => tag(d)).join('');
+
+  const nutri = p.nutritionInformation;
+  let nutriStr = null;
+  if (nutri) {
+    const lines = nutri.nutritionLine || nutri.nutrientLines || [];
+    nutriStr = `${lines.length} nutrients`;
+  }
+
+  return `
+  <div class="product-card">
+    <div class="product-title">
+      ${esc(p.description)}
+      <span>productId: ${esc(p.productId)}</span>
+    </div>
+    <div class="fields">
+      <div class="section-label">Fields AisleFinder reads</div>
+      <div class="field"><div class="field-name">description</div><div class="field-value used">${esc(p.description)}</div></div>
+      <div class="field"><div class="field-name">categories[0]</div><div class="field-value used">${esc(category)}</div></div>
+      ${renderAisleBox(aisles)}
+      <div class="section-label" style="margin-top:10px">Other available fields</div>
+      ${p.brand ? `<div class="field"><div class="field-name">brand</div><div class="field-value">${esc(p.brand)}</div></div>` : ''}
+      ${p.countryOrigin ? `<div class="field"><div class="field-name">countryOrigin</div><div class="field-value">${esc(p.countryOrigin)}</div></div>` : ''}
+      ${priceStr ? `<div class="field"><div class="field-name">items[0].price.regular</div><div class="field-value">${esc(priceStr)}</div></div>` : ''}
+      ${sizeStr ? `<div class="field"><div class="field-name">items[0].size</div><div class="field-value">${esc(sizeStr)}</div></div>` : ''}
+      ${stockStr ? `<div class="field"><div class="field-name">items[0].inventory</div><div class="field-value">${tag(stockStr, stockGreen)}</div></div>` : ''}
+      ${fulHtml ? `<div class="field"><div class="field-name">items[0].fulfillment</div><div class="field-value">${fulHtml}</div></div>` : ''}
+      ${p.snapEligible != null ? `<div class="field"><div class="field-name">snapEligible</div><div class="field-value">${tag(String(p.snapEligible), p.snapEligible)}</div></div>` : ''}
+      ${p.organicClaimName ? `<div class="field"><div class="field-name">organicClaimName</div><div class="field-value">${esc(p.organicClaimName)}</div></div>` : ''}
+      ${ratings ? `<div class="field"><div class="field-name">ratingsAndReviews</div><div class="field-value">${Number(ratings.averageRating||0).toFixed(2)} ★ (${ratings.reviewCount || 0} reviews)</div></div>` : ''}
+      ${p.aliasProductIds != null ? `<div class="field"><div class="field-name">aliasProductIds</div><div class="field-value">${esc(p.aliasProductIds)} UPC aliases</div></div>` : ''}
+      ${decls ? `<div class="field"><div class="field-name">manufacturerDeclarations</div><div class="field-value">${decls}</div></div>` : ''}
+      ${nutriStr ? `<div class="field"><div class="field-name">nutritionInformation</div><div class="field-value">${esc(nutriStr)}</div></div>` : ''}
+    </div>
+  </div>`;
+}
+
+async function search(term) {
+  const btn = document.getElementById('searchBtn');
+  const resultsEl = document.getElementById('krogerResults');
+  const badgeEl = document.getElementById('krogerBadge');
+  const metaTermEl = document.getElementById('krogerMetaTerm');
+
+  btn.disabled = true;
+  resultsEl.innerHTML = '<div class="loading">Searching Kroger API…</div>';
+  badgeEl.textContent = 'loading…';
+  metaTermEl.innerHTML = `<div><strong>Term</strong> <span class="kroger-meta-term">"${esc(term)}"</span></div>`;
+
+  try {
+    const resp = await fetch(`${API_BASE}/api/debug-kroger`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ term, store_id: '01400943' }),
+    });
+    const data = await resp.json();
+
+    if (!resp.ok) {
+      resultsEl.innerHTML = `<div class="error-msg">Error: ${esc(data.error || resp.statusText)}</div>`;
+      badgeEl.textContent = 'error';
+      return;
+    }
+
+    const products = data.data || [];
+    badgeEl.textContent = `LIVE · ${data.total.toLocaleString()} results`;
+
+    if (products.length === 0) {
+      resultsEl.innerHTML = '<div class="loading">No results found.</div>';
+    } else {
+      resultsEl.innerHTML = products.map(renderProduct).join('');
+    }
+  } catch (err) {
+    resultsEl.innerHTML = `<div class="error-msg">Could not reach backend at ${API_BASE}. Make sure the Flask server is running.<br><code>${esc(String(err))}</code></div>`;
+    badgeEl.textContent = 'offline';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.getElementById('searchForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  const term = document.getElementById('searchInput').value.trim();
+  if (term) search(term);
+});
+
+// Auto-search on load
+document.getElementById('searchInput').value = 'lemons';
+search('lemons');
+</script>
+
+</body>
+</html>

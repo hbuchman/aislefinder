@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AisleFinder — Design Rules</title>
+<script src="https://kit.fontawesome.com/7f483ba205.js" crossorigin="anonymous"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #f0f2f5;
+    color: #2c3e50;
+    font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif;
+    padding: 32px 20px 60px;
+    line-height: 1.5;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  .sub { color: #6c757d; font-size: 13px; margin: 0 0 8px; }
+  .src { font-size: 12px; color: #6c757d; background: #e8ecf1; border-radius: 6px; padding: 2px 8px; font-family: Menlo, Consolas, monospace; }
+  h2 { font-size: 17px; margin: 36px 0 4px; border-bottom: 2px solid #e1e8ed; padding-bottom: 6px; }
+  h2 .src { float: right; font-weight: normal; }
+  p.note { font-size: 13px; color: #6c757d; margin: 6px 0 14px; }
+
+  table { border-collapse: collapse; width: 100%; font-size: 13px; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid #eef1f4; vertical-align: middle; }
+  th { background: #f8f9fa; font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; color: #6c757d; }
+  tr:last-child td { border-bottom: none; }
+  code { font-family: Menlo, Consolas, monospace; font-size: 12px; color: #1E5F99; }
+  .swatch {
+    display: inline-block; width: 42px; height: 24px; border-radius: 5px;
+    border: 1px solid rgba(0,0,0,0.12); vertical-align: middle;
+  }
+  .swatch.on-dark { border-color: rgba(255,255,255,0.25); }
+  td.darkcell { background: #131816; color: #e6ebe6; }
+
+  .type-sample { background: white; border-radius: 10px; padding: 4px 18px 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+  .type-row { display: flex; align-items: baseline; gap: 18px; border-bottom: 1px solid #eef1f4; padding: 10px 0; }
+  .type-row:last-child { border-bottom: none; }
+  .type-meta { width: 260px; flex-shrink: 0; font-size: 11.5px; color: #6c757d; font-family: Menlo, Consolas, monospace; }
+
+  .rule-list { background: white; border-radius: 10px; padding: 6px 18px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+  .rule-list li { margin: 10px 0; font-size: 13.5px; }
+  .grad { display: inline-block; width: 90px; height: 24px; border-radius: 5px; vertical-align: middle; border: 1px solid rgba(0,0,0,0.12); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>AisleFinder Design Rules</h1>
+  <p class="sub">The living style guide for the app. <b>Source of truth:</b> the CSS-variable block in
+  <span class="src">src/AisleFinder.jsx</span> (theme + shared classes) and <span class="src">src/components/Logo.jsx</span> (logo art).
+  If you change values there, update this page to match.</p>
+
+  <!-- ================= TYPOGRAPHY ================= -->
+  <h2>Typography <span class="src">src/AisleFinder.jsx — shell fontFamily; everything inherits</span></h2>
+  <p class="note">One family everywhere: <code>Arial, 'Helvetica Neue', Helvetica, sans-serif</code>.
+  Components must use <code>fontFamily: 'inherit'</code>, never their own stack. Arial has only two real
+  weights — regular (400) and bold (700); don't use 350/600/800.</p>
+  <div class="type-sample">
+    <div class="type-row"><span class="type-meta">22px / 700 — list title (home)</span><span style="font-size:22px;font-weight:700;letter-spacing:-0.3px">My Groceries</span></div>
+    <div class="type-row"><span class="type-meta">20px / 700 — screen titles</span><span style="font-size:20px;font-weight:700">History</span></div>
+    <div class="type-row"><span class="type-meta">17px / 700+400 — brand wordmark</span><span style="font-size:17px"><b>Aisle</b>Finder</span></div>
+    <div class="type-row"><span class="type-meta">15–16px / 400 — items, inputs</span><span style="font-size:15px">chicken thighs</span></div>
+    <div class="type-row"><span class="type-meta">13–14px / 700 — buttons</span><span style="font-size:14px;font-weight:700">Organize &amp; Shop</span></div>
+    <div class="type-row"><span class="type-meta">12–13px / 400 — secondary text</span><span style="font-size:13px;color:#6c757d">Shopped Jul 8 · Smith's</span></div>
+    <div class="type-row"><span class="type-meta">11px / 700 caps — section labels</span><span style="font-size:11px;font-weight:700;letter-spacing:0.8px;color:#95a5a6">COMPLETED</span></div>
+  </div>
+
+  <!-- ================= THEME COLORS ================= -->
+  <h2>Core palette <span class="src">src/AisleFinder.jsx — :root + prefers-color-scheme block</span></h2>
+  <p class="note">The scheme is <b>"Evergreen Chrome"</b>: a solid forest-green top bar in both modes over a calm,
+  green-tinted body. The palette is deliberately tiny: <b>six neutrals, one green pair, one chrome green, one amber,
+  one error tone</b> per scheme. No blues anywhere. Every other <code>--af-*</code> variable (highlight, error box,
+  disabled, toast, celebrate, popup, chrome text…) is an alias or an alpha tint of these — never a new hex.
+  Components reference variables only.</p>
+  <table>
+    <tr><th>Variable</th><th>Light</th><th></th><th class="darkcell" style="background:#131816;color:#9cab9f">Dark</th><th class="darkcell" style="background:#131816"></th><th>Used for</th></tr>
+    <tr><td><code>--af-bg</code></td><td>#f6faf6</td><td><span class="swatch" style="background:#f6faf6"></span></td><td class="darkcell">#131816</td><td class="darkcell"><span class="swatch on-dark" style="background:#131816"></span></td><td>App background (green-tinted, never pure white/black)</td></tr>
+    <tr><td><code>--af-inset-bg</code></td><td>#ffffff</td><td><span class="swatch" style="background:#ffffff"></span></td><td class="darkcell">#1b2320</td><td class="darkcell"><span class="swatch on-dark" style="background:#1b2320"></span></td><td>Cards and inputs (lighter than the page in both modes)</td></tr>
+    <tr><td><code>--af-surface</code></td><td>#e9f0e9</td><td><span class="swatch" style="background:#e9f0e9"></span></td><td class="darkcell">#232c27</td><td class="darkcell"><span class="swatch on-dark" style="background:#232c27"></span></td><td>Panels, group headers, hover rows, sheets (dark)</td></tr>
+    <tr><td><code>--af-border</code></td><td>#dfe8df</td><td><span class="swatch" style="background:#dfe8df"></span></td><td class="darkcell">#33403a</td><td class="darkcell"><span class="swatch on-dark" style="background:#33403a"></span></td><td>Dividers, input outlines, disabled fill</td></tr>
+    <tr><td><code>--af-text</code></td><td>#22332a</td><td><span class="swatch" style="background:#22332a"></span></td><td class="darkcell">#e6ebe6</td><td class="darkcell"><span class="swatch on-dark" style="background:#e6ebe6"></span></td><td>Primary text, toast background</td></tr>
+    <tr><td><code>--af-text-muted</code></td><td>#6e7c71</td><td><span class="swatch" style="background:#6e7c71"></span></td><td class="darkcell">#9cab9f</td><td class="darkcell"><span class="swatch on-dark" style="background:#9cab9f"></span></td><td>Secondary text, timestamps, icon buttons</td></tr>
+    <tr><td><code>--af-green</code></td><td>#27ae60</td><td><span class="swatch" style="background:#27ae60"></span></td><td class="darkcell">#4cb782</td><td class="darkcell"><span class="swatch on-dark" style="background:#4cb782"></span></td><td>Buttons, focus rings, links, badges, highlight tints (dark value is desaturated — never neon)</td></tr>
+    <tr><td><code>--af-green-dark</code></td><td>#175c3d</td><td><span class="swatch" style="background:#175c3d"></span></td><td class="darkcell">#9ecfb2</td><td class="darkcell"><span class="swatch on-dark" style="background:#9ecfb2"></span></td><td>Emphasis green (celebration text), button hover (light)</td></tr>
+    <tr><td><code>--af-chrome</code></td><td>#1d5c40</td><td><span class="swatch" style="background:#1d5c40"></span></td><td class="darkcell">#16382a</td><td class="darkcell"><span class="swatch on-dark" style="background:#16382a"></span></td><td>Top bar. Text/borders on it use derived <code>--af-chrome-text/muted/border</code> (white alphas)</td></tr>
+    <tr><td><code>--af-amber</code></td><td colspan="4" style="text-align:center">#ffc439 <span class="swatch" style="background:#ffc439"></span> (same in both schemes)</td><td>Other-member avatars, confetti, loading wheat</td></tr>
+    <tr><td><code>--af-error-text</code></td><td>#b3541e</td><td><span class="swatch" style="background:#b3541e"></span></td><td class="darkcell">#ffab70</td><td class="darkcell"><span class="swatch on-dark" style="background:#ffab70"></span></td><td>Errors, destructive hovers (boxes use alpha tints)</td></tr>
+  </table>
+
+  <!-- ================= CONSTANTS ================= -->
+  <h2>Scheme-independent constants <span class="src">button classes in AisleFinder.jsx + Logo.jsx</span></h2>
+  <p class="note">Solid buttons take their green from the scheme (<code>var(--af-green)</code>) with white text in
+  both modes; hover uses <code>--af-btn-hover-bg</code> (#175c3d light / #3da06f dark). The logo art and confetti are
+  fixed in both schemes. No gradients in UI chrome — the logo is the only gradient in the app.</p>
+  <table>
+    <tr><th>Color</th><th></th><th>Where</th></tr>
+    <tr><td><code>#229955 → #157a40</code></td><td><span class="grad" style="background:linear-gradient(180deg,#229955,#157a40)"></span></td><td>Logo "A" legs</td></tr>
+    <tr><td><code>#2ecc71 → #1a9c4e</code></td><td><span class="grad" style="background:linear-gradient(135deg,#2ecc71,#1a9c4e)"></span></td><td>Logo crossbar shelf (logo art only)</td></tr>
+    <tr><td><code>#ffffff</code></td><td><span class="swatch" style="background:#ffffff"></span></td><td>Tile behind the logo in the top bar (keeps the green mark legible on the green chrome)</td></tr>
+    <tr><td><code>#27ae60 #157a40 #a3e9c2 #ffc439</code></td>
+        <td><span class="swatch" style="background:#27ae60"></span><span class="swatch" style="background:#157a40"></span><span class="swatch" style="background:#a3e9c2"></span><span class="swatch" style="background:#ffc439"></span></td>
+        <td>Confetti (shop-mode celebration)</td></tr>
+  </table>
+
+  <!-- ================= RULES ================= -->
+  <h2>Rules</h2>
+  <ul class="rule-list">
+    <li><b>Icons:</b> always Font Awesome (<code>&lt;i className="fa-solid fa-..."&gt;</code>), never emojis. Kit loaded in <span class="src">public/index.html</span>; prefer older icon names (<code>fa-cog</code> over <code>fa-gear</code>) if one doesn't render.</li>
+    <li><b>Logo:</b> the shelf-"A" monogram, all green (no blue in the mark). Art lives in <span class="src">src/components/Logo.jsx</span> and <span class="src">public/logo.svg</span> — keep them identical.</li>
+    <li><b>Colors:</b> component code references <code>var(--af-*)</code> only. The core set is 11 colors per scheme — before adding a hex, derive from an existing core color (alias or alpha tint) instead. No blues; no gradients outside the logo.</li>
+    <li><b>Chrome:</b> the top bar sits on <code>--af-chrome</code> (forest green) in both modes. Controls inside it use the <code>--af-chrome-*</code> white-alpha tones, scoped via the <code>.af-topbar</code> class — never the body tones.</li>
+    <li><b>Font:</b> set once on the app shell; components inherit. No per-component font stacks.</li>
+    <li><b>Buttons:</b> solid green = the "go shopping" happy path and primary actions, ghost/outline = secondary. Hover lifts 1–2px with a soft shadow.</li>
+    <li><b>Radii:</b> 6px small controls, 8–10px buttons/inputs, 12px cards, 18px sheets, 999px chips.</li>
+    <li><b>Screens over popups:</b> full screens for destinations (list, lists, history, shop); bottom sheets for quick tasks (account, share, store); center popups only for tiny settings.</li>
+    <li><b>Dark mode:</b> automatic via <code>prefers-color-scheme</code> — test both before shipping UI changes.</li>
+  </ul>
+
+</div>
+</body>
+</html>

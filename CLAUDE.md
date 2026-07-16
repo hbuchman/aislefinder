@@ -4,71 +4,76 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a grocery list organization system that processes shopping lists and organizes items by store aisle or category using the Kroger API. The system takes text-based grocery lists and outputs them grouped by store location for efficient shopping.
+AisleFinder organizes grocery lists by store aisle or category using the Kroger API, so shopping trips follow an efficient path through the store. It ships as a React web app (also wrapped as iOS/Android apps via Capacitor), a Flask API backend, and a small Python CLI.
 
 ## Architecture
 
-The codebase follows a modular pipeline architecture:
+### Python backend (`grocery_organizer/` + root-level Flask files)
 
-1. **InputParser** (`grocery_organizer/src/input_parsing/`) - Parses text files containing grocery lists
-2. **KrogerAPI** (`grocery_organizer/src/store_api/`) - Interfaces with Kroger's API to find products and aisle locations  
-3. **FullProduct Model** (`grocery_organizer/src/core/models.py`) - Data structure containing product name, category, and aisle info
-4. **OutputFormatter** (`grocery_organizer/src/output_formatting/`) - Formats organized lists by aisle or category
-5. **GroceryListProcessor** (`grocery_organizer/src/core/processor.py`) - Main orchestrator coordinating the entire workflow
+Modular pipeline, orchestrated by **GroceryListProcessor** (`grocery_organizer/src/core/processor.py`):
 
-## Running the Application
+1. **InputParser** (`src/input_parsing/`) — parses grocery-list text (file or raw string; one item per line or comma-separated; strips bullets/checkboxes/numbering)
+2. **KrogerAPI** (`src/store_api/kroger.py`) — OAuth token handling, product search with fuzzy word matching/scoring, store search by zip. Search-term cleanup (quantities/filler words) lives in `search_terms.py`
+3. **FullProduct** (`src/core/models.py`) — dataclass with input name, matched product, category, and aisle number (-1 = unknown)
+4. **OutputFormatter** (`src/output_formatting/`) — renders markdown (`## Section\n- item`) grouped by aisle or category, sorted in a food-safe shopping order (fresh first, frozen/dairy last)
 
-The main entry point is `grocery_organizer/main.py`. Run with:
+Item lookups run in parallel (ThreadPoolExecutor); a failed lookup becomes a "Not Found" entry instead of failing the list.
+
+### Flask servers — shared blueprints, two entry points
+
+- **`grocery_routes.py`** (repo root) — blueprint with the grocery endpoints (`/api/process-grocery-list`, `/api/find-stores`, `/api/find-item-aisle`, `/api/item-details`, `/api/health`)
+- **`lists_backend.py`** (repo root) — blueprint for list sync/sharing (DynamoDB + Cognito); returns 503 when unconfigured so the frontend stays local-only
+- **`api_server.py`** — local/Railway server; registers both blueprints and adds local-only debug routes (`/api/debug-kroger`, `/debug`, `/health`)
+- **`api/index.py`** — Vercel serverless entry point; registers the same blueprints
+
+Route logic must live in the blueprints, never in the entry points, so the two servers cannot drift.
+
+### React frontend (`src/`)
+
+- `AisleFinder.jsx` — shell: screen routing, theme CSS variables, toasts
+- `screens/` — CurrentList (home), MyLists, History, Shop
+- `components/` — TopBar, bottom sheets (Account/Share/Store), Logo
+- `listsStore.js` — lists data model + server sync hook; `storage.js` — localStorage with a durable Capacitor Preferences mirror on native
+- `api.js` — backend fetch helpers; `auth.js` — Cognito auth; `listUtils.js` — markdown list helpers
+- Backend returns markdown (`## Header\n- item`); the frontend parses and reformats it for display/copy
+
+## Running
 
 ```bash
-# Add project to Python path
-export PYTHONPATH=$PYTHONPATH:/path/to/aislefinder
+# Frontend (`.env.development` points REACT_APP_API_URL at localhost:8000)
+npm start
 
-# Run the application
-python grocery_organizer/main.py --file=./grocery_organizer/list.txt --output_format=aisle --store="4500S Smiths"
+# Backend (reads .env; see .env.example)
+python api_server.py
+
+# CLI
+PYTHONPATH=. python grocery_organizer/main.py --file=grocery_organizer/list.txt --output_format=aisle
 ```
 
-Command line options:
-- `--file`: Path to grocery list file (default: `./list.txt`)
-- `--output_format`: Either `aisle` or `category` (default: `aisle`)
-- `--store`: Store name (default: `"4500S Smiths"`)
+## Tests
+
+```bash
+# Python (pytest; run from repo root)
+PYTHONPATH=. python -m pytest grocery_organizer/tests
+
+# JavaScript (Jest via react-scripts)
+CI=true npm test
+```
+
+Python tests cover input parsing, output formatting, search-term cleanup, Kroger word matching/scoring, and the Flask routes (with a stubbed Kroger client). JS tests cover `listUtils` and app rendering/migration.
 
 ## Configuration
 
-### API Credentials
+All credentials come from environment variables (never commit secrets):
 
-The Kroger API requires authentication. Create `grocery_organizer/src/core/secrets.py`:
+- `KROGER_CLIENT_SECRET` — required for Kroger lookups; the client ID is the `CLIENT_ID` constant in `kroger.py`
+- `AISLEFINDER_TABLE`, Cognito + AWS vars — list sync (see `lists_backend.py` docstring and `infra/`)
+- Frontend: `REACT_APP_API_URL`, `REACT_APP_COGNITO_USER_POOL_ID`, `REACT_APP_COGNITO_CLIENT_ID`
 
-```python
-CLIENT_SECRET = "[your_client_secret_here]"
-```
-
-The client ID is hardcoded as `aislefinder4000-bbc6d2p3` in the API client.
-
-### Store Configuration
-
-The default store ID is `01400943` in the KrogerAPI class. Store selection via command line is not yet fully implemented (see TODO in api.py:14).
-
-## Key Components
-
-### Error Handling Patterns
-
-- Products without aisle locations fall back to category grouping (api.py:54)
-- API responses assume at least one product result (api.py:47) - no error handling for empty results yet
-
-### Data Flow
-
-1. Text file → InputParser.text_parser() → list of lowercase strings
-2. Each item → KrogerAPI.find_product() → FullProduct object  
-3. List of FullProduct objects → OutputFormatter → formatted string output
-
-### Token Management
-
-The KrogerAPI class implements automatic token refresh with 1-minute buffer before expiration (api.py:21-38).
+The default store is Kroger `01400943` ("4500S Smiths"), defined in `grocery_routes.py`.
 
 ## Development Notes
 
-- Input files should contain one grocery item per line
-- The system currently only supports text file input (handwriting recognition planned per TODO in input_parser.py:8-9)
-- Category fallback is used when aisle information is unavailable
-- The legacy `aislefinder.py` script opens browser tabs for manual searching (not part of main workflow)
+- After web changes that should ship to mobile: `npm run ios:build` / `npm run android:build` (Capacitor sync)
+- UI rules: Font Awesome icons only (no emojis), `fa-cog` not `fa-gear`; all colors via `--af-*` CSS variables (green-only palette + amber accent); font set once on the shell — see `docs/design-rules.html`
+- The legacy `aislefinder.py` script opens browser tabs for manual searching (not part of the main workflow)

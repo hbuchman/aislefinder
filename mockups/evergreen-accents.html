@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AisleFinder — Evergreen Chrome: Accent Options</title>
+<script src="https://kit.fontawesome.com/7f483ba205.js" crossorigin="anonymous"></script>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    background: #eceff0;
+    color: #24312a;
+    font-family: Arial, Helvetica, sans-serif;
+  }
+  .page { max-width: 1060px; margin: 0 auto; padding: 32px 20px 80px; }
+  h1 { font-size: 26px; margin: 0 0 6px; }
+  .page > p.lede { color: #5c6a60; margin: 0 0 36px; max-width: 720px; line-height: 1.5; }
+
+  .option { margin-bottom: 56px; }
+  .option-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+  .option-head h2 { font-size: 20px; margin: 0; }
+  .tag {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 999px; background: #dfe6e0; color: #4c5a50;
+  }
+  .option > p { color: #5c6a60; margin: 4px 0 14px; max-width: 760px; line-height: 1.5; }
+  .pair { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+  .frame-wrap { flex: 1; min-width: 320px; max-width: 420px; }
+  .frame-label { font-size: 12px; font-weight: 700; color: #7a857c; text-transform: uppercase; letter-spacing: 0.6px; margin: 0 0 8px 4px; }
+
+  /* ---------- shared phone component ---------- */
+  .phone {
+    border-radius: 24px;
+    overflow: hidden;
+    border: 1px solid rgba(0,0,0,0.12);
+    box-shadow: 0 8px 28px rgba(0,0,0,0.16);
+    background: var(--bg);
+    color: var(--text);
+  }
+  .topbar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 16px 16px 12px;
+    background: var(--chrome-bg);
+    color: var(--chrome-text);
+    border-bottom: 1px solid var(--chrome-border);
+  }
+  .logo {
+    width: 28px; height: 28px; border-radius: 7px;
+    background: rgba(255,255,255,0.14);
+    border: 1px solid rgba(255,255,255,0.25);
+    color: #fff; font-weight: 700; font-size: 15px;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .brand { font-weight: 700; font-size: 16px; letter-spacing: -0.2px; }
+  .topbar .spacer { flex: 1; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    border: 1px solid var(--chrome-border);
+    border-radius: 999px; padding: 5px 11px;
+    font-size: 12px; color: var(--chrome-muted);
+    background: transparent;
+  }
+  .body { padding: 16px; }
+  .list-title-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .list-title { font-size: 19px; font-weight: 700; }
+  .star { color: var(--accent); font-size: 15px; }
+  .store-line { font-size: 12px; color: var(--muted); margin-bottom: 14px; }
+  .store-line i { margin-right: 5px; }
+
+  .section {
+    font-size: 12px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase;
+    color: var(--green-deep);
+    margin: 16px 0 6px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 4px 6px;
+    box-shadow: 0 2px 8px var(--shadow);
+  }
+  .row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 8px; font-size: 14.5px;
+  }
+  .row + .row { border-top: 1px solid var(--border); }
+  .circ {
+    width: 21px; height: 21px; border-radius: 50%;
+    border: 2px solid var(--circ); flex: none;
+  }
+  .row.done .circ {
+    background: var(--green); border-color: var(--green);
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--on-green, #fff); font-size: 11px;
+  }
+  .row.done .item { color: var(--muted); text-decoration: line-through; }
+  .row .aisle-pill {
+    margin-left: auto; font-size: 11px; font-weight: 700;
+    color: var(--pill-text); background: var(--pill-bg);
+    border: 1px solid var(--pill-border);
+    padding: 2px 9px; border-radius: 999px;
+  }
+  .btn-primary {
+    margin-top: 18px; width: 100%;
+    background: var(--green); color: var(--on-green, #fff);
+    border: none; border-radius: 12px; padding: 13px;
+    font-size: 15px; font-weight: 700; font-family: inherit;
+  }
+  .btn-primary i { margin-right: 8px; }
+  .celebrate {
+    margin-top: 10px; text-align: center; font-size: 12.5px;
+    color: var(--celebrate-text); background: var(--celebrate-bg);
+    border-radius: 10px; padding: 8px;
+  }
+  .celebrate i { color: var(--accent); margin-right: 6px; }
+  .nav {
+    display: flex; border-top: 1px solid var(--chrome-border);
+    background: var(--chrome-bg);
+    padding: 8px 0 12px;
+  }
+  .nav button {
+    flex: 1; background: none; border: none; font-family: inherit;
+    font-size: 10.5px; color: var(--chrome-muted);
+    display: flex; flex-direction: column; gap: 4px; align-items: center;
+  }
+  .nav button i { font-size: 17px; }
+  .nav button.active { color: var(--nav-active); font-weight: 700; }
+
+  /* =========================================================
+     BASE: Evergreen Chrome (light / dark) — accent vars left
+     to the accent classes below
+     ========================================================= */
+  .m-light {
+    --bg:#f6faf6; --card:#ffffff; --border:#dfe8df; --text:#22332a; --muted:#6e7c71;
+    --green:#27ae60; --green-deep:#175c3d;
+    --chrome-bg:#1d5c40; --chrome-text:#f2f8f2; --chrome-muted:#b8d4c2; --chrome-border:#2c6e50;
+    --circ:#d4e0d5; --shadow:rgba(20,60,40,0.06);
+    --pill-bg:rgba(29,92,64,0.07); --pill-border:rgba(29,92,64,0.28); --pill-text:#1d5c40;
+  }
+  .m-dark {
+    --bg:#131816; --card:#1b2320; --border:#33403a; --text:#e6ebe6; --muted:#9cab9f;
+    --green:#4cb782; --green-deep:#9ecfb2; --on-green:#0d1510;
+    --chrome-bg:#16382a; --chrome-text:#e6f0e8; --chrome-muted:#93b09d; --chrome-border:#24493a;
+    --circ:#42524a; --shadow:rgba(0,0,0,0.4);
+    --pill-bg:rgba(76,183,130,0.12); --pill-border:rgba(76,183,130,0.30); --pill-text:#8fd0ad;
+  }
+
+  /* ----- A: All Green (no third color) ----- */
+  .a-green.m-light {
+    --accent:#175c3d; --nav-active:#ffffff;
+    --celebrate-bg:rgba(39,174,96,0.10); --celebrate-text:#175c3d;
+  }
+  .a-green.m-dark {
+    --accent:#9ecfb2; --nav-active:#ffffff;
+    --celebrate-bg:rgba(76,183,130,0.12); --celebrate-text:#9ecfb2;
+  }
+
+  /* ----- B: Tomato Coral ----- */
+  .a-coral.m-light {
+    --accent:#e2573f; --nav-active:#ffb4a2;
+    --celebrate-bg:rgba(226,87,63,0.10); --celebrate-text:#a63a26;
+  }
+  .a-coral.m-dark {
+    --accent:#ef8069; --nav-active:#ffb4a2;
+    --celebrate-bg:rgba(239,128,105,0.12); --celebrate-text:#f0b5a5;
+  }
+
+  /* ----- C: Raspberry ----- */
+  .a-berry.m-light {
+    --accent:#c74d72; --nav-active:#f4a8c0;
+    --celebrate-bg:rgba(199,77,114,0.10); --celebrate-text:#93365a;
+  }
+  .a-berry.m-dark {
+    --accent:#e07a9c; --nav-active:#f4a8c0;
+    --celebrate-bg:rgba(224,122,156,0.12); --celebrate-text:#eab0c4;
+  }
+
+  /* ----- D: Harvest Gold (muted ochre) ----- */
+  .a-gold.m-light {
+    --accent:#c98d24; --nav-active:#eec97f;
+    --celebrate-bg:rgba(201,141,36,0.12); --celebrate-text:#7d5c14;
+  }
+  .a-gold.m-dark {
+    --accent:#dda94c; --nav-active:#eec97f;
+    --celebrate-bg:rgba(221,169,76,0.10); --celebrate-text:#e6cd97;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Evergreen Chrome — Accent Options</h1>
+  <p class="lede">Same Evergreen Chrome scheme (forest top bar &amp; nav, calm light/dark bodies), with four replacements for the bright amber. The accent appears in three places: the favorite star, the active tab on the green chrome, and the celebrate banner.</p>
+
+  <div class="option" data-accent="green" data-name="All Green">
+    <div class="option-head"><h2>Option A — All Green (no third color)</h2><span class="tag">Cleanest</span></div>
+    <p>Drops the third color entirely: the star and celebrate use deep green (mint in dark mode), and the active tab is simply white against the forest chrome. Most restrained — the app is purely green, and nothing competes with the chrome.</p>
+  </div>
+
+  <div class="option" data-accent="coral" data-name="Tomato Coral">
+    <div class="option-head"><h2>Option B — Tomato Coral</h2><span class="tag">Most energetic</span></div>
+    <p>A tomato-red coral — the classic complement to green, and very grocery (tomatoes, peppers). Warm and lively without being yellow; the light coral active tab pops clearly against the forest chrome.</p>
+  </div>
+
+  <div class="option" data-accent="berry" data-name="Raspberry">
+    <div class="option-head"><h2>Option C — Raspberry</h2><span class="tag">Most distinctive</span></div>
+    <p>A berry pink-red — still produce-flavored (raspberries, beets) but more unexpected than coral. Reads a bit softer and more modern; strong contrast against the deep green in both modes.</p>
+  </div>
+
+  <div class="option" data-accent="gold" data-name="Harvest Gold">
+    <div class="option-head"><h2>Option D — Harvest Gold</h2><span class="tag">Closest to current</span></div>
+    <p>If the problem is the brightness of #ffb52e rather than yellow itself: a deeper, muted ochre — wheat and honey rather than school-bus. Keeps the warm green-and-gold pairing but stops shouting.</p>
+  </div>
+</div>
+
+<template id="phone-tpl">
+  <div class="phone">
+    <div class="topbar">
+      <span class="logo">A</span>
+      <span class="brand">AisleFinder</span>
+      <span class="spacer"></span>
+      <span class="chip"><i class="fa-solid fa-user"></i> Hayley</span>
+    </div>
+    <div class="body">
+      <div class="list-title-row">
+        <span class="list-title">Weekly Groceries</span>
+        <i class="fa-solid fa-star star"></i>
+      </div>
+      <div class="store-line"><i class="fa-solid fa-store"></i>4500S Smiths &middot; sorted by aisle</div>
+
+      <div class="section">Produce</div>
+      <div class="card">
+        <div class="row done"><span class="circ"><i class="fa-solid fa-check"></i></span><span class="item">Bananas</span><span class="aisle-pill">Produce</span></div>
+        <div class="row"><span class="circ"></span><span class="item">Baby spinach</span><span class="aisle-pill">Produce</span></div>
+      </div>
+
+      <div class="section">Aisle 3</div>
+      <div class="card">
+        <div class="row"><span class="circ"></span><span class="item">Peanut butter</span><span class="aisle-pill">Aisle 3</span></div>
+        <div class="row done"><span class="circ"><i class="fa-solid fa-check"></i></span><span class="item">Pasta</span><span class="aisle-pill">Aisle 3</span></div>
+      </div>
+
+      <div class="section">Dairy</div>
+      <div class="card">
+        <div class="row"><span class="circ"></span><span class="item">Greek yogurt</span><span class="aisle-pill">Dairy</span></div>
+      </div>
+
+      <button class="btn-primary"><i class="fa-solid fa-route"></i>Sort my list</button>
+      <div class="celebrate"><i class="fa-solid fa-star"></i>2 of 5 done — nice pace!</div>
+    </div>
+    <div class="nav">
+      <button class="active"><i class="fa-solid fa-list-check"></i>List</button>
+      <button><i class="fa-solid fa-folder"></i>My Lists</button>
+      <button><i class="fa-solid fa-cart-shopping"></i>Shop</button>
+      <button><i class="fa-solid fa-clock-rotate-left"></i>History</button>
+    </div>
+  </div>
+</template>
+
+<script>
+  const tpl = document.getElementById('phone-tpl');
+  document.querySelectorAll('.option').forEach(opt => {
+    const accent = opt.dataset.accent;
+    const pair = document.createElement('div');
+    pair.className = 'pair';
+    [['m-light', 'Light mode'], ['m-dark', 'Dark mode']].forEach(([mode, label]) => {
+      const wrap = document.createElement('div');
+      wrap.className = 'frame-wrap';
+      wrap.innerHTML = '<p class="frame-label">' + label + '</p>';
+      const phone = tpl.content.firstElementChild.cloneNode(true);
+      phone.classList.add(mode, 'a-' + accent);
+      wrap.appendChild(phone);
+      pair.appendChild(wrap);
+    });
+    opt.appendChild(pair);
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AisleFinder — Palette Options</title>
+<style>
+  body {
+    font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif;
+    background: #dcdcd4;
+    margin: 0;
+    padding: 24px;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; color: #333; }
+  .note { font-size: 13px; color: #555; margin-bottom: 20px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    max-width: 1200px;
+  }
+  .theme-title { font-size: 14px; font-weight: 700; color: #333; margin: 24px 0 10px; }
+  .pair { display: flex; gap: 14px; flex-wrap: wrap; }
+
+  /* Palette A — Warm Market */
+  .a-light {
+    --bg: #faf8f3; --surface: #f0eee4; --border: #e0ddcf;
+    --text: #2b3129; --muted: #6e7566;
+    --green: #2e9e5b; --green-dark: #1b6b3d; --amber: #f0b23c;
+    --inset: #ffffff; --hl: rgba(46, 158, 91, 0.08);
+  }
+  .a-dark {
+    --bg: #171d18; --surface: #222b23; --border: #3e4c40;
+    --text: #e9ede6; --muted: #a4af9f;
+    --green: #54c98b; --green-dark: #a8e4c2; --amber: #ffc439;
+    --inset: #111610; --hl: rgba(84, 201, 139, 0.10);
+  }
+
+  /* Palette B — Fresh Mint */
+  .b-light {
+    --bg: #ffffff; --surface: #edf7f0; --border: #d8eadd;
+    --text: #1f2d26; --muted: #5e7065;
+    --green: #17a85c; --green-dark: #0d7a40; --amber: #ffc439;
+    --inset: #ffffff; --hl: rgba(23, 168, 92, 0.07);
+  }
+  .b-dark {
+    --bg: #151a17; --surface: #1f2823; --border: #3a4a40;
+    --text: #e6efe9; --muted: #9db3a4;
+    --green: #3ed685; --green-dark: #9beac0; --amber: #ffcf57;
+    --inset: #0f1411; --hl: rgba(62, 214, 133, 0.10);
+  }
+
+  /* Palette C — Deep Forest */
+  .c-light {
+    --bg: #f5f7f2; --surface: #e9efe6; --border: #d5dfd2;
+    --text: #24352b; --muted: #64756b;
+    --green: #1e7a46; --green-dark: #14532f; --amber: #e8a921;
+    --inset: #ffffff; --hl: rgba(30, 122, 70, 0.08);
+  }
+  .c-dark {
+    --bg: #1b2b20; --surface: #24382b; --border: #41584a;
+    --text: #eaf2ec; --muted: #aabfb0;
+    --green: #5fd695; --green-dark: #b2ecc9; --amber: #ffc954;
+    --inset: #152218; --hl: rgba(95, 214, 149, 0.12);
+  }
+
+  .phone {
+    width: 290px;
+    background: var(--bg);
+    color: var(--text);
+    border-radius: 18px;
+    border: 1px solid rgba(0,0,0,0.25);
+    padding: 16px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+  }
+  .phone .mode { font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+  .phone h2 { font-size: 17px; margin: 0 0 10px; letter-spacing: -0.3px; }
+  .addbar { display: flex; gap: 6px; margin-bottom: 10px; }
+  .addbar input {
+    flex: 1; padding: 9px 10px; font-size: 13px; font-family: inherit;
+    border: 2px solid var(--border); border-radius: 8px;
+    background: var(--inset); color: var(--text); outline: none;
+  }
+  .addbar input::placeholder { color: var(--muted); }
+  .addbar button {
+    width: 36px; border: none; border-radius: 8px; background: var(--green);
+    color: white; font-size: 16px; cursor: pointer;
+  }
+  .row { display: flex; align-items: center; gap: 9px; padding: 8px 6px; border-radius: 6px; font-size: 13px; }
+  .row:hover { background: var(--surface); }
+  .circ { width: 15px; height: 15px; border: 2px solid var(--border); border-radius: 50%; }
+  .group {
+    display: flex; align-items: center; gap: 7px;
+    background: var(--surface); border-radius: 6px;
+    padding: 7px 9px; font-size: 12px; font-weight: 600; margin: 10px 0 6px;
+  }
+  .group.done { background: var(--green); color: white; }
+  .bar { height: 7px; background: var(--border); border-radius: 4px; margin: 10px 0; overflow: hidden; }
+  .bar > div { height: 100%; width: 55%; background: var(--green); border-radius: 4px; }
+  .hlbox {
+    background: var(--hl); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 10px; font-size: 12px; margin-bottom: 10px;
+  }
+  .hlbox b { color: var(--green-dark); }
+  .cta {
+    width: 100%; padding: 11px; border: none; border-radius: 9px;
+    background: var(--green); color: white; font-size: 14px; font-weight: 600;
+    font-family: inherit; cursor: pointer; margin-top: 8px;
+  }
+  .chip {
+    display: inline-block; border: 1px dashed var(--border); border-radius: 999px;
+    color: var(--muted); font-size: 11px; padding: 3px 10px; margin: 0 4px 10px 0;
+  }
+  .amber-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: var(--amber); vertical-align: -1px; }
+</style>
+</head>
+<body>
+  <h1>AisleFinder — palette options</h1>
+  <div class="note">Same screens rendered in each direction. Greens kept, neutrals and dark mode reworked.</div>
+
+  <div id="themes"></div>
+
+  <template id="mock">
+    <div class="phone">
+      <div class="mode"></div>
+      <h2>Weekly Groceries</h2>
+      <div class="addbar"><input placeholder="Add an item…"><button>+</button></div>
+      <span class="chip">+ milk</span><span class="chip">+ eggs</span>
+      <div class="row"><span class="circ"></span> bananas</div>
+      <div class="row"><span class="circ"></span> sourdough bread</div>
+      <div class="bar"><div></div></div>
+      <div class="group done">Produce &nbsp;2/2</div>
+      <div class="group">Aisle 15 &nbsp;0/3</div>
+      <div class="hlbox"><b>Aisle 15</b> · Left side · Shelf 3 <span class="amber-dot"></span></div>
+      <button class="cta">Organize &amp; Shop (6)</button>
+    </div>
+  </template>
+
+  <script>
+    const themes = [
+      ['Option A — Warm Market (cream + olive neutrals, deeper green; dark mode is a warm forest, not black)', 'a'],
+      ['Option B — Fresh Mint (white + mint surfaces, brighter kelly green; dark mode is green-tinted charcoal)', 'b'],
+      ['Option C — Deep Forest (sage-white, rich forest-green primary; dark mode is genuinely green and lighter)', 'c'],
+    ];
+    const root = document.getElementById('themes');
+    for (const [title, key] of themes) {
+      const h = document.createElement('div');
+      h.className = 'theme-title';
+      h.textContent = title;
+      root.appendChild(h);
+      const pair = document.createElement('div');
+      pair.className = 'pair';
+      for (const mode of ['light', 'dark']) {
+        const card = document.getElementById('mock').content.cloneNode(true);
+        card.querySelector('.phone').classList.add(`${key}-${mode}`);
+        card.querySelector('.mode').textContent = mode;
+        pair.appendChild(card);
+      }
+      root.appendChild(pair);
+    }
+  </script>
+</body>
+</html>

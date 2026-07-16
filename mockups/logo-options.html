@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AisleFinder — Logo Options</title>
+<script src="https://kit.fontawesome.com/7f483ba205.js" crossorigin="anonymous"></script>
+<style>
+  :root {
+    --bg: #f0f2f5;
+    --card: #ffffff;
+    --text: #2c3e50;
+    --muted: #6c757d;
+    --border: #e9ecef;
+    --focus: #0091AD;
+    /* app theme values used inside the previews */
+    --app-light-bg: #ffffff;
+    --app-light-border: #e9ecef;
+    --app-light-text: #2c3e50;
+    --app-dark-bg: #0f1419;
+    --app-dark-border: #3a4655;
+    --app-dark-text: #e8edf2;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    padding: 32px 20px 60px;
+  }
+  h1 { text-align: center; font-size: 22px; margin: 0 0 6px; }
+  .sub { text-align: center; color: var(--muted); font-size: 13px; margin: 0 0 28px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+    gap: 20px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  @media (max-width: 480px) { .grid { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  }
+  .card h2 { font-size: 15px; margin: 0 0 2px; display: flex; align-items: center; gap: 8px; }
+  .card h2 .num {
+    background: var(--focus); color: white;
+    width: 22px; height: 22px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700;
+  }
+  .card .desc { font-size: 12.5px; color: var(--muted); margin: 0 0 16px; line-height: 1.5; }
+
+  .hero {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    margin-bottom: 12px;
+  }
+  .hero > div {
+    padding: 26px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .hero .light { background: var(--app-light-bg); }
+  .hero .dark  { background: var(--app-dark-bg); }
+
+  .lockup { display: flex; align-items: center; gap: 10px; }
+  .lockup svg { display: block; width: 42px; height: 42px; }
+  .wordmark { font-size: 19px; letter-spacing: -0.5px; white-space: nowrap; }
+  .light .wordmark { color: var(--app-light-text); }
+  .dark  .wordmark { color: var(--app-dark-text); }
+
+  /* top-bar context strips */
+  .topbar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--app-light-border);
+    background: var(--app-light-bg);
+    margin-bottom: 8px;
+  }
+  .topbar.darkbar { background: var(--app-dark-bg); border-color: var(--app-dark-border); }
+  .topbar .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; color: var(--app-light-text); letter-spacing: -0.2px; }
+  .topbar.darkbar .brand { color: var(--app-dark-text); }
+  .topbar .spacer { flex: 1; }
+  .fakebtn {
+    width: 30px; height: 30px; border-radius: 8px;
+    border: 1px solid var(--app-light-border);
+    display: inline-flex; align-items: center; justify-content: center;
+    color: #6c757d; font-size: 12px;
+  }
+  .darkbar .fakebtn { border-color: var(--app-dark-border); color: #9db0c3; }
+  .fakechip {
+    border: 1px solid var(--app-light-border);
+    border-radius: 999px; padding: 4px 10px;
+    font-size: 11px; font-weight: 600; color: #6c757d;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .darkbar .fakechip { border-color: var(--app-dark-border); color: #9db0c3; }
+
+  .icons-row {
+    display: flex; align-items: center; gap: 14px;
+    margin-top: 12px;
+  }
+  .appicon {
+    border-radius: 22.5%;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.18);
+  }
+  .icons-row .label { font-size: 11px; color: var(--muted); }
+  .favicon-demo { display: flex; align-items: center; gap: 6px; background: var(--app-light-bg); border: 1px solid var(--border); border-radius: 8px 8px 0 0; padding: 6px 12px; font-size: 11.5px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<h1>AisleFinder — Logo Alternatives</h1>
+<p class="sub">Each concept shown in light &amp; dark, in the top bar, and at app-icon size. Current logo (for reference): a plain checklist icon + "Aisle Finder".</p>
+
+<!-- ============ SVG defs shared by all instances ============ -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <linearGradient id="gTeal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5ae5e6"/><stop offset="1" stop-color="#1E5F99"/>
+    </linearGradient>
+    <linearGradient id="gGreen" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2ecc71"/><stop offset="1" stop-color="#1a9c4e"/>
+    </linearGradient>
+    <linearGradient id="gDeep" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0091AD"/><stop offset="1" stop-color="#1E5F99"/>
+    </linearGradient>
+
+    <!-- ===== 1. Aisle Sign: overhead store sign with a location pin ===== -->
+    <g id="logoSign">
+      <line x1="20" y1="2" x2="20" y2="10" stroke="#95a5a6" stroke-width="3" stroke-linecap="round"/>
+      <line x1="44" y1="2" x2="44" y2="10" stroke="#95a5a6" stroke-width="3" stroke-linecap="round"/>
+      <rect x="6" y="10" width="52" height="36" rx="7" fill="url(#gDeep)"/>
+      <path d="M32 17c-5.5 0-10 4.3-10 9.7 0 6.8 8.4 13.2 9.4 14 .4 .3 .9 .3 1.3 0 1-.8 9.3-7.2 9.3-14 0-5.4-4.5-9.7-10-9.7z" fill="white"/>
+      <circle cx="32" cy="26.5" r="4" fill="url(#gDeep)"/>
+      <rect x="14" y="52" width="36" height="4" rx="2" fill="#95a5a6" opacity="0.45"/>
+      <rect x="20" y="59" width="24" height="4" rx="2" fill="#95a5a6" opacity="0.25"/>
+    </g>
+
+    <!-- ===== 2. Pin Cart: map pin with a cart cut into it ===== -->
+    <g id="logoPinCart">
+      <path d="M32 2C19.8 2 10 11.7 10 23.7 10 39 29.2 59.2 30.6 60.6c.8 .8 2 .8 2.8 0C34.8 59.2 54 39 54 23.7 54 11.7 44.2 2 32 2z" fill="url(#gTeal)"/>
+      <g stroke="white" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <path d="M20 16h4l3.6 14h13.8L45 19H27"/>
+      </g>
+      <circle cx="29.5" cy="37.5" r="2.9" fill="white"/>
+      <circle cx="39.5" cy="37.5" r="2.9" fill="white"/>
+    </g>
+
+    <!-- ===== 3. Check Route: route through checked waypoints ending at a pin ===== -->
+    <g id="logoRoute">
+      <path d="M12 56 Q30 52 31 36 Q32 22 45 13"
+            fill="none" stroke="url(#gDeep)" stroke-width="4"
+            stroke-linecap="round" stroke-dasharray="0.1 8"/>
+      <circle cx="12" cy="56" r="5" fill="url(#gDeep)"/>
+      <circle cx="27" cy="46" r="8" fill="url(#gGreen)"/>
+      <path d="M23.5 46l2.6 2.6 4.6-5.4" fill="none" stroke="white" stroke-width="2.8"
+            stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M48 2c-5.6 0-10 4.3-10 9.7 0 6.8 8.4 13.1 9.4 13.9 .4 .3 .9 .3 1.3 0 1-.8 9.3-7.1 9.3-13.9C58 6.3 53.6 2 48 2z" fill="url(#gGreen)"/>
+      <circle cx="48" cy="11.5" r="3.8" fill="white"/>
+    </g>
+
+    <!-- ===== 4. Shelf monogram: aisle shelves in perspective forming an A ===== -->
+    <g id="logoAisleA">
+      <path d="M6 58 L24 6 h9 L18 58 z" fill="url(#gDeep)"/>
+      <path d="M58 58 L40 6 h-9 L46 58 z" fill="url(#gDeep)"/>
+      <rect x="19" y="38" width="26" height="7" rx="3.5" fill="url(#gGreen)"/>
+      <path d="M27 27l4 4 7-8" fill="none" stroke="#27ae60" stroke-width="4.2"
+            stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="6" y="60" width="16" height="3.5" rx="1.75" fill="#95a5a6" opacity="0.4"/>
+      <rect x="42" y="60" width="16" height="3.5" rx="1.75" fill="#95a5a6" opacity="0.4"/>
+    </g>
+  </defs>
+</svg>
+
+<div class="grid">
+
+  <!-- ================= OPTION 1 ================= -->
+  <div class="card">
+    <h2><span class="num">1</span> Aisle Sign</h2>
+    <p class="desc">The overhead aisle sign every shopper scans for, with a location pin where the aisle
+    number goes — "your item is right here." Literal, instantly readable, very grocery.</p>
+
+    <div class="hero">
+      <div class="light">
+        <div class="lockup">
+          <svg width="52" height="52" viewBox="0 0 64 64"><use href="#logoSign"/></svg>
+          <div class="wordmark"><b style="font-weight:800">Aisle</b><span style="font-weight:350">Finder</span></div>
+        </div>
+      </div>
+      <div class="dark">
+        <div class="lockup">
+          <svg width="52" height="52" viewBox="0 0 64 64"><use href="#logoSign"/></svg>
+          <div class="wordmark"><b style="font-weight:800">Aisle</b><span style="font-weight:350">Finder</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="topbar">
+      <div class="brand"><svg width="24" height="24" viewBox="0 0 64 64"><use href="#logoSign"/></svg> <b>Aisle</b>Finder</div>
+      <div class="spacer"></div><span class="fakebtn"><i class="fa-solid fa-clock-rotate-left"></i></span><span class="fakebtn"><i class="fa-solid fa-rectangle-list"></i></span><span class="fakechip"><i class="fa-solid fa-user" style="font-size:9px"></i> Guest</span>
+    </div>
+    <div class="topbar darkbar">
+      <div class="brand"><svg width="24" height="24" viewBox="0 0 64 64"><use href="#logoSign"/></svg> <b>Aisle</b>Finder</div>
+      <div class="spacer"></div><span class="fakebtn"><i class="fa-solid fa-clock-rotate-left"></i></span><span class="fakebtn"><i class="fa-solid fa-rectangle-list"></i></span><span class="fakechip"><i class="fa-solid fa-user" style="font-size:9px"></i> Guest</span>
+    </div>
+
+    <div class="icons-row">
+      <svg class="appicon" width="64" height="64" viewBox="-8 -8 80 80" style="background:linear-gradient(135deg,#f0f9ff,#dceefb)"><use href="#logoSign"/></svg>
+      <svg class="appicon" width="40" height="40" viewBox="-8 -8 80 80" style="background:linear-gradient(135deg,#f0f9ff,#dceefb)"><use href="#logoSign"/></svg>
+      <div class="favicon-demo"><svg width="14" height="14" viewBox="0 0 64 64"><use href="#logoSign"/></svg> Aisle Finder</div>
+      <span class="label">app icon / favicon / tab</span>
+    </div>
+  </div>
+
+  <!-- ================= OPTION 2 ================= -->
+  <div class="card">
+    <h2><span class="num">2</span> Pin Cart</h2>
+    <p class="desc">A map pin with a shopping cart inside — "navigation for groceries" in one mark.
+    Bold single shape, works tiny, and the teal gradient carries the current brand color.</p>
+
+    <div class="hero">
+      <div class="light">
+        <div class="lockup">
+          <svg width="50" height="50" viewBox="0 0 64 64"><use href="#logoPinCart"/></svg>
+          <div class="wordmark" style="font-weight:700; letter-spacing:-1px">aislefinder</div>
+        </div>
+      </div>
+      <div class="dark">
+        <div class="lockup">
+          <svg width="50" height="50" viewBox="0 0 64 64"><use href="#logoPinCart"/></svg>
+          <div class="wordmark" style="font-weight:700; letter-spacing:-1px">aislefinder</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="topbar">
+      <div class="brand"><svg width="22" height="22" viewBox="0 0 64 64"><use href="#logoPinCart"/></svg> aislefinder</div>
+      <div class="spacer"></div><span class="fakebtn"><i class="fa-solid fa-clock-rotate-left"></i></span><span class="fakebtn"><i class="fa-solid fa-rectangle-list"></i></span><span class="fakechip"><i class="fa-solid fa-user" style="font-size:9px"></i> Guest</span>
+    </div>
+    <div class="topbar darkbar">
+      <div class="brand"><svg width="22" height="22" viewBox="0 0 64 64"><use href="#logoPinCart"/></svg> aislefinder</div>
+      <div class="spacer"></div><span class="fakebtn"><i class="fa-solid fa-clock-rotate-left"></i></span><span class="fakebtn"><i class="fa-solid fa-rectangle-list"></i></span><span class="fakechip"><i class="fa-solid fa-user" style="font-size:9px"></i> Guest</span>
+    </div>
+
+    <div class="icons-row">
+      <svg class="appicon" width="64" height="64" viewBox="-10 -8 84 80" style="background:linear-gradient(135deg,#eafcfc,#d7f2f4)"><use href="#logoPinCart"/></svg>
+      <svg class="appicon" width="40" height="40" viewBox="-10 -8 84 80" style="background:linear-gradient(135deg,#eafcfc,#d7f2f4)"><use href="#logoPinCart"/></svg>
+      <div class="favicon-demo"><svg width="14" height="14" viewBox="0 0 64 64"><use href="#logoPinCart"/></svg> Aisle Finder</div>
+      <span class="label">app icon / favicon / tab</span>
+    </div>
+  </div>
+
+  <!-- ================= OPTION 3 ================= -->
+  <div class="card">
+    <h2><span class="num">3</span> Check Route</h2>
+    <p class="desc">A dotted route winds from the entrance through checked-off items to a pin — the
+    story of shop mode itself. Lighter and more playful; the green checks nod to the confetti moment.</p>
+
+    <div class="hero">
+      <div class="light">
+        <div class="lockup">
+          <svg width="52" height="52" viewBox="0 0 64 64"><use href="#logoRoute"/></svg>
+          <div class="wordmark" style="font-weight:600">Aisle<span style="color:#27ae60;font-weight:800">Finder</span></div>
+        </div>
+      </div>
+      <div class="dark">
+        <div class="lockup">
+          <svg width="52" height="52" viewBox="0 0 64 64"><use href="#logoRoute"/></svg>
+          <div class="wordmark" style="font-weight:600">Aisle<span style="color:#2ecc71;font-weight:800">Finder</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="topbar">
+      <div class="brand"><svg width="23" height="23" viewBox="0 0 64 64"><use href="#logoRoute"/></svg> Aisle<b style="color:#27ae60">Finder</b></div>
+      <div class="spacer"></div><span class="fakebtn"><i class="fa-solid fa-clock-rotate-left"></i></span><span class="fakebtn"><i class="fa-solid fa-rectangle-list"></i></span><span class="fakechip"><i class="fa-solid fa-user" style="font-size:9px"></i> Guest</span>
+    </div>
+    <div class="topbar darkbar">
+      <div class="brand"><svg width="23" height="23" viewBox="0 0 64 64"><use href="#logoRoute"/></svg> Aisle<b style="color:#2ecc71">Finder</b></div>
+      <div class="spacer"></div><span class="fakebtn"><i class="fa-solid fa-clock-rotate-left"></i></span><span class="fakebtn"><i class="fa-solid fa-rectangle-list"></i></span><span class="fakechip"><i class="fa-solid fa-user" style="font-size:9px"></i> Guest</span>
+    </div>
+
+    <div class="icons-row">
+      <svg class="appicon" width="64" height="64" viewBox="-8 -6 80 76" style="background:linear-gradient(135deg,#f2fbf5,#e0f5ea)"><use href="#logoRoute"/></svg>
+      <svg class="appicon" width="40" height="40" viewBox="-8 -6 80 76" style="background:linear-gradient(135deg,#f2fbf5,#e0f5ea)"><use href="#logoRoute"/></svg>
+      <div class="favicon-demo"><svg width="14" height="14" viewBox="0 0 64 64"><use href="#logoRoute"/></svg> Aisle Finder</div>
+      <span class="label">app icon / favicon / tab</span>
+    </div>
+  </div>
+
+  <!-- ================= OPTION 4 ================= -->
+  <div class="card">
+    <h2><span class="num">4</span> Shelf Monogram</h2>
+    <p class="desc">Two shelves receding down an aisle form a letter "A", with a checked shelf as the
+    crossbar. The most abstract and "brandy" of the four — ages well, very strong at icon size.</p>
+
+    <div class="hero">
+      <div class="light">
+        <div class="lockup">
+          <svg width="50" height="50" viewBox="0 0 64 64"><use href="#logoAisleA"/></svg>
+          <div class="wordmark" style="font-weight:800; letter-spacing:0.5px; font-size:17px">AISLE<span style="font-weight:300">FINDER</span></div>
+        </div>
+      </div>
+      <div class="dark">
+        <div class="lockup">
+          <svg width="50" height="50" viewBox="0 0 64 64"><use href="#logoAisleA"/></svg>
+          <div class="wordmark" style="font-weight:800; letter-spacing:0.5px; font-size:17px">AISLE<span style="font-weight:300">FINDER</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="topbar">
+      <div class="brand"><svg width="22" height="22" viewBox="0 0 64 64"><use href="#logoAisleA"/></svg> <span style="letter-spacing:0.5px">AISLE<span style="font-weight:400">FINDER</span></span></div>
+      <div class="spacer"></div><span class="fakebtn"><i class="fa-solid fa-clock-rotate-left"></i></span><span class="fakebtn"><i class="fa-solid fa-rectangle-list"></i></span><span class="fakechip"><i class="fa-solid fa-user" style="font-size:9px"></i> Guest</span>
+    </div>
+    <div class="topbar darkbar">
+      <div class="brand"><svg width="22" height="22" viewBox="0 0 64 64"><use href="#logoAisleA"/></svg> <span style="letter-spacing:0.5px">AISLE<span style="font-weight:400">FINDER</span></span></div>
+      <div class="spacer"></div><span class="fakebtn"><i class="fa-solid fa-clock-rotate-left"></i></span><span class="fakebtn"><i class="fa-solid fa-rectangle-list"></i></span><span class="fakechip"><i class="fa-solid fa-user" style="font-size:9px"></i> Guest</span>
+    </div>
+
+    <div class="icons-row">
+      <svg class="appicon" width="64" height="64" viewBox="-9 -7 82 78" style="background:linear-gradient(135deg,#f0f9ff,#dceefb)"><use href="#logoAisleA"/></svg>
+      <svg class="appicon" width="40" height="40" viewBox="-9 -7 82 78" style="background:linear-gradient(135deg,#f0f9ff,#dceefb)"><use href="#logoAisleA"/></svg>
+      <div class="favicon-demo"><svg width="14" height="14" viewBox="0 0 64 64"><use href="#logoAisleA"/></svg> Aisle Finder</div>
+      <span class="label">app icon / favicon / tab</span>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
