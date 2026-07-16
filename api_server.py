@@ -1,10 +1,17 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-import tempfile
+"""Local/Railway Flask server.
+
+Route logic lives in shared blueprints (grocery_routes.py, lists_backend.py)
+so this file and the Vercel mirror (api/index.py) can't drift apart. Only
+local-only debug tooling is defined here.
+"""
+
 import os
 import sys
 from pathlib import Path
+
 from dotenv import load_dotenv
+from flask import Flask, jsonify, request, send_from_directory
+from flask_cors import CORS
 
 # Load environment variables from .env file for local development
 load_dotenv()
@@ -13,140 +20,64 @@ load_dotenv()
 project_root = Path(__file__).parent
 sys.path.append(str(project_root))
 
-from grocery_organizer.src.core.processor import GroceryListProcessor
-from grocery_organizer.src.store_api.api import KrogerAPI
+from grocery_routes import grocery_bp
+from grocery_organizer.src.store_api.kroger import KrogerAPI
+from lists_backend import lists_bp
 
 app = Flask(__name__)
 # Allow CORS for both local development and production domains
-CORS(app, origins=['http://localhost:3000', 'https://aislefinder3000.com'])
+CORS(app, origins=['http://localhost:3000', 'https://aislefinder3000.com', 'capacitor://localhost', 'http://localhost', 'https://localhost'])
+app.register_blueprint(grocery_bp)
+app.register_blueprint(lists_bp)
 
-@app.route('/api/process-grocery-list', methods=['POST'])
-def process_grocery_list():
-    try:
-        print("Processing grocery list request...")
-        
-        # Check if file is in request
-        if 'file' not in request.files:
-            print("No file in request")
-            return jsonify({'error': 'No file provided'}), 400
-        
-        file = request.files['file']
-        if file.filename == '':
-            print("Empty filename")
-            return jsonify({'error': 'No file selected'}), 400
 
-        print(f"Processing file: {file.filename}")
-
-        # Get optional parameters
-        output_format = request.form.get('output_format', 'aisle')
-        store_id = request.form.get('store_id', '01400943')
-        store = request.form.get('store', '4500S Smiths')
-        
-        print(f"Output format: {output_format}, Store: {store}, Store ID: {store_id}")
-
-        # Save uploaded file temporarily
-        with tempfile.NamedTemporaryFile(mode='w+', suffix='.txt', delete=False) as temp_file:
-            # Read and write the file content
-            content = file.read().decode('utf-8')
-            temp_file.write(content)
-            temp_file_path = temp_file.name
-            print(f"Saved temp file: {temp_file_path}")
-            print(f"File content preview: {content[:100]}...")
-
-        try:
-            # Process the grocery list
-            print("Creating processor...")
-            processor = GroceryListProcessor(
-                file=temp_file_path,
-                store=store,
-                output_format=output_format,
-                store_id=store_id
-            )
-            print("Processing list...")
-            result = processor.process_list()
-            print(f"Processing complete. Result length: {len(result)}")
-            
-            return result, 200, {'Content-Type': 'text/plain'}
-            
-        finally:
-            # Clean up temporary file
-            if os.path.exists(temp_file_path):
-                os.unlink(temp_file_path)
-                print("Cleaned up temp file")
-            
-    except Exception as e:
-        print(f"Error processing grocery list: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': f'Server error: {str(e)}'}), 500
-
-@app.route('/api/find-stores', methods=['POST'])
-def find_stores():
+@app.route('/api/debug-kroger', methods=['POST'])
+def debug_kroger():
+    """Local-only: dump raw Kroger search results for a term."""
     try:
         data = request.get_json()
-        if not data or 'zipCode' not in data:
-            return jsonify({'error': 'Zip code is required'}), 400
-            
-        zip_code = data['zipCode']
-        print(f"Searching for stores near zip code: {zip_code}")
-        
-        # Create API client and search for stores
-        api_client = KrogerAPI()
-        stores = api_client.find_stores_by_zip(zip_code)
-        
-        print(f"Found {len(stores)} stores")
-        return jsonify({'stores': stores}), 200
-        
-    except Exception as e:
-        print(f"Error finding stores: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': f'Server error: {str(e)}'}), 500
-
-@app.route('/api/find-item-aisle', methods=['POST'])
-def find_item_aisle():
-    try:
-        data = request.get_json()
-        if not data or 'item' not in data:
-            return jsonify({'error': 'Item name is required'}), 400
-
-        item = data['item'].strip()
-        if not item:
-            return jsonify({'error': 'Item name cannot be empty'}), 400
-
+        term = (data.get('term') or '').strip()
         store_id = data.get('store_id', '01400943')
+        if not term:
+            return jsonify({'error': 'term is required'}), 400
 
-        api_client = KrogerAPI(store_id=store_id)
-        product = api_client.find_product(item)
+        token = KrogerAPI(store_id).get_auth_token()
 
-        result = {
-            'item': item,
-            'found_product': product.found_product,
-            'category': product.category,
-            'aisle_number': product.aisle_number
-        }
+        import requests as req
+        headers = {'Authorization': 'Bearer ' + token, 'Cache-Control': 'no-cache'}
+        params = {'filter.term': term, 'filter.locationId': store_id, 'filter.limit': 5}
+        resp = req.get('https://api.kroger.com/v1/products', headers=headers, params=params)
+        resp.raise_for_status()
+        raw = resp.json()
 
-        if product.aisle_number > 0:
-            result['aisle'] = f'Aisle {product.aisle_number}'
-        elif product.category != 'Not Found':
-            result['aisle'] = product.category
-        else:
-            result['aisle'] = 'Not found in store'
+        # Trim aliasProductIds to just a count to keep payload small
+        for product in raw.get('data', []):
+            alias = product.get('aliasProductIds', [])
+            product['aliasProductIds'] = len(alias)
 
-        return jsonify(result), 200
+        return jsonify({
+            'total': raw.get('meta', {}).get('pagination', {}).get('total', 0),
+            'store_id': store_id,
+            'data': raw.get('data', []),
+        }), 200
 
     except Exception as e:
-        print(f"Error finding item aisle: {str(e)}")
         import traceback
         traceback.print_exc()
-        return jsonify({'error': f'Server error: {str(e)}'}), 500
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/debug')
+def debug_viewer():
+    return send_from_directory(str(Path(__file__).parent), 'api-response-viewer.html')
+
 
 @app.route('/health', methods=['GET'])
 def health_check():
     return jsonify({'status': 'healthy'}), 200
 
+
 if __name__ == '__main__':
-    import os
     port = int(os.environ.get('PORT', 8000))
     debug_mode = os.environ.get('FLASK_ENV') == 'development'
     app.run(debug=debug_mode, host='0.0.0.0', port=port)
