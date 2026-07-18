@@ -20,7 +20,22 @@
       "Bash(PYTHONPATH=/Users/hayleybuchman/Documents/aislefinder /Users/hayleybuchman/Documents/aislefinder/venv/bin/python -m pytest:*)",
       "Bash(/Users/hayleybuchman/Documents/aislefinder/venv/bin/python:*)",
       "Bash(/Users/hayleybuchman/Documents/aislefinder/venv/bin/python3.14:*)",
-      "Bash(PYTHONPATH=/Users/hayleybuchman/Documents/aislefinder /Users/hayleybuchman/Documents/aislefinder/venv/bin/python3.14 -m pytest /Users/hayleybuchman/Documents/aislefinder/grocery_organizer/tests/test_word_matching.py -v)"
+      "Bash(PYTHONPATH=/Users/hayleybuchman/Documents/aislefinder /Users/hayleybuchman/Documents/aislefinder/venv/bin/python3.14 -m pytest /Users/hayleybuchman/Documents/aislefinder/grocery_organizer/tests/test_word_matching.py -v)",
+      "Bash(python3 -m pytest:*)",
+      "Bash(python3.14 -m pytest:*)",
+      "Bash(python3:*)",
+      "Bash(pip3 install:*)",
+      "Bash(./venv/bin/python -m pytest:*)",
+      "Bash(./venv/bin/pytest:*)",
+      "WebSearch",
+      "WebFetch(domain:developer.walmartlabs.com)",
+      "WebFetch(domain:walmart.io)",
+      "Bash(npm install *)",
+      "Bash(npx cap *)",
+      "Bash(grep -on \"#[0-9a-fA-F]\\\\{3,6\\\\}\" /Users/hayleybuchman/Documents/aislefinder/src/AisleFinder.jsx)",
+      "Bash(sort -t: -k2)",
+      "Bash(uniq -c -f1)",
+      "Bash(grep -E \"\\\\.\\(js|jsx|ts|tsx\\)$\")"
     ],
     "deny": [],
     "ask": []
