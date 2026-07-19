@@ -88,45 +88,70 @@ class KrogerAPI:
         """Clean up a search term (shared logic in search_terms.py)."""
         return preprocess_search_term(product_name)
 
+    _spell_checker = None  # lazy class-level cache
+
+    def _spell_correct(self, term: str) -> str:
+        """Return spell-corrected term; returns original if correction unavailable."""
+        try:
+            from spellchecker import SpellChecker
+            if KrogerAPI._spell_checker is None:
+                KrogerAPI._spell_checker = SpellChecker()
+            words = term.split()
+            corrected = [KrogerAPI._spell_checker.correction(w) or w for w in words]
+            return ' '.join(corrected)
+        except ImportError:
+            return term
+
     @retry_api_call(max_retries=3, backoff_factor=1)
-    def _search_best_match(self, product_name):
-        """Search the Products API and return the best-scoring raw product dict, or None."""
-        # Clean up the search term before calling API
+    def _fetch_scored_candidates(self, product_name, search_term, limit):
+        """Make one Products API call and return up to `limit` scored candidates."""
+        token = self.get_auth_token()
+        headers = {'Authorization': 'Bearer ' + token, 'Cache-Control': 'no-cache'}
+        payload = {'filter.term': search_term, 'filter.locationId': self.store_id}
+        response = requests.get(self.PRODUCT_URL, headers=headers, params=payload)
+        response.raise_for_status()
+
+        candidates = response.json().get('data') or []
+        if not candidates:
+            return []
+
+        scored = []
+        for candidate in candidates[:10]:
+            if self._is_product_relevant(product_name, candidate) or self._is_product_relevant(search_term, candidate):
+                score = max(
+                    self._score_product(product_name, candidate),
+                    self._score_product(search_term, candidate)
+                )
+                scored.append((score, candidate))
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return [c for _, c in scored[:limit]]
+
+    def _search_top_matches(self, product_name, limit=5):
+        """Search the Products API and return up to `limit` scored candidates, best first.
+
+        Falls back to a spell-corrected search term when the initial query returns
+        no relevant results and the corrected term differs from the original.
+        """
         cleaned_search_term = self._preprocess_search_term(product_name)
         print(f"Searching for '{product_name}' -> cleaned: '{cleaned_search_term}'")
 
-        #Prepare API Request
-        token = self.get_auth_token()
-        headers = {'Authorization': 'Bearer ' + token, 'Cache-Control': 'no-cache'}
-        payload = {'filter.term': cleaned_search_term, 'filter.locationId': self.store_id}
-        response = requests.get(self.PRODUCT_URL, headers=headers, params=payload)
-        response.raise_for_status()  # Raise an exception for bad status codes
+        top = self._fetch_scored_candidates(product_name, cleaned_search_term, limit)
 
-        response_data = response.json()
-        candidates = response_data.get('data') or []
-        if not candidates:
-            print(f"No product data found for: {product_name}")
-            return None
+        if not top:
+            corrected = self._spell_correct(cleaned_search_term)
+            if corrected != cleaned_search_term:
+                print(f"No results for '{cleaned_search_term}'; retrying with spell-corrected '{corrected}'")
+                top = self._fetch_scored_candidates(product_name, corrected, limit)
 
-        # Score the top results and pick the best relevant match
-        best_product = None
-        best_score = -100
-        for candidate in candidates[:5]:
-            if self._is_product_relevant(product_name, candidate) or self._is_product_relevant(cleaned_search_term, candidate):
-                score = max(
-                    self._score_product(product_name, candidate),
-                    self._score_product(cleaned_search_term, candidate)
-                )
-                if score > best_score:
-                    best_score = score
-                    best_product = candidate
-
-        if best_product is None:
+        if not top:
             print(f"Warning: No relevant product found for '{product_name}'")
-        elif best_product is not candidates[0]:
-            print(f"Found better match for '{product_name}': {best_product['description']}")
+        return top
 
-        return best_product
+    def _search_best_match(self, product_name):
+        """Return the single best-scoring candidate (used by find_product)."""
+        top = self._search_top_matches(product_name, limit=1)
+        return top[0] if top else None
 
     def find_product(self, product_name):
         product_data = self._search_best_match(product_name)
@@ -152,39 +177,38 @@ class KrogerAPI:
             aisle_number
         )
 
-    def find_item_details(self, product_name):
+    def find_item_details(self, product_name, limit=5):
         """Full details for the shop screen's item help view.
 
-        Returns name, brand, size, category, front image URL, and the
-        in-aisle location (aisle/side/shelf/bay), or None if no relevant
-        product was found.
+        Returns a list of up to `limit` results ranked by relevance score,
+        each with name, brand, size, category, image URL, and in-aisle location.
+        Returns an empty list when no relevant products were found.
         """
-        product_data = self._search_best_match(product_name)
-        if product_data is None:
-            return None
-
-        categories = product_data.get('categories', [])
-        items = product_data.get('items', [])
-        aisle_locations = product_data.get('aisleLocations', [])
-        location = None
-        if aisle_locations:
-            loc = aisle_locations[0]
-            location = {
-                'aisle': loc.get('number'),
-                'side': loc.get('side'),  # 'L' or 'R'
-                'shelf': loc.get('shelfNumber'),
-                'bay': loc.get('bayNumber'),
-                'description': loc.get('description'),
-            }
-
-        return {
-            'name': product_data.get('description'),
-            'brand': product_data.get('brand'),
-            'size': items[0].get('size') if items else None,
-            'category': self._normalize_category(categories[0]) if categories else None,
-            'image': self._front_image_url(product_data),
-            'location': location,
-        }
+        candidates = self._search_top_matches(product_name, limit=limit)
+        results = []
+        for product_data in candidates:
+            categories = product_data.get('categories', [])
+            items = product_data.get('items', [])
+            aisle_locations = product_data.get('aisleLocations', [])
+            location = None
+            if aisle_locations:
+                loc = aisle_locations[0]
+                location = {
+                    'aisle': loc.get('number'),
+                    'side': loc.get('side'),  # 'L' or 'R'
+                    'shelf': loc.get('shelfNumber'),
+                    'bay': loc.get('bayNumber'),
+                    'description': loc.get('description'),
+                }
+            results.append({
+                'name': product_data.get('description'),
+                'brand': product_data.get('brand'),
+                'size': items[0].get('size') if items else None,
+                'category': self._normalize_category(categories[0]) if categories else None,
+                'image': self._front_image_url(product_data),
+                'location': location,
+            })
+        return results
 
     @staticmethod
     def _front_image_url(product_data):

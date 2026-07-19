@@ -56,9 +56,10 @@ export const fetchItemDetails = async ({ item, store }) => {
       store_id: store ? store.id : '01400943',
     }),
   });
-  if (response.status === 404) return null;
+  if (response.status === 404) return [];
   if (!response.ok) throw new Error('Failed to load item details');
-  return response.json();
+  const data = await response.json();
+  return data.results || [];
 };
 
 // ---- List sync/sharing (requires a signed-in user's Cognito access token) ----

@@ -540,6 +540,10 @@ const AisleFinder = () => {
         @keyframes sheetSlideUp {
           from { transform: translateY(40px); opacity: 0; }
         }
+        @keyframes popupZoomIn {
+          from { opacity: 0; transform: scale(0.92) translateY(6px); }
+          to   { opacity: 1; transform: scale(1)    translateY(0); }
+        }
         @keyframes iconPulse {
           0%, 100% { opacity: 0.15; transform: scale(1); }
           50% { opacity: 1; transform: scale(1.2); }

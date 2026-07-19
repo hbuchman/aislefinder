@@ -118,11 +118,11 @@ def item_details():
             return jsonify({'error': 'Item name cannot be empty'}), 400
 
         store_id = data.get('store_id', DEFAULT_STORE_ID)
-        details = KrogerAPI(store_id).find_item_details(item)
-        if details is None:
+        results = KrogerAPI(store_id).find_item_details(item)
+        if not results:
             return jsonify({'error': 'Item not found in store'}), 404
 
-        return jsonify(details), 200
+        return jsonify({'results': results}), 200
 
     except Exception as e:
         return _server_error('fetching item details', e)

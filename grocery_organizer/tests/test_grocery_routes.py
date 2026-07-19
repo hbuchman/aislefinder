@@ -37,15 +37,17 @@ class StubKrogerAPI:
 
     def find_item_details(self, product_name):
         if product_name == 'rice':
-            return {
-                'name': 'Long Grain Rice',
-                'brand': 'Kroger',
-                'size': '2 lb',
-                'category': 'Grocery',
-                'image': 'https://example.com/rice.jpg',
-                'location': {'aisle': '5', 'side': 'L', 'shelf': 3, 'bay': 12, 'description': 'Aisle 5'},
-            }
-        return None
+            return [
+                {
+                    'name': 'Long Grain Rice',
+                    'brand': 'Kroger',
+                    'size': '2 lb',
+                    'category': 'Grocery',
+                    'image': 'https://example.com/rice.jpg',
+                    'location': {'aisle': '5', 'side': 'L', 'shelf': 3, 'bay': 12, 'description': 'Aisle 5'},
+                },
+            ]
+        return []
 
 
 @pytest.fixture
@@ -112,10 +114,12 @@ class TestItemDetails:
     def test_returns_details(self, client):
         response = client.post('/api/item-details', json={'item': 'rice'})
         assert response.status_code == 200
-        details = response.get_json()
-        assert details['name'] == 'Long Grain Rice'
-        assert details['image'] == 'https://example.com/rice.jpg'
-        assert details['location']['aisle'] == '5'
+        data = response.get_json()
+        assert 'results' in data
+        first = data['results'][0]
+        assert first['name'] == 'Long Grain Rice'
+        assert first['image'] == 'https://example.com/rice.jpg'
+        assert first['location']['aisle'] == '5'
 
     def test_not_found_is_404(self, client):
         response = client.post('/api/item-details', json={'item': 'unobtainium'})

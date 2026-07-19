@@ -408,7 +408,63 @@ class TestFindProductSelection:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 6. _normalize
+# 6. Spell correction fallback in _search_top_matches
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestSpellCorrectionFallback:
+    """_search_top_matches retries with a spell-corrected term on zero results."""
+
+    def test_retries_with_corrected_term_on_miss(self, api):
+        found = [make_product("Milk", categories=["Dairy"], aisle_number=4)]
+        call_terms = []
+
+        def fake_fetch(product_name, search_term, limit):
+            call_terms.append(search_term)
+            return found if search_term == "milk" else []
+
+        with patch.object(api, '_fetch_scored_candidates', side_effect=fake_fetch), \
+             patch.object(api, '_spell_correct', return_value="milk"):
+            result = api._search_top_matches("mlk")
+
+        assert call_terms == ["mlk", "milk"]
+        assert result == found
+
+    def test_no_retry_when_results_found_on_first_call(self, api):
+        found = [make_product("Milk")]
+        with patch.object(api, '_fetch_scored_candidates', return_value=found), \
+             patch.object(api, '_spell_correct') as mock_correct:
+            api._search_top_matches("milk")
+        mock_correct.assert_not_called()
+
+    def test_no_retry_when_correction_is_unchanged(self, api):
+        call_count = [0]
+
+        def fake_fetch(product_name, search_term, limit):
+            call_count[0] += 1
+            return []
+
+        with patch.object(api, '_fetch_scored_candidates', side_effect=fake_fetch), \
+             patch.object(api, '_spell_correct', return_value="unknownbrand"):
+            result = api._search_top_matches("unknownbrand")
+
+        assert call_count[0] == 1
+        assert result == []
+
+    def test_spell_correct_returns_string(self, api):
+        KrogerAPI._spell_checker = None
+        result = api._spell_correct("milk")
+        assert isinstance(result, str)
+        assert result == "milk"
+
+    def test_spell_correct_handles_unknown_word(self, api):
+        KrogerAPI._spell_checker = None
+        result = api._spell_correct("xyzqrp")
+        assert isinstance(result, str)
+        assert len(result) > 0
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 7. _normalize
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class TestNormalize:
