@@ -43,7 +43,6 @@ class KrogerAPI:
     AUTH_URL = 'https://api.kroger.com/v1/connect/oauth2/token'
     PRODUCT_URL = 'https://api.kroger.com/v1/products'
     LOCATIONS_URL = 'https://api.kroger.com/v1/locations'
-    CLIENT_ID = 'aislefinder5000-bbcct110'
 
     def __init__(self, store_id: str = "01400943"):
         self.store_id = store_id
@@ -62,11 +61,15 @@ class KrogerAPI:
             if self.access_token is not None and time.time() < self.token_expiration:
                 return self.access_token
 
+            # Kroger's API terms treat client IDs as developer credentials that
+            # may not be embedded in open source projects, so both halves come
+            # from the environment.
+            client_id = os.getenv('KROGER_CLIENT_ID')
             client_secret = os.getenv('KROGER_CLIENT_SECRET')
-            if not client_secret:
-                raise ValueError("KROGER_CLIENT_SECRET environment variable is required")
+            if not client_id or not client_secret:
+                raise ValueError("KROGER_CLIENT_ID and KROGER_CLIENT_SECRET environment variables are required")
 
-            auth_code = self.CLIENT_ID + ':' + client_secret
+            auth_code = client_id + ':' + client_secret
 
             headers = {
                 'Content-Type': 'application/x-www-form-urlencoded',

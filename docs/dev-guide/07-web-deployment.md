@@ -74,6 +74,7 @@ function each read different ones:
 
 | Variable | Used by | Purpose |
 |----------|---------|---------|
+| `KROGER_CLIENT_ID` | Python function | Kroger API auth (chapter 2) |
 | `KROGER_CLIENT_SECRET` | Python function | Kroger API auth (chapter 2) |
 | `REACT_APP_COGNITO_USER_POOL_ID`, `REACT_APP_COGNITO_CLIENT_ID` | React build | Login UI (chapter 10) |
 | `AISLEFINDER_TABLE`, `COGNITO_REGION` | Python function | List sync (chapter 10) |
@@ -124,7 +125,7 @@ domains, update both.
 - [ ] **Create a Vercel account** at https://vercel.com (sign in with GitHub)
 - [ ] **Push the repo to GitHub** if it isn't already, then **import it** as a
       Vercel project (Add New → Project)
-- [ ] **Type the env vars into Vercel** — at minimum `KROGER_CLIENT_SECRET`;
+- [ ] **Type the env vars into Vercel** — at minimum `KROGER_CLIENT_ID` and `KROGER_CLIENT_SECRET`;
       the AWS ones come in chapter 10
 - [ ] **Register the domain** (e.g. `aislefinder3000.com`) at a registrar
 - [ ] **Add the domain in Vercel** (Settings → Domains) and **enter the DNS

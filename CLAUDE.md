@@ -66,7 +66,7 @@ Python tests cover input parsing, output formatting, search-term cleanup, Kroger
 
 All credentials come from environment variables (never commit secrets):
 
-- `KROGER_CLIENT_SECRET` — required for Kroger lookups; the client ID is the `CLIENT_ID` constant in `kroger.py`
+- `KROGER_CLIENT_ID` / `KROGER_CLIENT_SECRET` — required for Kroger lookups (Kroger's API terms forbid embedding either in the public repo)
 - `AISLEFINDER_TABLE`, Cognito + AWS vars — list sync (see `lists_backend.py` docstring and `infra/`)
 - Frontend: `REACT_APP_API_URL`, `REACT_APP_COGNITO_USER_POOL_ID`, `REACT_APP_COGNITO_CLIENT_ID`
 

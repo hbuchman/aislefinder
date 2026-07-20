@@ -39,7 +39,7 @@ Copy the example env file and fill in your Kroger client secret:
 cp .env.example .env
 ```
 
-Edit `.env` and set `KROGER_CLIENT_SECRET` to your Kroger API client secret. You can request one via written request to the maintainer.
+Edit `.env` and set `KROGER_CLIENT_ID` and `KROGER_CLIENT_SECRET` to your Kroger API credentials. You can request them via written request to the maintainer.
 
 The `.env.development` file is pre-configured to point the React frontend at `http://localhost:8000`.
 
@@ -93,7 +93,7 @@ The app is deployed on **Vercel**.
 - **Frontend** -- Built with `npm run build` (Create React App) and served as static files. Vercel auto-detects the CRA framework.
 - **Backend** -- The Flask API in `api/index.py` runs as a Vercel serverless function using the `@vercel/python` runtime. All `/api/*` routes are rewritten to this function. All other routes fall through to `index.html` for client-side routing.
 - **Configuration** -- `vercel.json` defines the build command, output directory, serverless function config, and URL rewrites.
-- **Environment variables** -- `KROGER_CLIENT_SECRET` must be set in the Vercel project settings. `REACT_APP_API_URL` is set in `.env.production` to point at the production API domain.
+- **Environment variables** -- `KROGER_CLIENT_ID` and `KROGER_CLIENT_SECRET` must be set in the Vercel project settings. `REACT_APP_API_URL` is set in `.env.production` to point at the production API domain.
 - **Domain** -- Production is served at `aislefinder3000.com`.
 
 ## Contributing

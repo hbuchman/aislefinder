@@ -88,11 +88,13 @@ Create `.env` in the repo root — `cp .env.example .env` gives you the
 template. It's git-ignored; never commit it:
 
 ```
+KROGER_CLIENT_ID=your_client_id_here
 KROGER_CLIENT_SECRET=your_secret_here
 ```
 
-The matching Kroger client ID is hardcoded in `kroger.py` as
-`aislefinder5000-bbcct110`. Chapter 2 covers where both come from.
+Both values come from your Kroger developer registration — Kroger's API
+terms don't allow committing either one, so they live only in `.env`.
+Chapter 2 covers where both come from.
 
 ## 1.4 Starting the API server
 

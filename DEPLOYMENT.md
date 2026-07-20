@@ -6,6 +6,7 @@
 
 #### For Railway (Backend):
 ```
+KROGER_CLIENT_ID=your_actual_kroger_client_id
 KROGER_CLIENT_SECRET=your_actual_kroger_client_secret
 FLASK_ENV=production
 ```
@@ -30,7 +31,7 @@ REACT_APP_API_URL=https://api.aislefinder3000.com
 1. Push code to GitHub
 2. Go to [railway.app](https://railway.app)
 3. Create new project from GitHub repo
-4. Add environment variable: `KROGER_CLIENT_SECRET`
+4. Add environment variables: `KROGER_CLIENT_ID` and `KROGER_CLIENT_SECRET`
 5. Railway will automatically detect Python and deploy
 6. Note your Railway URL (e.g., `https://your-app.railway.app`)
 

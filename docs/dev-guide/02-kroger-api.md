@@ -32,15 +32,15 @@ chain ever comes back.)
 
 Kroger's API uses **OAuth 2.0 client credentials** — the flow for
 server-to-server access where no human logs in. You register an app at
-https://developer.kroger.com and get a **client ID** (public, hardcoded in
-`kroger.py` as `aislefinder5000-bbcct110`) and a **client secret** (private,
-from `KROGER_CLIENT_SECRET` in `.env`).
+https://developer.kroger.com and get a **client ID** and a **client secret**,
+both read from `.env` (`KROGER_CLIENT_ID` / `KROGER_CLIENT_SECRET`) —
+Kroger's API terms treat both as credentials that must stay out of the repo.
 
 To get an access token, you POST both — joined and base64-encoded as an
 HTTP Basic auth header — to the token endpoint:
 
 ```python
-auth_code = self.CLIENT_ID + ':' + client_secret
+auth_code = client_id + ':' + client_secret
 headers = {
     'Content-Type': 'application/x-www-form-urlencoded',
     'Authorization': 'Basic ' + base64.b64encode(auth_code.encode('utf-8')).decode('utf-8')
@@ -150,11 +150,8 @@ Or open **http://localhost:8000/debug** — a small HTML viewer
 - [ ] **Create a Kroger developer account** at https://developer.kroger.com
 - [ ] **Register an application** with access to the *Products* and
       *Locations* APIs (instant approval for these public APIs)
-- [ ] **Update `CLIENT_ID`** in `grocery_organizer/src/store_api/kroger.py`
-      to your app's client ID (the committed one belongs to the original
-      author's registration)
-- [ ] **Put the client secret** in `.env` as `KROGER_CLIENT_SECRET=...`
-      (and later in Vercel, chapter 7)
+- [ ] **Put your client ID and secret** in `.env` as `KROGER_CLIENT_ID=...`
+      and `KROGER_CLIENT_SECRET=...` (and later in Vercel, chapter 7)
 - [ ] **Verify end to end** — start the server and hit
       `/api/find-item-aisle` with `{"item": "milk", "store_id": "01400943"}`,
       or poke the raw API at http://localhost:8000/debug
