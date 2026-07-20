@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { Capacitor } from '@capacitor/core';
 
 const CurrentListScreen = ({
   list,
@@ -15,8 +16,12 @@ const CurrentListScreen = ({
   const [input, setInput] = useState('');
   const inputRef = useRef(null);
 
-  // The add bar is the whole point of the home screen — focus it on load
-  useEffect(() => { inputRef.current?.focus(); }, []);
+  // The add bar is the whole point of the home screen — focus it on load.
+  // Skip on native apps, where autofocus pops the keyboard over half the
+  // screen every time the app opens.
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) inputRef.current?.focus();
+  }, []);
 
   if (!list) return null;
 
@@ -89,7 +94,6 @@ const CurrentListScreen = ({
             padding: '12px 14px',
             border: '2px solid var(--af-input-border)',
             borderRadius: '10px',
-            fontSize: '16px',
             backgroundColor: 'var(--af-inset-bg)',
             color: 'var(--af-text)',
             outline: 'none',
@@ -125,7 +129,7 @@ const CurrentListScreen = ({
           <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--af-text-faint)' }}>
             <i className="fa-solid fa-basket-shopping" style={{ fontSize: '32px', marginBottom: '12px', display: 'block' }} />
             <p style={{ fontSize: '14px', margin: 0 }}>
-              Your list is empty. Add items as you think of them during the week.
+              Your list is empty. Add items as you think of them.
             </p>
           </div>
         )}
@@ -164,7 +168,7 @@ const CurrentListScreen = ({
       {/* Store + shop footer */}
       <div style={{
         borderTop: '1px solid var(--af-border)',
-        padding: '12px 16px calc(14px + env(safe-area-inset-bottom, 0px))',
+        padding: '12px 16px calc(14px + var(--safe-area-inset-bottom))',
         background: 'var(--af-bg)',
         display: 'flex',
         flexDirection: 'column',
@@ -172,7 +176,7 @@ const CurrentListScreen = ({
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--af-text-muted)' }}>
           <i className="fa-solid fa-location-dot" />
-          {list.store ? `${list.store.name}` : 'No store selected — organizes by category'}
+          {list.store ? list.store.name : 'No store — organized by category'}
           <button
             onClick={onShowStore}
             style={{
@@ -196,7 +200,7 @@ const CurrentListScreen = ({
           onClick={onShop}
         >
           <i className="fa-solid fa-basket-shopping" />
-          Organize &amp; Shop{list.items.length > 0 ? ` (${list.items.length})` : ''}
+          Shop{list.items.length > 0 ? ` (${list.items.length})` : ''}
         </button>
       </div>
     </div>

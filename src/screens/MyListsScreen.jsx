@@ -90,7 +90,6 @@ const MyListsScreen = ({
                 padding: '11px 12px',
                 border: '2px solid var(--af-input-border)',
                 borderRadius: '10px',
-                fontSize: '15px',
                 backgroundColor: 'var(--af-inset-bg)',
                 color: 'var(--af-text)',
                 outline: 'none',
@@ -123,7 +122,7 @@ const MyListsScreen = ({
                 <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
                   <button className="af-btn-sm" onClick={() => onMerge(list.id)}>
                     <i className="fa-solid fa-arrow-rotate-left" style={{ marginRight: '6px' }} />
-                    Add to current list
+                    Add to list
                   </button>
                   <button className="af-btn-sm af-btn-sm-green" onClick={() => onReshop(list.id)}>
                     <i className="fa-solid fa-basket-shopping" style={{ marginRight: '6px' }} />

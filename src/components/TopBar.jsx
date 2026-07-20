@@ -12,7 +12,7 @@ const TopBar = ({ user, onShowHistory, onShowLists, onShowAccount }) => (
     position: 'sticky',
     top: 0,
     zIndex: 100,
-    paddingTop: 'calc(12px + env(safe-area-inset-top, 0px))',
+    paddingTop: 'calc(12px + var(--safe-area-inset-top))',
   }}>
     <div style={{ fontSize: '17px', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--af-chrome-text)', letterSpacing: '-0.2px' }}>
       {/* white tile keeps the green logo art legible on the green chrome */}

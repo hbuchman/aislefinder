@@ -23,7 +23,7 @@ const Sheet = ({ open, onClose, children }) => {
         maxHeight: '85vh',
         overflowY: 'auto',
         borderRadius: '18px 18px 0 0',
-        padding: '16px 20px calc(24px + env(safe-area-inset-bottom, 0px))',
+        padding: '16px 20px calc(24px + var(--safe-area-inset-bottom))',
         boxShadow: 'var(--af-shadow-lg)',
         color: 'var(--af-text)',
         animation: 'sheetSlideUp 0.22s ease',

@@ -34,8 +34,7 @@ const HistoryScreen = ({ completedLists, user, onMerge, onReshop, onDeleteList, 
           <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--af-text-faint)' }}>
             <i className="fa-solid fa-clock-rotate-left" style={{ fontSize: '32px', marginBottom: '12px', display: 'block' }} />
             <p style={{ fontSize: '14px', margin: 0, lineHeight: 1.5 }}>
-              No completed shops yet. Finish a trip in shop mode and it will be
-              saved here automatically.
+              No completed shops yet. Finished trips are saved here.
             </p>
           </div>
         )}
@@ -72,11 +71,11 @@ const HistoryScreen = ({ completedLists, user, onMerge, onReshop, onDeleteList, 
                   <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
                     <button className="af-btn-sm" onClick={() => onMerge(list.id)}>
                       <i className="fa-solid fa-arrow-rotate-left" style={{ marginRight: '6px' }} />
-                      Add to current list
+                      Add to list
                     </button>
                     <button className="af-btn-sm af-btn-sm-green" onClick={() => onReshop(list.id)}>
                       <i className="fa-solid fa-basket-shopping" style={{ marginRight: '6px' }} />
-                      Shop this again
+                      Shop again
                     </button>
                   </div>
                 </div>
@@ -90,11 +89,11 @@ const HistoryScreen = ({ completedLists, user, onMerge, onReshop, onDeleteList, 
         textAlign: 'center',
         fontSize: '11px',
         color: 'var(--af-text-faint)',
-        padding: '8px 16px calc(14px + env(safe-area-inset-bottom, 0px))',
+        padding: '8px 16px calc(14px + var(--safe-area-inset-bottom))',
       }}>
         {user
           ? 'Your history syncs with your account.'
-          : 'Guest history lives on this device only — sign in to keep it safe.'}
+          : 'History is saved on this device — sign in to keep it safe.'}
       </div>
     </div>
   );

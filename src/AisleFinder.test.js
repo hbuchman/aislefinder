@@ -19,7 +19,7 @@ it('renders the current-list home screen in guest mode', () => {
   const div = render();
   expect(div.textContent).toContain('AisleFinder');
   expect(div.textContent).toContain('Guest');
-  expect(div.textContent).toContain('Organize');
+  expect(div.textContent).toContain('Shop');
   expect(div.querySelector('input[placeholder*="Add an item"]')).not.toBeNull();
 });
 

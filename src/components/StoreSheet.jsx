@@ -14,7 +14,7 @@ const StoreSheet = ({ open, onClose, list, updateList, toast }) => {
 
   const search = async () => {
     if (!isValidZipCode(zipCode)) {
-      setError('Please enter a valid ZIP code (5 digits or 5 digits-4 digits)');
+      setError('Enter a valid 5-digit ZIP code');
       return;
     }
     setSearching(true);
@@ -66,7 +66,6 @@ const StoreSheet = ({ open, onClose, list, updateList, toast }) => {
             padding: '10px 12px',
             border: '2px solid var(--af-input-border)',
             borderRadius: '10px',
-            fontSize: '15px',
             backgroundColor: 'var(--af-inset-bg)',
             color: 'var(--af-text)',
             outline: 'none',
@@ -94,7 +93,7 @@ const StoreSheet = ({ open, onClose, list, updateList, toast }) => {
 
       {!searching && hasSearched && stores.length === 0 && !error && (
         <p style={{ fontSize: '12px', color: 'var(--af-error-text)' }}>
-          No stores found near ZIP code {zipCode}. Try a different ZIP code or organize by category.
+          No stores near {zipCode}. Try another ZIP or organize by category.
         </p>
       )}
 

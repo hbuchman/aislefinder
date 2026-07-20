@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './auth';
 import { useLists } from './listsStore';
 import { loadState, saveState } from './storage';
+import { applySystemBars } from './systemBars';
 import TopBar from './components/TopBar';
 import AccountSheet from './components/AccountSheet';
 import ShareSheet from './components/ShareSheet';
@@ -25,6 +26,21 @@ const AisleFinder = () => {
 
   useEffect(() => { saveState('outputFormat', outputFormat); }, [outputFormat]);
 
+  // Native status/gesture bar icon colors depend on which screen is up (green
+  // chrome vs. plain background) and the color scheme; Android also resets
+  // them on rotation and theme changes, so re-apply on those events.
+  useEffect(() => {
+    applySystemBars(screen);
+    const reapply = () => applySystemBars(screen);
+    const mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+    mq?.addEventListener('change', reapply);
+    window.addEventListener('orientationchange', reapply);
+    return () => {
+      mq?.removeEventListener('change', reapply);
+      window.removeEventListener('orientationchange', reapply);
+    };
+  }, [screen]);
+
   const toast = useCallback((msg) => {
     setToastMsg(msg);
     clearTimeout(toastTimer.current);
@@ -34,8 +50,8 @@ const AisleFinder = () => {
   // Lists are cached on-device, so offline mode keeps working; let the user
   // know their edits are safe and will sync when they reconnect.
   useEffect(() => {
-    const onOffline = () => toast("You're offline — changes are saved on this device");
-    const onOnline = () => toast('Back online — syncing your lists');
+    const onOffline = () => toast('Offline — changes saved on this device');
+    const onOnline = () => toast('Back online — syncing');
     window.addEventListener('offline', onOffline);
     window.addEventListener('online', onOnline);
     return () => {
@@ -69,8 +85,7 @@ const AisleFinder = () => {
   };
 
   return (
-    <div style={{
-      height: '100dvh',
+    <div className="af-shell" style={{
       display: 'flex',
       flexDirection: 'column',
       backgroundColor: 'var(--af-bg)',
@@ -88,6 +103,14 @@ const AisleFinder = () => {
            pairs at WCAG AA (4.5:1). */
         :root {
           color-scheme: light dark;
+          /* Safe-area insets that work on BOTH platforms: iOS resolves env()
+             here; Capacitor 8 on Android leaves env() at 0 and instead injects
+             --safe-area-inset-* as inline styles on <html>, which override
+             these fallbacks. Always pad with var(--safe-area-inset-*). */
+          --safe-area-inset-top: env(safe-area-inset-top, 0px);
+          --safe-area-inset-right: env(safe-area-inset-right, 0px);
+          --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+          --safe-area-inset-left: env(safe-area-inset-left, 0px);
           /* core neutrals */
           --af-bg: #f6faf6;
           --af-inset-bg: #ffffff;
@@ -159,6 +182,24 @@ const AisleFinder = () => {
         html, body {
           background-color: var(--af-bg);
           overscroll-behavior: none;
+        }
+        * {
+          -webkit-tap-highlight-color: transparent;
+        }
+        /* 16px+ keeps iOS Safari/WebView from auto-zooming a focused input */
+        input, textarea, select {
+          font-size: 16px;
+        }
+        /* dvh with a vh fallback for older WebViews (inline styles can't
+           declare the same property twice) */
+        .af-shell {
+          height: 100vh;
+          height: 100dvh;
+        }
+        /* Touch screens have no hover: keep per-item controls visible */
+        @media (hover: none) {
+          .af-itemremove { opacity: 1; }
+          .af-iteminfo { opacity: 0.55; }
         }
         .af-input::placeholder {
           color: var(--af-text-muted);
@@ -511,7 +552,7 @@ const AisleFinder = () => {
         .af-toast {
           position: fixed;
           /* Sits above the footer CTA so it never hides the primary button */
-          bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+          bottom: calc(92px + var(--safe-area-inset-bottom));
           left: 50%;
           transform: translateX(-50%);
           background: var(--af-toast-bg);
@@ -590,6 +631,9 @@ const AisleFinder = () => {
         margin: '0 auto',
         position: 'relative',
         zIndex: 2,
+        // Keep content clear of the notch when the phone is in landscape
+        paddingLeft: 'var(--safe-area-inset-left)',
+        paddingRight: 'var(--safe-area-inset-right)',
       }}>
         {screen !== 'shop' && (
           <TopBar

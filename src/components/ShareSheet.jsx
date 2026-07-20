@@ -61,9 +61,8 @@ const ShareSheet = ({ open, onClose, list, user, updateList, adoptRemoteList, on
             Share your list
           </h3>
           <p style={{ fontSize: '13px', color: 'var(--af-text-muted)', margin: '0 0 16px', lineHeight: 1.5 }}>
-            Sharing needs a free account so your list can live in the cloud where
-            everyone can reach it. Sign in to enable it — guests keep full use of
-            everything else.
+            Sharing needs a free account so everyone can reach your list. Guests
+            keep full use of everything else.
           </p>
           <button className="af-btn-primary" onClick={() => { close(); onNeedAccount(); }}>
             <i className="fa-solid fa-right-to-bracket" style={{ marginRight: '8px' }} />
@@ -78,8 +77,8 @@ const ShareSheet = ({ open, onClose, list, user, updateList, adoptRemoteList, on
             Share “{list ? list.name : ''}”
           </h3>
           <p style={{ fontSize: '13px', color: 'var(--af-text-muted)', margin: '0 0 16px', lineHeight: 1.5 }}>
-            Anyone who enters this code can add and check off items. Changes sync
-            for everyone.
+            Anyone with this code can add and check off items. Changes sync for
+            everyone.
           </p>
 
           {list && list.shareCode ? (
@@ -143,7 +142,6 @@ const ShareSheet = ({ open, onClose, list, user, updateList, adoptRemoteList, on
                   padding: '10px 12px',
                   border: '2px solid var(--af-input-border)',
                   borderRadius: '10px',
-                  fontSize: '14px',
                   backgroundColor: 'var(--af-inset-bg)',
                   color: 'var(--af-text)',
                   outline: 'none',

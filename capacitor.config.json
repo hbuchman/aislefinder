@@ -1,5 +1,10 @@
 {
   "appId": "com.aislefinder.app",
   "appName": "Aisle Finder",
-  "webDir": "build"
+  "webDir": "build",
+  "plugins": {
+    "SystemBars": {
+      "style": "DARK"
+    }
+  }
 }

@@ -46,7 +46,12 @@ const ShopGroup = ({ group, index, collapsed, checkedItems, onToggleCollapse, on
               fontSize: '13px',
               color: complete ? 'white' : 'var(--af-text)',
               transition: 'background-color 0.2s ease',
+              // Touch drag needs the browser out of the way: no scroll
+              // stealing, and no iOS long-press text-selection/callout
               touchAction: 'none',
+              userSelect: 'none',
+              WebkitUserSelect: 'none',
+              WebkitTouchCallout: 'none',
             }}
           >
             <i className="fa-solid fa-grip-vertical" style={{ color: complete ? 'rgba(255,255,255,0.6)' : 'var(--af-text-muted)', fontSize: '14px', flexShrink: 0 }} />
@@ -426,7 +431,7 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
         backgroundColor: 'var(--af-bg)',
         zIndex: 10,
         borderBottom: '2px solid var(--af-border)',
-        paddingTop: 'env(safe-area-inset-top, 0px)',
+        paddingTop: 'var(--safe-area-inset-top)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 16px' }}>
           <button className="af-backbtn" onClick={onExit}>
@@ -549,14 +554,13 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
                   value={singleItemQuery}
                   onChange={(e) => setSingleItemQuery(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') lookupSingleItem(); }}
-                  placeholder="Forgot something? Type an item to find its aisle"
+                  placeholder="Forgot something? Find its aisle"
                   className="af-input"
                   style={{
                     flex: 1,
                     padding: '6px 10px',
                     border: '2px solid var(--af-input-border)',
                     borderRadius: '6px',
-                    fontSize: '16px',
                     outline: 'none',
                     transition: 'border-color 0.3s ease',
                     backgroundColor: 'var(--af-inset-bg)',
@@ -612,7 +616,7 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
       {!loading && !error && (
         <div style={{
           borderTop: '1px solid var(--af-border)',
-          padding: '12px 16px calc(14px + env(safe-area-inset-bottom, 0px))',
+          padding: '12px 16px calc(14px + var(--safe-area-inset-bottom))',
           background: 'var(--af-bg)',
         }}>
           <button
