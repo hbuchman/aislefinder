@@ -10,6 +10,7 @@ import pytest
 from flask import Flask
 
 import grocery_routes
+import rate_limit
 from grocery_organizer.src.core import processor
 from grocery_organizer.src.core.models import FullProduct
 from grocery_routes import grocery_bp
@@ -54,6 +55,8 @@ class StubKrogerAPI:
 def client():
     app = Flask(__name__)
     app.register_blueprint(grocery_bp)
+    # Rate-limit state is module-global; isolate it per test
+    rate_limit._rate_hits.clear()
     # Both the routes and the processor import KrogerAPI by name
     with patch.object(grocery_routes, 'KrogerAPI', StubKrogerAPI), \
          patch.object(processor, 'KrogerAPI', StubKrogerAPI):
@@ -77,6 +80,86 @@ class TestProcessGroceryList:
         assert response.status_code == 400
         assert 'error' in response.get_json()
 
+    def test_too_many_items_is_400(self, client):
+        items = '\n'.join(f'item {i}' for i in range(grocery_routes.MAX_ITEMS_PER_REQUEST + 1))
+        response = client.post('/api/process-grocery-list', data={
+            'file': (io.BytesIO(items.encode()), 'list.txt'),
+        })
+        assert response.status_code == 400
+        assert 'limited' in response.get_json()['error']
+
+    def test_oversized_file_is_413(self, client):
+        blob = b'x' * (grocery_routes.MAX_UPLOAD_BYTES + 1)
+        response = client.post('/api/process-grocery-list', data={
+            'file': (io.BytesIO(blob), 'list.txt'),
+        })
+        assert response.status_code == 413
+
+    def test_non_utf8_file_is_400(self, client):
+        response = client.post('/api/process-grocery-list', data={
+            'file': (io.BytesIO(b'\xff\xfe milk'), 'list.txt'),
+        })
+        assert response.status_code == 400
+        assert 'UTF-8' in response.get_json()['error']
+
+
+class TestRateLimit:
+    def test_over_limit_is_429(self, client):
+        with patch.object(rate_limit, 'RATE_LIMIT_MAX_REQUESTS', 3):
+            for _ in range(3):
+                assert client.post('/api/find-item-aisle', json={'item': 'rice'}).status_code == 200
+            response = client.post('/api/find-item-aisle', json={'item': 'rice'})
+        assert response.status_code == 429
+        assert 'error' in response.get_json()
+
+    def test_limit_spans_kroger_endpoints(self, client):
+        # One shared per-IP window covers all Kroger-backed routes
+        with patch.object(rate_limit, 'RATE_LIMIT_MAX_REQUESTS', 2):
+            assert client.post('/api/find-item-aisle', json={'item': 'rice'}).status_code == 200
+            assert client.post('/api/find-stores', json={'zipCode': '84102'}).status_code == 200
+            response = client.post('/api/item-details', json={'item': 'rice'})
+        assert response.status_code == 429
+
+    def test_spoofed_forwarded_for_shares_bucket(self, client):
+        # Only the proxy-appended (last) X-Forwarded-For entry counts, so
+        # forging earlier entries can't rotate rate-limit buckets
+        with patch.object(rate_limit, 'RATE_LIMIT_MAX_REQUESTS', 1):
+            first = client.post('/api/find-item-aisle', json={'item': 'rice'},
+                                headers={'X-Forwarded-For': '1.1.1.1, 9.9.9.9'})
+            second = client.post('/api/find-item-aisle', json={'item': 'rice'},
+                                 headers={'X-Forwarded-For': '2.2.2.2, 9.9.9.9'})
+        assert first.status_code == 200
+        assert second.status_code == 429
+
+    def test_blank_forwarded_for_falls_back_to_remote_addr(self, client):
+        # A header whose last entry is blank must not get its own bucket
+        with patch.object(rate_limit, 'RATE_LIMIT_MAX_REQUESTS', 1):
+            first = client.post('/api/find-item-aisle', json={'item': 'rice'},
+                                headers={'X-Forwarded-For': ' , '})
+            second = client.post('/api/find-item-aisle', json={'item': 'rice'})
+        assert first.status_code == 200
+        assert second.status_code == 429
+
+    def test_idle_ip_buckets_are_swept(self, client):
+        # Rotating client addresses must not grow the table without bound
+        with patch.object(rate_limit, '_SWEEP_THRESHOLD', 5):
+            for i in range(10):
+                client.post('/api/find-item-aisle', json={'item': 'rice'},
+                            headers={'X-Forwarded-For': f'10.0.0.{i}'})
+            with patch.object(rate_limit, 'RATE_LIMIT_WINDOW_SECONDS', -1):
+                client.post('/api/find-item-aisle', json={'item': 'rice'})
+        assert len(rate_limit._rate_hits) <= 2
+
+
+def test_server_error_hides_exception_details():
+    app = Flask(__name__)
+    with app.test_request_context():
+        response, status = grocery_routes._server_error(
+            'finding stores', ValueError('/internal/path leaked')
+        )
+    assert status == 500
+    assert 'leaked' not in response.get_json()['error']
+
 
 class TestFindStores:
     def test_returns_stores_for_zip(self, client):
@@ -88,6 +171,16 @@ class TestFindStores:
 
     def test_missing_zip_is_400(self, client):
         response = client.post('/api/find-stores', json={})
+        assert response.status_code == 400
+
+    def test_malformed_json_is_400(self, client):
+        response = client.post('/api/find-stores', data='{not json',
+                               content_type='application/json')
+        assert response.status_code == 400
+
+    def test_wrong_content_type_is_400(self, client):
+        response = client.post('/api/find-stores', data='zipCode=84102',
+                               content_type='text/plain')
         assert response.status_code == 400
 
 
@@ -107,6 +200,10 @@ class TestFindItemAisle:
 
     def test_blank_item_is_400(self, client):
         response = client.post('/api/find-item-aisle', json={'item': '   '})
+        assert response.status_code == 400
+
+    def test_non_string_item_is_400(self, client):
+        response = client.post('/api/find-item-aisle', json={'item': 123})
         assert response.status_code == 400
 
 

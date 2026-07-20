@@ -26,6 +26,8 @@ from functools import wraps
 
 from flask import Blueprint, request, jsonify
 
+from rate_limit import rate_limited
+
 try:
     import boto3
     from botocore.exceptions import ClientError
@@ -46,6 +48,9 @@ _TOKEN_CACHE_TTL = 300
 
 # Share codes avoid ambiguous characters (0/O, 1/I/L)
 _CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
+
+# DynamoDB items cap at 400 KB; leave headroom for the server-owned fields
+MAX_LIST_BYTES = 256 * 1024
 
 
 def sync_enabled():
@@ -153,10 +158,12 @@ def get_lists():
 @require_auth
 def put_list(list_id):
     try:
-        body = request.get_json()
-        if not body or 'list' not in body:
+        if len(request.get_data() or b'') > MAX_LIST_BYTES:
+            return jsonify({'error': 'List is too large to sync'}), 413
+        body = request.get_json(silent=True)
+        incoming = body.get('list') if isinstance(body, dict) else None
+        if not isinstance(incoming, dict):
             return jsonify({'error': 'List body is required'}), 400
-        incoming = body['list']
         if incoming.get('id') != list_id:
             return jsonify({'error': 'List id mismatch'}), 400
 
@@ -258,14 +265,17 @@ def share_list(list_id):
         return jsonify({'error': 'Failed to create share code'}), 500
 
 
+# Rate-limited (before auth) so share codes can't be brute-forced
 @lists_bp.route('/api/lists/join', methods=['POST'])
+@rate_limited
 @require_auth
 def join_list():
     try:
-        body = request.get_json()
-        code = (body or {}).get('code', '').strip().upper()
-        if not code:
+        body = request.get_json(silent=True)
+        code = body.get('code') if isinstance(body, dict) else None
+        if not isinstance(code, str) or not code.strip():
             return jsonify({'error': 'Share code is required'}), 400
+        code = code.strip().upper()
 
         table = _table()
         response = table.query(

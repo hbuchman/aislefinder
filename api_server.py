@@ -20,56 +20,61 @@ load_dotenv()
 project_root = Path(__file__).parent
 sys.path.append(str(project_root))
 
+from cors_config import ALLOWED_ORIGINS
 from grocery_routes import grocery_bp
 from grocery_organizer.src.store_api.kroger import KrogerAPI
 from lists_backend import lists_bp
 
 app = Flask(__name__)
-# Allow CORS for both local development and production domains
-CORS(app, origins=['http://localhost:3000', 'https://aislefinder3000.com', 'capacitor://localhost', 'http://localhost', 'https://localhost'])
+CORS(app, origins=ALLOWED_ORIGINS)
+# Backstop for every route; per-route checks return friendlier errors first
+app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024
 app.register_blueprint(grocery_bp)
 app.register_blueprint(lists_bp)
 
+# The debug routes are unauthenticated and drive real Kroger API calls, so
+# they only exist when FLASK_ENV=development — never on a deployed server
+# (Railway runs this file too, via Procfile/railway.json).
+if os.environ.get('FLASK_ENV') == 'development':
 
-@app.route('/api/debug-kroger', methods=['POST'])
-def debug_kroger():
-    """Local-only: dump raw Kroger search results for a term."""
-    try:
-        data = request.get_json()
-        term = (data.get('term') or '').strip()
-        store_id = data.get('store_id', '01400943')
-        if not term:
-            return jsonify({'error': 'term is required'}), 400
+    @app.route('/api/debug-kroger', methods=['POST'])
+    def debug_kroger():
+        """Local-only: dump raw Kroger search results for a term."""
+        try:
+            data = request.get_json(silent=True) or {}
+            term = (data.get('term') or '').strip()
+            store_id = data.get('store_id', '01400943')
+            if not term:
+                return jsonify({'error': 'term is required'}), 400
 
-        token = KrogerAPI(store_id).get_auth_token()
+            token = KrogerAPI(store_id).get_auth_token()
 
-        import requests as req
-        headers = {'Authorization': 'Bearer ' + token, 'Cache-Control': 'no-cache'}
-        params = {'filter.term': term, 'filter.locationId': store_id, 'filter.limit': 5}
-        resp = req.get('https://api.kroger.com/v1/products', headers=headers, params=params)
-        resp.raise_for_status()
-        raw = resp.json()
+            import requests as req
+            headers = {'Authorization': 'Bearer ' + token, 'Cache-Control': 'no-cache'}
+            params = {'filter.term': term, 'filter.locationId': store_id, 'filter.limit': 5}
+            resp = req.get('https://api.kroger.com/v1/products', headers=headers, params=params)
+            resp.raise_for_status()
+            raw = resp.json()
 
-        # Trim aliasProductIds to just a count to keep payload small
-        for product in raw.get('data', []):
-            alias = product.get('aliasProductIds', [])
-            product['aliasProductIds'] = len(alias)
+            # Trim aliasProductIds to just a count to keep payload small
+            for product in raw.get('data', []):
+                alias = product.get('aliasProductIds', [])
+                product['aliasProductIds'] = len(alias)
 
-        return jsonify({
-            'total': raw.get('meta', {}).get('pagination', {}).get('total', 0),
-            'store_id': store_id,
-            'data': raw.get('data', []),
-        }), 200
+            return jsonify({
+                'total': raw.get('meta', {}).get('pagination', {}).get('total', 0),
+                'store_id': store_id,
+                'data': raw.get('data', []),
+            }), 200
 
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return jsonify({'error': str(e)}), 500
 
-
-@app.route('/debug')
-def debug_viewer():
-    return send_from_directory(str(Path(__file__).parent), 'api-response-viewer.html')
+    @app.route('/debug')
+    def debug_viewer():
+        return send_from_directory(str(Path(__file__).parent), 'api-response-viewer.html')
 
 
 @app.route('/health', methods=['GET'])
