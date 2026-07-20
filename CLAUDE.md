@@ -23,7 +23,7 @@ Item lookups run in parallel (ThreadPoolExecutor); a failed lookup becomes a "No
 
 - **`grocery_routes.py`** (repo root) — blueprint with the grocery endpoints (`/api/process-grocery-list`, `/api/find-stores`, `/api/find-item-aisle`, `/api/item-details`, `/api/health`)
 - **`lists_backend.py`** (repo root) — blueprint for list sync/sharing (DynamoDB + Cognito); returns 503 when unconfigured so the frontend stays local-only
-- **`api_server.py`** — local/Railway server; registers both blueprints and adds local-only debug routes (`/api/debug-kroger`, `/debug`, `/health`)
+- **`api_server.py`** — local dev server; registers both blueprints and adds local-only debug routes (`/api/debug-kroger`, `/debug`, `/health`)
 - **`api/index.py`** — Vercel serverless entry point; registers the same blueprints
 
 Route logic must live in the blueprints, never in the entry points, so the two servers cannot drift.

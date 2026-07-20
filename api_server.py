@@ -1,4 +1,4 @@
-"""Local/Railway Flask server.
+"""Local development Flask server (production runs api/index.py on Vercel).
 
 Route logic lives in shared blueprints (grocery_routes.py, lists_backend.py)
 so this file and the Vercel mirror (api/index.py) can't drift apart. Only
@@ -33,8 +33,8 @@ app.register_blueprint(grocery_bp)
 app.register_blueprint(lists_bp)
 
 # The debug routes are unauthenticated and drive real Kroger API calls, so
-# they only exist when FLASK_ENV=development — never on a deployed server
-# (Railway runs this file too, via Procfile/railway.json).
+# they only exist when FLASK_ENV=development — insurance against this file
+# ever being deployed somewhere public.
 if os.environ.get('FLASK_ENV') == 'development':
 
     @app.route('/api/debug-kroger', methods=['POST'])

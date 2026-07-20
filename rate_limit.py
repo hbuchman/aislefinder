@@ -1,6 +1,6 @@
 """Per-IP rate limiting shared by the API blueprints.
 
-In-memory and per-process: full protection on the local/Railway server,
+In-memory and per-process: full protection on a single-process server,
 per-instance bounding on Vercel (each serverless instance keeps its own
 window).
 """
@@ -23,8 +23,8 @@ _rate_hits = {}  # ip -> deque of request timestamps
 
 def _client_ip():
     # Take the *last* X-Forwarded-For entry: it's appended by our own
-    # platform proxy (Vercel/Railway), while earlier entries are
-    # client-supplied and spoofable.
+    # platform proxy (Vercel), while earlier entries are client-supplied
+    # and spoofable.
     forwarded = request.headers.get('X-Forwarded-For', '')
     last = forwarded.rsplit(',', 1)[-1].strip()
     return last or request.remote_addr or 'unknown'

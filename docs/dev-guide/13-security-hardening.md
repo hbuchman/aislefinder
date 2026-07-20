@@ -40,7 +40,7 @@ if not client_id or not client_secret:
 ```
 
 Locally they sit in `.env` (git-ignored); in production they're typed into
-the Vercel/Railway dashboards (chapter 7). The same pattern covers the AWS
+the Vercel dashboard (chapter 7). The same pattern covers the AWS
 credentials (chapter 10).
 
 Two hard-won lessons about git and secrets:
@@ -110,7 +110,7 @@ forever — a memory leak *caused by* the rate limiter. Past a threshold,
 expired buckets get swept.
 
 **Know your limits' limits.** The state is in-memory and per-process:
-full protection on the local/Railway server, but on Vercel each serverless
+full protection on a single-process server, but on Vercel each serverless
 instance keeps its own window, so the effective limit is (30 × instances).
 That's documented in the module docstring rather than hidden — a partial
 defense you understand beats a perfect one you assumed.
@@ -119,10 +119,10 @@ defense you understand beats a perfect one you assumed.
 
 **Debug routes are gated.** `api_server.py` has `/api/debug-kroger` and
 `/debug` — unauthenticated routes that make real Kroger calls and dump raw
-responses. Handy locally; a quota-burning gift on the public internet. And
-Railway deploys `api_server.py` (that's what the `Procfile` runs), so
-"it's in the local server file" is *not* the same as "it's local-only".
-The routes are only registered when `FLASK_ENV=development`, and
+responses. Handy locally; a quota-burning gift on the public internet if this file
+is ever deployed — "it's in the local server file" is *not* the same as
+"it's local-only". The routes are only registered when
+`FLASK_ENV=development`, and
 `test_api_server.py` pins that behavior so it can't silently regress.
 
 **CORS is an allowlist everywhere.** Both entry points share one origin
@@ -189,7 +189,7 @@ Security also means keeping promises:
 ## TODOs to get this working
 
 - [ ] **Set `KROGER_CLIENT_ID`** alongside `KROGER_CLIENT_SECRET` in the
-      Vercel (and Railway) dashboards — lookups fail without both
+      Vercel dashboard — lookups fail without both
 - [ ] **Verify `FLASK_ENV` is not `development`** on any deployed server,
       so the debug routes and Flask debug mode stay off
 - [ ] **Deactivate retired Kroger clients** in the developer portal —

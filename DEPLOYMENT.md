@@ -1,72 +1,49 @@
 # Aisle Finder Deployment Guide
 
-## Environment Variables Setup
+Production runs entirely on **Vercel**: the React app is served as static
+files and the Flask API runs as a serverless function (`api/index.py`),
+both behind https://aislefinder3000.com. There is no separate backend
+host. For the full walkthrough (DNS, domains, how `vercel.json` wires it
+up), see [dev-guide chapter 7](docs/dev-guide/07-web-deployment.md).
 
-### Required Environment Variables
+## Environment variables (Vercel dashboard)
 
-#### For Railway (Backend):
+| Variable | Purpose |
+|----------|---------|
+| `KROGER_CLIENT_ID` / `KROGER_CLIENT_SECRET` | Kroger API auth — lookups fail without both |
+| `REACT_APP_COGNITO_USER_POOL_ID`, `REACT_APP_COGNITO_CLIENT_ID` | Login UI (baked in at build time) |
+| `AISLEFINDER_TABLE`, `COGNITO_REGION` | List sync (DynamoDB) |
+| `AF_AWS_ACCESS_KEY_ID`, `AF_AWS_SECRET_ACCESS_KEY` | AWS credentials (`AWS_*` names are reserved on Vercel) |
+
+`REACT_APP_API_URL` is deliberately **unset** in production: the frontend
+and API share one origin, so the app uses relative `/api/...` URLs.
+The mobile builds set it explicitly (see `ios:build` / `android:build`
+in `package.json`).
+
+Kroger credentials come from the
+[Kroger Developer Portal](https://developer.kroger.com/) — register an
+application with Products and Locations API access. Per Kroger's API
+terms, neither the client ID nor the secret may appear in the repo.
+
+## Deploying
+
+Pushes to `master` deploy to production automatically; other branches get
+preview URLs. After changing env vars, redeploy (build-time `REACT_APP_*`
+values are baked in).
+
+Verify a deploy:
+
+```bash
+curl https://aislefinder3000.com/api/health
+# → {"status": "healthy"}
 ```
-KROGER_CLIENT_ID=your_actual_kroger_client_id
-KROGER_CLIENT_SECRET=your_actual_kroger_client_secret
-FLASK_ENV=production
-```
 
-#### For Vercel (Frontend):
-```
-REACT_APP_API_URL=https://api.aislefinder3000.com
-```
+## Local development
 
-### Getting Kroger API Credentials
+1. Copy `.env.example` to `.env` and fill in real values
+2. `source venv/bin/activate && python api_server.py`
+3. `npm start` for the frontend
 
-1. Go to [Kroger Developer Portal](https://developer.kroger.com/)
-2. Create an account and register your application
-3. Get your Client ID and Client Secret
-4. The Client ID is already in the code (`aislefinder4000-bbc6d2p3`)
-5. Set the Client Secret as an environment variable
-
-## Deployment Steps
-
-### 1. Backend Deployment (Railway)
-
-1. Push code to GitHub
-2. Go to [railway.app](https://railway.app)
-3. Create new project from GitHub repo
-4. Add environment variables: `KROGER_CLIENT_ID` and `KROGER_CLIENT_SECRET`
-5. Railway will automatically detect Python and deploy
-6. Note your Railway URL (e.g., `https://your-app.railway.app`)
-
-### 2. Frontend Deployment (Vercel)
-
-1. Go to [vercel.com](https://vercel.com)
-2. Import GitHub repository
-3. Add environment variable: `REACT_APP_API_URL` = your Railway URL
-4. Deploy
-5. Note your Vercel URL
-
-### 3. Domain Configuration
-
-Point your DNS records:
-- `aislefinder3000.com` → Vercel deployment
-- `api.aislefinder3000.com` → Railway deployment
-
-## Security Notes
-
-- ✅ Secrets are now stored as environment variables
-- ✅ .env files are gitignored
-- ✅ CORS is configured for production domains
-- ✅ No hardcoded credentials in source code
-
-## Local Development
-
-1. Copy `.env.example` to `.env`
-2. Fill in your actual Kroger client secret
-3. Run `source venv/bin/activate && python api_server.py`
-4. Run `npm start` for frontend
-
-## Files Created/Modified for Security
-
-- `api.py`: Updated to use `os.getenv('KROGER_CLIENT_SECRET')`
-- `api_server.py`: Added dotenv loading
-- `.env.example`: Template with required variables
-- `.gitignore`: Prevents committing secrets
-- `requirements.txt`: Added python-dotenv
+`api_server.py` is the local dev server only — it is not deployed
+anywhere. Its debug routes (`/debug`, `/api/debug-kroger`) exist only
+when `FLASK_ENV=development`.
