@@ -47,6 +47,12 @@ React (CRA) ──► Flask API ──► Kroger product API
 | 11 | [Offline-First Sync](11-offline-sync.md) | Dirty tracking, debounced pushes, conflict resolution |
 | 12 | [The Full Codebase](12-codebase-tour.md) | How all the source code is organized |
 
+**Running it safely**
+
+| # | Chapter | What you'll learn |
+|---|---------|-------------------|
+| 13 | [Security & App Hardening](13-security-hardening.md) | Credentials, rate limiting, abuse caps, and API compliance |
+
 Each chapter ends with a **TODO checklist** — the external-world steps
 (accounts to create, keys to register, things to type into dashboards) needed
 to make that layer actually work.
@@ -60,3 +66,4 @@ to make that layer actually work.
 - **Want it on your phone?** Chapters 8 and/or 9.
 - **Want accounts and sync across devices?** Chapters 10–11.
 - **Want the whole map at once?** Chapter 12.
+- **Running it for real users?** Chapter 13.

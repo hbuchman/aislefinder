@@ -175,4 +175,4 @@ npm run android:build && npm run android:open
 
 ---
 
-Back to the [guide index](README.md)
+Next: [Chapter 13 — Security & App Hardening](13-security-hardening.md)
