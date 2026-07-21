@@ -18,7 +18,7 @@ RATE_LIMIT_WINDOW_SECONDS = 60
 # (or an attacker rotating spoofed addresses) can't grow the table forever
 _SWEEP_THRESHOLD = 1000
 _rate_lock = threading.Lock()
-_rate_hits = {}  # ip -> deque of request timestamps
+_rate_hits = {}  # (bucket, ip) -> deque of request timestamps
 
 
 def _client_ip():
@@ -35,20 +35,30 @@ def _prune(hits, now):
         hits.popleft()
 
 
-def rate_limited(view):
-    """Reject requests beyond RATE_LIMIT_MAX_REQUESTS per IP per window."""
+def rate_limited(view=None, *, max_requests=None, bucket='api'):
+    """Reject requests beyond a per-IP limit per window.
+
+    Used bare (@rate_limited), an endpoint shares the default bucket and
+    limit. Endpoints whose upstream quota is scarcer pass their own
+    max_requests/bucket so their budget is tracked separately — heavy use
+    of the shared bucket can't lock them out, and vice versa.
+    """
+    if view is None:
+        return lambda v: rate_limited(v, max_requests=max_requests, bucket=bucket)
+
     @wraps(view)
     def wrapper(*args, **kwargs):
+        limit = RATE_LIMIT_MAX_REQUESTS if max_requests is None else max_requests
         now = time.time()
         with _rate_lock:
             if len(_rate_hits) > _SWEEP_THRESHOLD:
-                for ip in list(_rate_hits):
-                    _prune(_rate_hits[ip], now)
-                    if not _rate_hits[ip]:
-                        del _rate_hits[ip]
-            hits = _rate_hits.setdefault(_client_ip(), deque())
+                for key in list(_rate_hits):
+                    _prune(_rate_hits[key], now)
+                    if not _rate_hits[key]:
+                        del _rate_hits[key]
+            hits = _rate_hits.setdefault((bucket, _client_ip()), deque())
             _prune(hits, now)
-            if len(hits) >= RATE_LIMIT_MAX_REQUESTS:
+            if len(hits) >= limit:
                 return jsonify({'error': 'Too many requests — please wait a minute and try again'}), 429
             hits.append(now)
         return view(*args, **kwargs)

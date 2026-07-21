@@ -112,13 +112,21 @@ class TestRateLimit:
         assert response.status_code == 429
         assert 'error' in response.get_json()
 
-    def test_limit_spans_kroger_endpoints(self, client):
-        # One shared per-IP window covers all Kroger-backed routes
+    def test_limit_spans_default_bucket_endpoints(self, client):
+        # One shared per-IP window covers the Products-backed routes
         with patch.object(rate_limit, 'RATE_LIMIT_MAX_REQUESTS', 2):
             assert client.post('/api/find-item-aisle', json={'item': 'rice'}).status_code == 200
-            assert client.post('/api/find-stores', json={'zipCode': '84102'}).status_code == 200
-            response = client.post('/api/item-details', json={'item': 'rice'})
+            assert client.post('/api/item-details', json={'item': 'rice'}).status_code == 200
+            response = client.post('/api/find-item-aisle', json={'item': 'rice'})
         assert response.status_code == 429
+
+    def test_store_search_has_smaller_separate_budget(self, client):
+        # The Locations-backed endpoint gets 10/minute in its own bucket, so
+        # store searches and product lookups can't starve each other
+        for _ in range(10):
+            assert client.post('/api/find-stores', json={'zipCode': '84102'}).status_code == 200
+        assert client.post('/api/find-stores', json={'zipCode': '84102'}).status_code == 429
+        assert client.post('/api/find-item-aisle', json={'item': 'rice'}).status_code == 200
 
     def test_spoofed_forwarded_for_shares_bucket(self, client):
         # Only the proxy-appended (last) X-Forwarded-For entry counts, so

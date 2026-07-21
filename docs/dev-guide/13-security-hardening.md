@@ -85,9 +85,10 @@ The caps live in the blueprint, not in `GroceryListProcessor` — the CLI
 ## 13.4 Rate limiting: `rate_limit.py`
 
 Per-request caps don't stop someone looping requests, so every
-Kroger-backed endpoint shares a per-IP sliding window (30 requests/minute)
-via the `@rate_limited` decorator. The module is small enough to read in
-one sitting, and three of its details teach general lessons:
+Kroger-backed endpoint sits behind a per-IP sliding window (30
+requests/minute by default) via the `@rate_limited` decorator. The module
+is small enough to read in one sitting, and its details teach general
+lessons:
 
 **Trust the proxy, not the client.** The client's address comes from the
 `X-Forwarded-For` header, but clients can *send* that header themselves.
@@ -108,6 +109,20 @@ rotate through unlimited fake addresses and never hit the limit.
 timestamps per IP. An attacker rotating addresses would grow that table
 forever — a memory leak *caused by* the rate limiter. Past a threshold,
 expired buckets get swept.
+
+**Scarcer quotas get smaller budgets.** The Locations API allows 1,600
+calls/day — 16% of the Products quota — and picking a store happens once
+per trip, not once per item. So store search declares its own budget:
+
+```python
+@rate_limited(max_requests=10, bucket='locations')
+def find_stores():
+```
+
+The `bucket` keeps its hits in a separate per-IP window, so a burst of
+product lookups can't lock someone out of store search, and vice versa.
+Match the limit to how the endpoint is *actually used*, not to one global
+number.
 
 **Know your limits' limits.** The state is in-memory and per-process:
 full protection on a single-process server, but on Vercel each serverless

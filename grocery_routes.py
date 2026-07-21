@@ -86,8 +86,10 @@ def process_grocery_list():
         return _server_error('processing grocery list', e)
 
 
+# Store search burns Locations API quota (1,600/day — 16% of Products'), and
+# picking a store is a once-per-trip action, so it gets a much smaller budget
 @grocery_bp.route('/api/find-stores', methods=['POST'])
-@rate_limited
+@rate_limited(max_requests=10, bucket='locations')
 def find_stores():
     """Search for Kroger-family stores near a zip code."""
     try:
