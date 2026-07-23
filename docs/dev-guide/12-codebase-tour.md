@@ -70,7 +70,6 @@ aislefinder/
 │   └── dev-guide/                   ← you are here
 │
 ├── mockups/                      ── Design explorations
-├── aislefinder.py                ── Legacy script (opens browser tabs; unused)
 ├── api-response-viewer.html      ── Local debug UI for raw Kroger responses (ch. 2)
 ├── CLAUDE.md                     ── Codebase notes for AI-assisted development
 ├── DEPLOYMENT.md                 ── Deployment quick-reference

@@ -21,7 +21,7 @@ Item lookups run in parallel (ThreadPoolExecutor); a failed lookup becomes a "No
 
 ### Flask servers — shared blueprints, two entry points
 
-- **`grocery_routes.py`** (repo root) — blueprint with the grocery endpoints (`/api/process-grocery-list`, `/api/find-stores`, `/api/find-item-aisle`, `/api/item-details`, `/api/health`)
+- **`grocery_routes.py`** (repo root) — blueprint with the grocery endpoints (`/api/process-grocery-list`, `/api/find-stores`, `/api/find-item-aisle`, `/api/item-details`, `/api/photo-to-list`, `/api/health`)
 - **`lists_backend.py`** (repo root) — blueprint for list sync/sharing (DynamoDB + Cognito); returns 503 when unconfigured so the frontend stays local-only
 - **`api_server.py`** — local dev server; registers both blueprints and adds local-only debug routes (`/api/debug-kroger`, `/debug`, `/health`)
 - **`api/index.py`** — Vercel serverless entry point; registers the same blueprints
@@ -68,6 +68,7 @@ All credentials come from environment variables (never commit secrets):
 
 - `KROGER_CLIENT_ID` / `KROGER_CLIENT_SECRET` — required for Kroger lookups (Kroger's API terms forbid embedding either in the public repo)
 - `AISLEFINDER_TABLE`, Cognito + AWS vars — list sync (see `lists_backend.py` docstring and `infra/`)
+- `ANTHROPIC_API_KEY` — photo capture of grocery lists (`/api/photo-to-list` uses Claude vision); unset means the endpoint returns 503
 - Frontend: `REACT_APP_API_URL`, `REACT_APP_COGNITO_USER_POOL_ID`, `REACT_APP_COGNITO_CLIENT_ID`
 
 The default store is Kroger `01400943` ("4500S Smiths"), defined in `grocery_routes.py`.
@@ -76,4 +77,3 @@ The default store is Kroger `01400943` ("4500S Smiths"), defined in `grocery_rou
 
 - After web changes that should ship to mobile: `npm run ios:build` / `npm run android:build` (Capacitor sync)
 - UI rules: Font Awesome icons only (no emojis), `fa-cog` not `fa-gear`; all colors via `--af-*` CSS variables (green-only palette + amber accent); font set once on the shell — see `docs/design-rules.html`
-- The legacy `aislefinder.py` script opens browser tabs for manual searching (not part of the main workflow)
