@@ -16,7 +16,8 @@ export const newList = (name = 'My Groceries') => {
     items: [],
     store: null,
     organized: null,        // markdown from the last organize call
-    organizedBy: null,      // 'aisle' | 'category'
+    organizedBy: null,      // 'aisle' | 'category' — the format actually applied
+    formatPreference: null, // 'aisle' | 'category' | null — explicit user choice; null means auto
     checkedItems: {},
     collapsedGroups: {},
     customCategoryOrder: null,
@@ -168,6 +169,7 @@ export const useLists = (user) => {
         const done = updated.find((l) => l.id === id);
         replacement = newList(done ? done.name : 'My Groceries');
         replacement.store = done ? done.store : null;
+        replacement.formatPreference = done ? done.formatPreference : null;
         return [replacement, ...updated];
       }
       return updated;
@@ -191,6 +193,7 @@ export const useLists = (user) => {
     // Item names match the source, so its organized output is still valid
     copy.organizedForHash = source.organized ? itemsHash(copy.items) : null;
     copy.organizedBy = source.organizedBy;
+    copy.formatPreference = source.formatPreference;
     copy.customCategoryOrder = source.customCategoryOrder;
     setLists((prev) => [copy, ...prev]);
     setCurrentListId(copy.id);

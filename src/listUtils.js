@@ -56,3 +56,12 @@ export const applyCustomOrder = (groups, customCategoryOrder) => {
 
 // Fingerprint of a list's items so we know when the organized markdown is stale
 export const itemsHash = (items) => items.map((it) => it.name).sort().join('|');
+
+// The format shop mode should organize by: the user's explicit choice
+// (`formatPreference`) if they've made one, otherwise aisle when a store is
+// picked and category when it isn't. Aisle numbers are store-specific, so
+// without a store the result always falls back to category.
+export const resolveOrganizeFormat = (list) => {
+  if (!list.store) return 'category';
+  return list.formatPreference || 'aisle';
+};
