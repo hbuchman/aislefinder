@@ -1,5 +1,35 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
+import { photoToItems } from '../api';
+import { resolveOrganizeFormat } from '../listUtils';
+import FormatToggle from '../components/FormatToggle';
+
+// The Claude API caps images at 5MB and gains nothing above ~1568px on the
+// long edge, so photos are downscaled and re-encoded as JPEG before upload
+const PHOTO_MAX_DIMENSION = 1568;
+
+const downscalePhoto = (file) => new Promise((resolve, reject) => {
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    URL.revokeObjectURL(url);
+    const scale = Math.min(1, PHOTO_MAX_DIMENSION / Math.max(img.width, img.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(img.width * scale);
+    canvas.height = Math.round(img.height * scale);
+    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error("Couldn't process that photo — try again"))),
+      'image/jpeg',
+      0.85,
+    );
+  };
+  img.onerror = () => {
+    URL.revokeObjectURL(url);
+    reject(new Error("Couldn't read that photo — try again"));
+  };
+  img.src = url;
+});
 
 const CurrentListScreen = ({
   list,
@@ -7,6 +37,7 @@ const CurrentListScreen = ({
   addItem,
   removeItem,
   frequentItems,
+  updateList,
   onShowLists,
   onShowShare,
   onShowStore,
@@ -14,7 +45,9 @@ const CurrentListScreen = ({
   toast,
 }) => {
   const [input, setInput] = useState('');
+  const [scanning, setScanning] = useState(false);
   const inputRef = useRef(null);
+  const photoInputRef = useRef(null);
 
   // The add bar is the whole point of the home screen — focus it on load.
   // Skip on native apps, where autofocus pops the keyboard over half the
@@ -35,6 +68,37 @@ const CurrentListScreen = ({
     if (added === 0 && names.length === 1) toast(`${names[0]} is already on the list`);
     setInput('');
     inputRef.current?.focus();
+  };
+
+  const handlePhoto = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = ''; // allow re-taking the same photo
+    if (!file) return;
+    setScanning(true);
+    try {
+      // Fall back to the original file if the browser can't decode it
+      const blob = await downscalePhoto(file).catch(() => file);
+      const items = await photoToItems(blob);
+      if (items.length === 0) {
+        toast("Couldn't find any list items in that photo");
+        return;
+      }
+      let added = 0;
+      items.forEach((name) => { if (addItem(list.id, name)) added++; });
+      toast(added > 0
+        ? `Added ${added} item${added === 1 ? '' : 's'} from your photo`
+        : 'Everything in the photo is already on the list');
+    } catch (err) {
+      toast(err.message || "Couldn't read that photo — try again");
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const setFormat = (format) => {
+    if (format === 'aisle' && !list.store) return;
+    if (format === resolveOrganizeFormat(list)) return;
+    updateList(list.id, { formatPreference: format, customCategoryOrder: null });
   };
 
   const isShared = list.members && list.members.length > 1;
@@ -108,6 +172,23 @@ const CurrentListScreen = ({
         >
           <i className="fa-solid fa-plus" />
         </button>
+        <button
+          onClick={() => photoInputRef.current?.click()}
+          className="af-btn"
+          title="Add items from a photo of your list"
+          disabled={scanning}
+          style={{ width: '46px', fontSize: '18px', borderRadius: '10px', padding: 0 }}
+        >
+          <i className={scanning ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-camera'} />
+        </button>
+        <input
+          ref={photoInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={handlePhoto}
+          style={{ display: 'none' }}
+        />
       </div>
 
       {/* Frequent-item suggestions from history */}
@@ -176,7 +257,7 @@ const CurrentListScreen = ({
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--af-text-muted)' }}>
           <i className="fa-solid fa-location-dot" />
-          {list.store ? list.store.name : 'No store — organized by category'}
+          {list.store ? list.store.name : 'No store selected'}
           <button
             onClick={onShowStore}
             style={{
@@ -192,6 +273,10 @@ const CurrentListScreen = ({
           >
             {list.store ? 'Change' : 'Choose store'}
           </button>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '12px', color: 'var(--af-text-muted)' }}>Organize by</span>
+          <FormatToggle format={resolveOrganizeFormat(list)} onChange={setFormat} aisleDisabled={!list.store} />
         </div>
         <button
           className="af-btn-green"

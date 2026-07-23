@@ -22,6 +22,7 @@ const AccountSheet = ({ open, onClose, auth, toast }) => {
   const [password, setPassword] = useState(''); // doubles as the new password in reset mode
   const [currentPassword, setCurrentPassword] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -31,6 +32,7 @@ const AccountSheet = ({ open, onClose, auth, toast }) => {
     setPassword('');
     setCurrentPassword('');
     setChangingPassword(false);
+    setDeletingAccount(false);
     setCode('');
     setError('');
     setBusy(false);
@@ -113,6 +115,12 @@ const AccountSheet = ({ open, onClose, auth, toast }) => {
     close();
   });
 
+  const handleDeleteAccount = () => run(async () => {
+    await auth.deleteAccount();
+    toast('Account deleted — your lists remain on this device');
+    close();
+  });
+
   const errorBox = error && (
     <div style={{
       backgroundColor: 'var(--af-error-bg)',
@@ -173,6 +181,40 @@ const AccountSheet = ({ open, onClose, auth, toast }) => {
                 Cancel
               </button>
             </>
+          ) : deletingAccount ? (
+            <>
+              <p style={{
+                backgroundColor: 'var(--af-error-bg)',
+                border: '1px solid var(--af-error-border)',
+                color: 'var(--af-error-text)',
+                borderRadius: '8px',
+                padding: '10px 12px',
+                fontSize: '13px',
+                lineHeight: 1.5,
+                margin: '0 0 10px',
+              }}>
+                This permanently deletes your account and removes your synced
+                lists from our servers. Lists on this device are kept. This
+                can't be undone.
+              </p>
+              {errorBox}
+              <button
+                className="af-btn-ghost"
+                style={{ color: 'var(--af-error-text)', borderColor: 'var(--af-error-border)' }}
+                disabled={busy}
+                onClick={handleDeleteAccount}
+              >
+                <i className="fa-solid fa-trash-can" style={{ marginRight: '8px' }} />
+                {busy ? 'Deleting…' : 'Yes, delete my account'}
+              </button>
+              <button
+                className="af-btn-ghost"
+                disabled={busy}
+                onClick={() => { setDeletingAccount(false); setError(''); }}
+              >
+                Cancel
+              </button>
+            </>
           ) : (
             <>
               <button className="af-btn-ghost" onClick={() => setChangingPassword(true)}>
@@ -185,6 +227,14 @@ const AccountSheet = ({ open, onClose, auth, toast }) => {
               >
                 <i className="fa-solid fa-right-from-bracket" style={{ marginRight: '8px' }} />
                 Sign out
+              </button>
+              <button
+                className="af-btn-ghost"
+                style={{ color: 'var(--af-error-text)' }}
+                onClick={() => setDeletingAccount(true)}
+              >
+                <i className="fa-solid fa-trash-can" style={{ marginRight: '8px' }} />
+                Delete account
               </button>
             </>
           )}

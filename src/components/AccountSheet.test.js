@@ -17,6 +17,7 @@ const makeAuth = (overrides = {}) => ({
   forgotPassword: jest.fn(() => Promise.resolve()),
   confirmPassword: jest.fn(() => Promise.resolve()),
   changePassword: jest.fn(() => Promise.resolve()),
+  deleteAccount: jest.fn(() => Promise.resolve()),
   ...overrides,
 });
 
@@ -120,6 +121,33 @@ it('lets a signed-in user change their password', async () => {
   await click(button(div, 'Update password'));
 
   expect(auth.changePassword).toHaveBeenCalledWith('oldpassword1', 'newpassword1');
+});
+
+it('deletes the account after an explicit confirmation step', async () => {
+  const auth = makeAuth({
+    user: { email: 'user@example.com', sub: 'abc', displayName: 'user' },
+  });
+  const div = render(auth);
+
+  await click(button(div, 'Delete account'));
+  expect(auth.deleteAccount).not.toHaveBeenCalled();
+  expect(div.textContent).toContain("can't be undone");
+
+  await click(button(div, 'Yes, delete my account'));
+  expect(auth.deleteAccount).toHaveBeenCalled();
+});
+
+it('shows an error when account deletion fails', async () => {
+  const auth = makeAuth({
+    user: { email: 'user@example.com', sub: 'abc', displayName: 'user' },
+    deleteAccount: jest.fn(() => Promise.reject(new Error('Failed to delete account'))),
+  });
+  const div = render(auth);
+
+  await click(button(div, 'Delete account'));
+  await click(button(div, 'Yes, delete my account'));
+
+  expect(div.textContent).toContain('Failed to delete account');
 });
 
 it('shows an error when changing the password fails', async () => {

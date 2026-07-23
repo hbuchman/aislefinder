@@ -4,6 +4,7 @@ import {
   CognitoUser,
   AuthenticationDetails,
 } from 'amazon-cognito-identity-js';
+import { deleteAccountRemote } from './api';
 
 // AWS Cognito configuration. When these env vars are absent (e.g. local dev
 // before running infra/setup-aws.sh) the app stays in guest-only mode and the
@@ -52,7 +53,7 @@ export const getAccessToken = () =>
 
 export const signUp = (email, password) =>
   new Promise((resolve, reject) => {
-    if (!pool) return reject(new Error('Accounts are not configured'));
+    if (!pool) return reject(new Error("Sign-in isn't available right now"));
     pool.signUp(email, password, [], null, (err, result) => {
       if (err) return reject(err);
       resolve(result);
@@ -61,7 +62,7 @@ export const signUp = (email, password) =>
 
 export const confirmSignUp = (email, code) =>
   new Promise((resolve, reject) => {
-    if (!pool) return reject(new Error('Accounts are not configured'));
+    if (!pool) return reject(new Error("Sign-in isn't available right now"));
     const cognitoUser = new CognitoUser({ Username: email, Pool: pool });
     cognitoUser.confirmRegistration(code, true, (err, result) => {
       if (err) return reject(err);
@@ -71,7 +72,7 @@ export const confirmSignUp = (email, code) =>
 
 export const signIn = (email, password) =>
   new Promise((resolve, reject) => {
-    if (!pool) return reject(new Error('Accounts are not configured'));
+    if (!pool) return reject(new Error("Sign-in isn't available right now"));
     const cognitoUser = new CognitoUser({ Username: email, Pool: pool });
     const details = new AuthenticationDetails({ Username: email, Password: password });
     cognitoUser.authenticateUser(details, {
@@ -86,7 +87,7 @@ export const signIn = (email, password) =>
 
 export const resendConfirmationCode = (email) =>
   new Promise((resolve, reject) => {
-    if (!pool) return reject(new Error('Accounts are not configured'));
+    if (!pool) return reject(new Error("Sign-in isn't available right now"));
     const cognitoUser = new CognitoUser({ Username: email, Pool: pool });
     cognitoUser.resendConfirmationCode((err, result) => {
       if (err) return reject(err);
@@ -97,7 +98,7 @@ export const resendConfirmationCode = (email) =>
 // Sends a password-reset code to the account's email.
 export const forgotPassword = (email) =>
   new Promise((resolve, reject) => {
-    if (!pool) return reject(new Error('Accounts are not configured'));
+    if (!pool) return reject(new Error("Sign-in isn't available right now"));
     const cognitoUser = new CognitoUser({ Username: email, Pool: pool });
     cognitoUser.forgotPassword({
       onSuccess: () => resolve(),
@@ -109,7 +110,7 @@ export const forgotPassword = (email) =>
 // Completes a reset started by forgotPassword.
 export const confirmPassword = (email, code, newPassword) =>
   new Promise((resolve, reject) => {
-    if (!pool) return reject(new Error('Accounts are not configured'));
+    if (!pool) return reject(new Error("Sign-in isn't available right now"));
     const cognitoUser = new CognitoUser({ Username: email, Pool: pool });
     cognitoUser.confirmPassword(code, newPassword, {
       onSuccess: () => resolve(),
@@ -120,7 +121,7 @@ export const confirmPassword = (email, code, newPassword) =>
 // Changes the password of the signed-in user (requires the current one).
 export const changePassword = (currentPassword, newPassword) =>
   new Promise((resolve, reject) => {
-    if (!pool) return reject(new Error('Accounts are not configured'));
+    if (!pool) return reject(new Error("Sign-in isn't available right now"));
     const cognitoUser = pool.getCurrentUser();
     if (!cognitoUser) return reject(new Error('You are signed out'));
     cognitoUser.getSession((err, session) => {
@@ -129,6 +130,24 @@ export const changePassword = (currentPassword, newPassword) =>
       }
       cognitoUser.changePassword(currentPassword, newPassword, (changeErr) => {
         if (changeErr) return reject(changeErr);
+        resolve();
+      });
+    });
+  });
+
+// Permanently deletes the signed-in user's Cognito account. Fallback for
+// servers without list sync configured, where DELETE /api/account returns 503
+// and the only server-side data is the Cognito user itself.
+export const deleteCognitoUser = () =>
+  new Promise((resolve, reject) => {
+    const cognitoUser = pool && pool.getCurrentUser();
+    if (!cognitoUser) return reject(new Error('You are signed out'));
+    cognitoUser.getSession((err, session) => {
+      if (err || !session || !session.isValid()) {
+        return reject(new Error('Your session expired — sign in again first'));
+      }
+      cognitoUser.deleteUser((delErr) => {
+        if (delErr) return reject(delErr);
         resolve();
       });
     });
@@ -191,6 +210,17 @@ export const useAuth = () => {
     setUser(null);
   }, []);
 
+  // Deletes the server-side account (lists + Cognito user), then clears the
+  // local session. Local lists are untouched — the app drops to guest mode.
+  const doDeleteAccount = useCallback(async () => {
+    const token = await getAccessToken();
+    if (!token) throw new Error('Your session expired — sign in again first');
+    const result = await deleteAccountRemote(token);
+    if (result === null) await deleteCognitoUser();
+    signOut();
+    setUser(null);
+  }, []);
+
   return {
     user,
     authLoading,
@@ -203,5 +233,6 @@ export const useAuth = () => {
     forgotPassword,
     confirmPassword,
     changePassword,
+    deleteAccount: doDeleteAccount,
   };
 };

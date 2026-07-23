@@ -19,8 +19,23 @@ export const processGroceryList = async ({ items, format, store }) => {
     method: 'POST',
     body: formData,
   });
-  if (!response.ok) throw new Error('Failed to process grocery list');
+  if (!response.ok) throw new Error('Couldn’t organize your list — try again');
   return response.text();
+};
+
+export const photoToItems = async (photoBlob) => {
+  const formData = new FormData();
+  formData.append('photo', photoBlob, 'grocery-list.jpg');
+
+  const response = await fetch(`${API_BASE}/api/photo-to-list`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (response.status === 503) throw new Error('Photo scanning isn’t available right now');
+  if (response.status === 413) throw new Error('That photo is too large — try a smaller one');
+  if (!response.ok) throw new Error('Couldn’t read that photo — try again');
+  const result = await response.json();
+  return result.items || [];
 };
 
 export const findStores = async (zipCode) => {
@@ -29,7 +44,7 @@ export const findStores = async (zipCode) => {
     headers: jsonHeaders(),
     body: JSON.stringify({ zipCode }),
   });
-  if (!response.ok) throw new Error('Failed to search stores');
+  if (!response.ok) throw new Error("Couldn't find stores — check your connection and try again");
   const result = await response.json();
   return result.stores || [];
 };
@@ -43,7 +58,7 @@ export const findItemAisle = async ({ item, store }) => {
       store_id: store ? store.id : '01400943',
     }),
   });
-  if (!response.ok) throw new Error('Failed to look up item');
+  if (!response.ok) throw new Error("Couldn't look up that item");
   return response.json();
 };
 
@@ -57,7 +72,7 @@ export const fetchItemDetails = async ({ item, store }) => {
     }),
   });
   if (response.status === 404) return [];
-  if (!response.ok) throw new Error('Failed to load item details');
+  if (!response.ok) throw new Error("Couldn't load item details");
   const data = await response.json();
   return data.results || [];
 };
@@ -69,7 +84,7 @@ export const fetchLists = async (token) => {
     headers: jsonHeaders(token),
   });
   if (response.status === 503) return null; // sync not configured on server
-  if (!response.ok) throw new Error('Failed to fetch lists');
+  if (!response.ok) throw new Error("Couldn't load your lists");
   const result = await response.json();
   return result.lists || [];
 };
@@ -81,7 +96,7 @@ export const pushList = async (token, list) => {
     body: JSON.stringify({ list }),
   });
   if (response.status === 503) return null;
-  if (!response.ok) throw new Error('Failed to save list');
+  if (!response.ok) throw new Error("Couldn't save your list");
   const result = await response.json();
   return result.list;
 };
@@ -92,7 +107,17 @@ export const deleteListRemote = async (token, listId) => {
     headers: jsonHeaders(token),
   });
   if (response.status === 503) return null;
-  if (!response.ok) throw new Error('Failed to delete list');
+  if (!response.ok) throw new Error("Couldn't delete that list");
+  return response.json();
+};
+
+export const deleteAccountRemote = async (token) => {
+  const response = await fetch(`${API_BASE}/api/account`, {
+    method: 'DELETE',
+    headers: jsonHeaders(token),
+  });
+  if (response.status === 503) return null; // sync not configured on server
+  if (!response.ok) throw new Error("Couldn't delete your account — try again");
   return response.json();
 };
 
@@ -101,8 +126,8 @@ export const shareList = async (token, listId) => {
     method: 'POST',
     headers: jsonHeaders(token),
   });
-  if (response.status === 503) throw new Error('Sharing is not configured on the server');
-  if (!response.ok) throw new Error('Failed to create share link');
+  if (response.status === 503) throw new Error("Sharing isn't available right now");
+  if (!response.ok) throw new Error("Couldn't create a share code — try again");
   return response.json(); // { code }
 };
 
@@ -112,9 +137,9 @@ export const joinList = async (token, code) => {
     headers: jsonHeaders(token),
     body: JSON.stringify({ code }),
   });
-  if (response.status === 503) throw new Error('Sharing is not configured on the server');
+  if (response.status === 503) throw new Error("Sharing isn't available right now");
   if (response.status === 404) throw new Error('No list found for that code');
-  if (!response.ok) throw new Error('Failed to join list');
+  if (!response.ok) throw new Error("Couldn't join that list — try again");
   const result = await response.json();
   return result.list;
 };

@@ -26,7 +26,7 @@ const StoreSheet = ({ open, onClose, list, updateList, toast }) => {
       saveState('zipCode', zipCode.trim());
       saveState('stores', found);
     } catch (err) {
-      setError('Error searching stores: ' + err.message);
+      setError(err.message || "Couldn't find stores — try again");
       setStores([]);
       setHasSearched(true);
     } finally {

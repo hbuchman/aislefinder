@@ -4,12 +4,14 @@ import confetti from 'canvas-confetti';
 import { processGroceryList, findItemAisle } from '../api';
 import { newItem } from '../listsStore';
 import ItemInfoSheet from '../components/ItemInfoSheet';
+import FormatToggle from '../components/FormatToggle';
 import {
   parseGroceryListToGroups,
   buildMarkdownFromGroups,
   formatGroceryListForCopy,
   applyCustomOrder,
   itemsHash,
+  resolveOrganizeFormat,
 } from '../listUtils';
 
 // One draggable aisle/category group with its collapsible item checklist
@@ -189,7 +191,7 @@ const CopyFormatPopup = ({ outputFormat, setOutputFormat, onClose }) => (
   </>
 );
 
-const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFormat, onExit, onFinished }) => {
+const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFormat, onExit, onFinished, onShowStore, toast }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [singleItemQuery, setSingleItemQuery] = useState('');
@@ -198,23 +200,24 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
   const [showCelebration, setShowCelebration] = useState(false);
   const [showSettingsPopup, setShowSettingsPopup] = useState(false);
   const [infoItem, setInfoItem] = useState(null);
-  const [copyFeedback, setCopyFeedback] = useState('');
   const hasFiredConfetti = useRef(false);
   const confettiCanvasRef = useRef(null);
   const confettiInstance = useRef(null);
-  const organizeStarted = useRef(false);
+  const organizedKey = useRef(null);
 
   const listId = list ? list.id : null;
   const itemCount = list ? list.items.length : 0;
 
-  // Organize on entry when the list changed since the last organize
+  // Organize on entry, and again whenever the store or item set changes
+  // since the last organize (e.g. picking a new store mid-shop)
   const organize = useCallback(async () => {
     if (!list) return;
     const hash = itemsHash(list.items);
+    const format = resolveOrganizeFormat(list);
+    organizedKey.current = `${hash}::${list.store ? list.store.id : ''}::${format}`;
     setLoading(true);
     setError('');
     try {
-      const format = list.store ? 'aisle' : 'category';
       const markdown = await processGroceryList({
         items: list.items.map((it) => it.name),
         format,
@@ -228,20 +231,32 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
         collapsedGroups: {},
       });
     } catch (err) {
-      setError('Error processing grocery list: ' + err.message);
+      setError(err.message || "Couldn't organize your list — try again");
     } finally {
       setLoading(false);
     }
   }, [list, updateList]);
 
   useEffect(() => {
-    if (!list || organizeStarted.current) return;
-    organizeStarted.current = true;
+    if (!list) return;
     const hash = itemsHash(list.items);
-    if (!list.organized || list.organizedForHash !== hash) {
+    const format = resolveOrganizeFormat(list);
+    const key = `${hash}::${list.store ? list.store.id : ''}::${format}`;
+    if (
+      (!list.organized || list.organizedForHash !== hash || list.organizedBy !== format)
+      && organizedKey.current !== key
+    ) {
       organize();
     }
   }, [list, organize]);
+
+  // Explicit aisle/category switch, available mid-shop; overrides the
+  // store-driven default and re-triggers the organize effect above
+  const setFormat = (format) => {
+    if (format === 'aisle' && !list.store) return;
+    if (format === resolveOrganizeFormat(list)) return;
+    updateList(listId, { formatPreference: format, customCategoryOrder: null });
+  };
 
   // Lock body scroll while shopping (ported from the old overlay)
   useEffect(() => {
@@ -278,8 +293,13 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
     [checkedItems]
   );
 
-  // Confetti when the last item is checked
+  // Confetti when the last item is checked. Skipped whenever `organized`
+  // doesn't match the list's current items — a previous shop session can
+  // leave stale, fully-checked data in place while this one is (re)organizing
+  // or failed to organize, and that stale completeness shouldn't fire confetti.
+  const isStale = !list || !list.organized || list.organizedForHash !== itemsHash(list.items);
   useEffect(() => {
+    if (loading || isStale) return;
     if (totalItems > 0 && checkedCount === totalItems && !hasFiredConfetti.current) {
       hasFiredConfetti.current = true;
       setShowCelebration(true);
@@ -306,7 +326,7 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
       hasFiredConfetti.current = false;
       setShowCelebration(false);
     }
-  }, [checkedCount, totalItems]);
+  }, [checkedCount, totalItems, loading, isStale]);
 
   const toggleItem = (groupName, itemName) => {
     const key = `${groupName}::${itemName}`;
@@ -393,11 +413,10 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
     try {
       const orderedMarkdown = buildMarkdownFromGroups(orderedGroups);
       await navigator.clipboard.writeText(formatGroceryListForCopy(orderedMarkdown, outputFormat));
-      setCopyFeedback('Copied!');
+      toast('Copied!');
     } catch {
-      setCopyFeedback('Copy failed');
+      toast('Copy failed');
     }
-    setTimeout(() => setCopyFeedback(''), 2000);
   };
 
   const finishShopping = () => {
@@ -453,14 +472,20 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
             {list.store ? list.store.name : list.name}
           </h3>
           <div style={{ position: 'relative', display: 'flex', gap: '6px' }}>
+            <button className="af-iconbtn" title="Change store" onClick={onShowStore}>
+              <i className="fa-solid fa-location-dot" />
+            </button>
             <button className="af-iconbtn" title="Copy list" onClick={copyToClipboard}>
               <i className="fa-solid fa-copy" />
             </button>
             <button className="af-iconbtn" title="Copy format" onClick={() => setShowSettingsPopup(!showSettingsPopup)}>
               <i className="fa-solid fa-cog" />
             </button>
-            {copyFeedback && <span className="af-copy-toast">{copyFeedback}</span>}
           </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '0 16px 10px' }}>
+          <span style={{ fontSize: '11px', color: 'var(--af-text-faint)' }}>Organize by</span>
+          <FormatToggle format={resolveOrganizeFormat(list)} onChange={setFormat} disabled={loading} aisleDisabled={!list.store} />
         </div>
       </div>
 
@@ -471,8 +496,8 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
             <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginBottom: '20px', fontSize: '24px' }}>
               {[
                 { icon: 'fa-basket-shopping', color: 'var(--af-green-dark)' },
-                { icon: 'fa-apple-whole', color: 'var(--af-green)' },
                 { icon: 'fa-wheat-awn', color: 'var(--af-amber)' },
+                { icon: 'fa-apple-whole', color: 'var(--af-green)' },
               ].map((item, i) => (
                 <div key={i} className={`loading-icon-${i}`} style={{ color: item.color, opacity: 0.15 }}>
                   <i className={`fa-solid ${item.icon}`} />
@@ -480,7 +505,9 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
               ))}
             </div>
             <p style={{ margin: 0, color: 'var(--af-text)', fontSize: '14px', fontWeight: 500 }}>
-              Organizing {itemCount} items{list.store ? ` for ${list.store.name}` : ' by category'}…
+              Organizing {itemCount} items{
+                resolveOrganizeFormat(list) === 'aisle' ? ` for ${list.store.name}` : ' by category'
+              }…
             </p>
           </div>
         )}
@@ -578,7 +605,7 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
               </div>
               {singleItemError && (
                 <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--af-error-text)', padding: '6px 8px', backgroundColor: 'var(--af-error-bg)', borderRadius: '4px' }}>
-                  Could not find item
+                  Couldn't find that item
                 </div>
               )}
             </div>
