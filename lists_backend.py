@@ -265,6 +265,49 @@ def share_list(list_id):
         return jsonify({'error': 'Failed to create share code'}), 500
 
 
+@lists_bp.route('/api/account', methods=['DELETE'])
+@require_auth
+def delete_account():
+    """Self-serve account deletion: removes every trace of the user, then the
+    Cognito user itself (via their own access token, so no admin API needed)."""
+    try:
+        table = _table()
+        sub = request.user_sub
+        response = table.query(
+            KeyConditionExpression='pk = :pk AND begins_with(sk, :sk)',
+            ExpressionAttributeValues={':pk': f'USER#{sub}', ':sk': 'LIST#'},
+        )
+        for membership in response.get('Items', []):
+            list_id = membership['sk'][len('LIST#'):]
+            table.delete_item(Key={'pk': f'USER#{sub}', 'sk': f'LIST#{list_id}'})
+            record = _get_list_record(list_id)
+            if not record:
+                continue
+            if record.get('owner_sub') == sub:
+                # Owned lists disappear for every member
+                for member_sub in record.get('members') or {}:
+                    table.delete_item(Key={'pk': f'USER#{member_sub}', 'sk': f'LIST#{list_id}'})
+                table.delete_item(Key={'pk': f'LIST#{list_id}', 'sk': 'META'})
+            else:
+                # Someone else's shared list: just leave it
+                members = record.get('members') or {}
+                members.pop(sub, None)
+                table.update_item(
+                    Key={'pk': f'LIST#{list_id}', 'sk': 'META'},
+                    UpdateExpression='SET members = :m',
+                    ExpressionAttributeValues={':m': members},
+                )
+
+        # Data is gone; now delete the Cognito user itself
+        token = request.headers['Authorization'][len('Bearer '):].strip()
+        _cognito_client().delete_user(AccessToken=token)
+        _token_cache.pop(token, None)
+        return jsonify({'deleted': True}), 200
+    except Exception as e:
+        print(f"Error deleting account: {e}")
+        return jsonify({'error': 'Failed to delete account'}), 500
+
+
 # Rate-limited (before auth) so share codes can't be brute-forced
 @lists_bp.route('/api/lists/join', methods=['POST'])
 @rate_limited
