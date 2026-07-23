@@ -1,26 +1,16 @@
 import React from 'react';
 
-// AisleFinder logo: two shelves receding down an aisle form an "A", with a
-// checked shelf as the crossbar. All-green mark; legs slightly darker than
-// the crossbar. Same artwork as public/logo.svg — keep the two in sync.
+// AisleFinder logo: perspective aisle with a dashed route curving to an amber pin
+// on the right wall, and a single mint shelf on the right wall.
+// Same artwork as public/logo.svg — keep the two in sync.
 const Logo = ({ size = 24 }) => (
   <svg width={size} height={size} viewBox="0 0 64 64" aria-label="AisleFinder logo" role="img">
-    <defs>
-      <linearGradient id="afLogoLegs" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stopColor="#229955" />
-        <stop offset="1" stopColor="#157a40" />
-      </linearGradient>
-      <linearGradient id="afLogoShelf" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stopColor="#2ecc71" />
-        <stop offset="1" stopColor="#1a9c4e" />
-      </linearGradient>
-    </defs>
-    <path d="M6 58 L24 6 h9 L18 58 z" fill="url(#afLogoLegs)" />
-    <path d="M58 58 L40 6 h-9 L46 58 z" fill="url(#afLogoLegs)" />
-    <rect x="19" y="38" width="26" height="7" rx="3.5" fill="url(#afLogoShelf)" />
-    <path d="M27 27l4 4 7-8" fill="none" stroke="#27ae60" strokeWidth="4.2" strokeLinecap="round" strokeLinejoin="round" />
-    <rect x="6" y="60" width="16" height="3.5" rx="1.75" fill="#95a5a6" opacity="0.4" />
-    <rect x="42" y="60" width="16" height="3.5" rx="1.75" fill="#95a5a6" opacity="0.4" />
+    <path className="af-logo-wall-l" d="M4 58 L28 12 L32 12 L14 58 Z" fill="#1a9c4e"/>
+    <path className="af-logo-wall-r" d="M60 58 L36 12 L32 12 L50 58 Z" fill="#157a40"/>
+    <path d="M44 28 L38 28" stroke="#aaf0ce" strokeWidth="3.5" strokeLinecap="round"/>
+    <path d="M32 56 C32 42 40 28 46 19" fill="none" stroke="#f5a623" strokeWidth="2.5" strokeDasharray="2 6.5" strokeLinecap="round"/>
+    <path d="M46 2 c4.2 0 6.8 3.1 6.8 6.5 C52.8 14 46 19 46 19 S39.2 14 39.2 8.5 C39.2 5.1 41.8 2 46 2 Z" fill="#f5a623"/>
+    <circle cx="46" cy="8" r="2.5" fill="#fff"/>
   </svg>
 );
 

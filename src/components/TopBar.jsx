@@ -14,19 +14,19 @@ const TopBar = ({ user, onShowHistory, onShowLists, onShowAccount }) => (
     zIndex: 100,
     paddingTop: 'calc(12px + var(--safe-area-inset-top))',
   }}>
-    <div style={{ fontSize: '17px', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--af-chrome-text)', letterSpacing: '-0.2px' }}>
-      {/* white tile keeps the green logo art legible on the green chrome */}
+    <div style={{ fontSize: '17px', display: 'flex', alignItems: 'center', gap: '8px', letterSpacing: '-0.2px' }}>
+      {/* tile background from CSS var: white in light mode, near-transparent in dark so brighter wall colors carry the logo */}
       <span style={{
         display: 'inline-flex',
         padding: '3px',
         borderRadius: '7px',
-        background: '#ffffff',
+        background: 'var(--af-logo-tile)',
       }}>
         <Logo size={20} />
       </span>
       <span>
-        <span style={{ fontWeight: 700 }}>Aisle</span>
-        <span style={{ fontWeight: 400 }}>Finder</span>
+        <span style={{ fontWeight: 700, color: '#aaf0ce' }}>Aisle</span>
+        <span style={{ fontWeight: 400, color: 'rgba(170, 240, 206, 0.6)' }}>Finder</span>
       </span>
     </div>
     <div style={{ flex: 1 }} />

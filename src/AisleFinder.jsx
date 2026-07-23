@@ -149,7 +149,10 @@ const AisleFinder = () => {
           --af-backdrop: rgba(0, 0, 0, 0.2);
           --af-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
           --af-shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.15);
+          --af-logo-tile: #ffffff;
         }
+        .af-logo-wall-l { fill: #1a9c4e; }
+        .af-logo-wall-r { fill: #157a40; }
         @media (prefers-color-scheme: dark) {
           :root {
             /* core neutrals — deep forest, not neutral black */
@@ -164,6 +167,7 @@ const AisleFinder = () => {
             --af-green-dark: #9ecfb2;
             --af-chrome: #16382a;
             --af-error-text: #ffab70;
+            --af-logo-tile: rgba(255, 255, 255, 0.08);
             /* derived */
             --af-popup-bg: var(--af-surface);
             --af-highlight-bg: rgba(76, 183, 130, 0.12);
@@ -178,6 +182,8 @@ const AisleFinder = () => {
             --af-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
             --af-shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.6);
           }
+          .af-logo-wall-l { fill: #2ecc71; }
+          .af-logo-wall-r { fill: #1a9c4e; }
         }
         html, body {
           background-color: var(--af-bg);
@@ -534,21 +540,6 @@ const AisleFinder = () => {
           background: var(--af-backdrop);
           z-index: 999;
         }
-        .af-copy-toast {
-          position: absolute;
-          top: -30px;
-          left: 50%;
-          transform: translateX(-50%);
-          background: var(--af-toast-bg);
-          color: var(--af-toast-text);
-          padding: 4px 12px;
-          border-radius: 4px;
-          font-size: 11px;
-          font-weight: 500;
-          white-space: nowrap;
-          pointer-events: none;
-          animation: toastFade 2s ease-out forwards;
-        }
         .af-toast {
           position: fixed;
           /* Sits above the footer CTA so it never hides the primary button */
@@ -651,6 +642,7 @@ const AisleFinder = () => {
             addItem={store.addItem}
             removeItem={store.removeItem}
             frequentItems={store.frequentItems}
+            updateList={store.updateList}
             onShowLists={() => setScreen('lists')}
             onShowShare={() => setSheet('share')}
             onShowStore={() => setSheet('store')}
@@ -693,6 +685,8 @@ const AisleFinder = () => {
             setOutputFormat={setOutputFormat}
             onExit={() => setScreen('list')}
             onFinished={() => { setScreen('history'); toast('Trip saved to History'); }}
+            onShowStore={() => setSheet('store')}
+            toast={toast}
           />
         )}
       </div>
