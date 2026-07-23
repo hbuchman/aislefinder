@@ -14,6 +14,7 @@ up), see [dev-guide chapter 7](docs/dev-guide/07-web-deployment.md).
 | `REACT_APP_COGNITO_USER_POOL_ID`, `REACT_APP_COGNITO_CLIENT_ID` | Login UI (baked in at build time) |
 | `AISLEFINDER_TABLE`, `COGNITO_REGION` | List sync (DynamoDB) |
 | `AF_AWS_ACCESS_KEY_ID`, `AF_AWS_SECRET_ACCESS_KEY` | AWS credentials (`AWS_*` names are reserved on Vercel) |
+| `ANTHROPIC_API_KEY` | Photo capture (`/api/photo-to-list`) — unset returns 503, frontend hides the failure |
 
 `REACT_APP_API_URL` is deliberately **unset** in production: the frontend
 and API share one origin, so the app uses relative `/api/...` URLs.

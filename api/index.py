@@ -16,12 +16,14 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from cors_config import ALLOWED_ORIGINS
-from grocery_routes import grocery_bp
+from grocery_routes import grocery_bp, PHOTO_MAX_UPLOAD_BYTES, PHOTO_UPLOAD_OVERHEAD_BYTES
 from lists_backend import lists_bp
 
 app = Flask(__name__)
 CORS(app, origins=ALLOWED_ORIGINS)
-# Backstop for every route; per-route checks return friendlier errors first
-app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024
+# Backstop for every route; per-route checks return friendlier errors first.
+# Must stay >= the largest per-route limit (photo uploads) plus multipart
+# overhead, or Werkzeug rejects the request before the route ever runs.
+app.config['MAX_CONTENT_LENGTH'] = PHOTO_MAX_UPLOAD_BYTES + PHOTO_UPLOAD_OVERHEAD_BYTES
 app.register_blueprint(grocery_bp)
 app.register_blueprint(lists_bp)

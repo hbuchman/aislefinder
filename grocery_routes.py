@@ -31,6 +31,12 @@ MAX_UPLOAD_BYTES = 64 * 1024
 PHOTO_MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 PHOTO_MEDIA_TYPES = {'image/jpeg', 'image/png', 'image/webp', 'image/gif'}
 
+# Multipart framing (boundary markers, per-part headers) on top of the raw
+# photo bytes. Both entry points set MAX_CONTENT_LENGTH to this same total so
+# Werkzeug's app-wide cap lines up with the check below instead of rejecting
+# in-budget photos first with an unhandled RequestEntityTooLarge.
+PHOTO_UPLOAD_OVERHEAD_BYTES = 64 * 1024
+
 
 def _server_error(context, exc):
     # Exception details stay in the server log; clients get a generic message
@@ -184,6 +190,13 @@ def photo_to_list():
     try:
         if not os.environ.get('ANTHROPIC_API_KEY'):
             return jsonify({'error': 'Photo capture is not configured on the server'}), 503
+
+        # Checked via the Content-Length header, before request.files touches
+        # the body: reading an oversized multipart body raises Werkzeug's own
+        # RequestEntityTooLarge, which the blanket except below would turn
+        # into an opaque 500 instead of this friendly message.
+        if request.content_length and request.content_length > PHOTO_MAX_UPLOAD_BYTES + PHOTO_UPLOAD_OVERHEAD_BYTES:
+            return jsonify({'error': 'Photo is too large (5MB max)'}), 413
 
         if 'photo' not in request.files:
             return jsonify({'error': 'No photo provided'}), 400
