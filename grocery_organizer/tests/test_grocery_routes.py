@@ -4,6 +4,7 @@ The Kroger client is stubbed so no network calls happen.
 """
 
 import io
+import os
 from unittest.mock import patch
 
 import pytest
@@ -233,6 +234,59 @@ class TestItemDetails:
     def test_blank_item_is_400(self, client):
         response = client.post('/api/item-details', json={'item': '   '})
         assert response.status_code == 400
+
+
+class TestPhotoToList:
+    """The Claude call itself is stubbed; these cover the route's contract."""
+
+    def _post_photo(self, client, data=b'fake-jpeg-bytes', mimetype='image/jpeg'):
+        return client.post('/api/photo-to-list', data={
+            'photo': (io.BytesIO(data), 'list.jpg', mimetype),
+        })
+
+    def test_unconfigured_is_503(self, client):
+        env = {k: v for k, v in os.environ.items() if k != 'ANTHROPIC_API_KEY'}
+        with patch.dict(os.environ, env, clear=True):
+            response = self._post_photo(client)
+        assert response.status_code == 503
+        assert 'not configured' in response.get_json()['error']
+
+    def test_returns_extracted_items(self, client):
+        with patch.dict(os.environ, {'ANTHROPIC_API_KEY': 'test-key'}), \
+             patch.object(grocery_routes, '_extract_items_from_photo',
+                          return_value=['milk', '2 lb chicken']) as extract:
+            response = self._post_photo(client)
+        assert response.status_code == 200
+        assert response.get_json() == {'items': ['milk', '2 lb chicken']}
+        extract.assert_called_once_with(b'fake-jpeg-bytes', 'image/jpeg')
+
+    def test_items_capped_at_request_limit(self, client):
+        too_many = [f'item {i}' for i in range(grocery_routes.MAX_ITEMS_PER_REQUEST + 5)]
+        with patch.dict(os.environ, {'ANTHROPIC_API_KEY': 'test-key'}), \
+             patch.object(grocery_routes, '_extract_items_from_photo', return_value=too_many):
+            response = self._post_photo(client)
+        assert len(response.get_json()['items']) == grocery_routes.MAX_ITEMS_PER_REQUEST
+
+    def test_missing_photo_is_400(self, client):
+        with patch.dict(os.environ, {'ANTHROPIC_API_KEY': 'test-key'}):
+            response = client.post('/api/photo-to-list', data={})
+        assert response.status_code == 400
+
+    def test_wrong_media_type_is_400(self, client):
+        with patch.dict(os.environ, {'ANTHROPIC_API_KEY': 'test-key'}):
+            response = self._post_photo(client, mimetype='application/pdf')
+        assert response.status_code == 400
+
+    def test_empty_photo_is_400(self, client):
+        with patch.dict(os.environ, {'ANTHROPIC_API_KEY': 'test-key'}):
+            response = self._post_photo(client, data=b'')
+        assert response.status_code == 400
+
+    def test_oversized_photo_is_413(self, client):
+        blob = b'x' * (grocery_routes.PHOTO_MAX_UPLOAD_BYTES + 1)
+        with patch.dict(os.environ, {'ANTHROPIC_API_KEY': 'test-key'}):
+            response = self._post_photo(client, data=blob)
+        assert response.status_code == 413
 
 
 def test_health(client):

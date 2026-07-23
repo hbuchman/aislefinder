@@ -4,6 +4,9 @@ Registered by api_server.py (local Flask) and api/index.py (Vercel), like
 lists_backend.py — route logic lives here once so the two apps can't drift.
 """
 
+import base64
+import json
+import os
 import traceback
 
 from flask import Blueprint, jsonify, request
@@ -22,6 +25,11 @@ DEFAULT_STORE_NAME = '4500S Smiths'
 # quota, so uploads are bounded before any lookups happen.
 MAX_ITEMS_PER_REQUEST = 100
 MAX_UPLOAD_BYTES = 64 * 1024
+
+# Photo capture: the Claude API caps images at 5MB, and only these formats
+# are accepted (the frontend re-encodes to JPEG before uploading anyway)
+PHOTO_MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+PHOTO_MEDIA_TYPES = {'image/jpeg', 'image/png', 'image/webp', 'image/gif'}
 
 
 def _server_error(context, exc):
@@ -163,6 +171,95 @@ def item_details():
 
     except Exception as e:
         return _server_error('fetching item details', e)
+
+
+@grocery_bp.route('/api/photo-to-list', methods=['POST'])
+@rate_limited
+def photo_to_list():
+    """Extract grocery items from a photo of a written list (Claude vision).
+
+    Returns 503 when ANTHROPIC_API_KEY is unset so the frontend can hide the
+    failure gracefully, mirroring lists_backend's unconfigured behavior.
+    """
+    try:
+        if not os.environ.get('ANTHROPIC_API_KEY'):
+            return jsonify({'error': 'Photo capture is not configured on the server'}), 503
+
+        if 'photo' not in request.files:
+            return jsonify({'error': 'No photo provided'}), 400
+
+        photo = request.files['photo']
+        if photo.mimetype not in PHOTO_MEDIA_TYPES:
+            return jsonify({'error': 'Photo must be a JPEG, PNG, WebP, or GIF image'}), 400
+
+        raw = photo.read()
+        if not raw:
+            return jsonify({'error': 'Photo is empty'}), 400
+        if len(raw) > PHOTO_MAX_UPLOAD_BYTES:
+            return jsonify({'error': 'Photo is too large (5MB max)'}), 413
+
+        items = _extract_items_from_photo(raw, photo.mimetype)
+        return jsonify({'items': items[:MAX_ITEMS_PER_REQUEST]}), 200
+
+    except Exception as e:
+        return _server_error('reading grocery list photo', e)
+
+
+def _extract_items_from_photo(image_bytes, media_type):
+    """The grocery items Claude can read in the photo, in written order."""
+    # Deferred import: servers that never set ANTHROPIC_API_KEY (and the test
+    # suite) don't need the anthropic package installed
+    import anthropic
+
+    response = anthropic.Anthropic().messages.create(
+        model='claude-opus-4-8',
+        max_tokens=16000,
+        # Reading a list is simple extraction — low effort keeps the round
+        # trip fast and cheap without hurting accuracy
+        output_config={
+            'effort': 'low',
+            'format': {
+                'type': 'json_schema',
+                'schema': {
+                    'type': 'object',
+                    'properties': {
+                        'items': {'type': 'array', 'items': {'type': 'string'}},
+                    },
+                    'required': ['items'],
+                    'additionalProperties': False,
+                },
+            },
+        },
+        messages=[{
+            'role': 'user',
+            'content': [
+                {
+                    'type': 'image',
+                    'source': {
+                        'type': 'base64',
+                        'media_type': media_type,
+                        'data': base64.standard_b64encode(image_bytes).decode('ascii'),
+                    },
+                },
+                {
+                    'type': 'text',
+                    'text': (
+                        'This photo shows a grocery/shopping list. Extract every item '
+                        'on it, one entry per item, in the order written. Keep any '
+                        'quantity the writer included ("2 lb chicken"), skip items '
+                        'that are crossed out, and ignore headings or anything that '
+                        'is not a list item. If the photo does not contain a list, '
+                        'return an empty items array.'
+                    ),
+                },
+            ],
+        }],
+    )
+    if response.stop_reason == 'refusal':
+        return []
+    text = next(block.text for block in response.content if block.type == 'text')
+    parsed = json.loads(text)
+    return [item.strip() for item in parsed['items'] if isinstance(item, str) and item.strip()]
 
 
 @grocery_bp.route('/api/health', methods=['GET'])
