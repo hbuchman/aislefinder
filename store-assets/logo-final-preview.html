@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AisleFinder — final logo</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", sans-serif; margin: 0; background: #f4f6f5; }
+  header { padding: 28px 32px 8px; }
+  h1 { margin: 0 0 4px; font-size: 22px; }
+  header p { margin: 0; color: #5c6b62; font-size: 14px; }
+  .row { display: flex; align-items: flex-end; gap: 28px; padding: 24px 32px; flex-wrap: wrap; }
+  .item { text-align: center; }
+  .item span { display: block; font-size: 11px; color: #8fa396; margin-top: 8px; }
+  .dark-row { background: #0d1510; }
+  .dark-row .item span { color: #4a6655; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: #157a40; margin: 24px 32px 0; }
+  .toggle { position: fixed; top: 20px; right: 28px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>AisleFinder — final logo</h1>
+  <p>White AF + mint check inside the hanging sign. Light and dark backgrounds.</p>
+</header>
+
+<h2>Light background</h2>
+<div class="row">
+  <div class="item"><svg width="16" height="16" viewBox="0 0 64 64"><use href="#mark"/></svg><span>16</span></div>
+  <div class="item"><svg width="24" height="24" viewBox="0 0 64 64"><use href="#mark"/></svg><span>24</span></div>
+  <div class="item"><svg width="32" height="32" viewBox="0 0 64 64"><use href="#mark"/></svg><span>32</span></div>
+  <div class="item"><svg width="48" height="48" viewBox="0 0 64 64"><use href="#mark"/></svg><span>48</span></div>
+  <div class="item"><svg width="64" height="64" viewBox="0 0 64 64"><use href="#mark"/></svg><span>64</span></div>
+  <div class="item"><svg width="96" height="96" viewBox="0 0 64 64"><use href="#mark"/></svg><span>96</span></div>
+  <div class="item"><svg width="128" height="128" viewBox="0 0 64 64"><use href="#mark"/></svg><span>128</span></div>
+  <div class="item"><svg width="256" height="256" viewBox="0 0 64 64"><use href="#mark"/></svg><span>256</span></div>
+</div>
+
+<h2>Dark background</h2>
+<div class="row dark-row">
+  <div class="item"><svg width="16" height="16" viewBox="0 0 64 64"><use href="#mark"/></svg><span>16</span></div>
+  <div class="item"><svg width="24" height="24" viewBox="0 0 64 64"><use href="#mark"/></svg><span>24</span></div>
+  <div class="item"><svg width="32" height="32" viewBox="0 0 64 64"><use href="#mark"/></svg><span>32</span></div>
+  <div class="item"><svg width="48" height="48" viewBox="0 0 64 64"><use href="#mark"/></svg><span>48</span></div>
+  <div class="item"><svg width="64" height="64" viewBox="0 0 64 64"><use href="#mark"/></svg><span>64</span></div>
+  <div class="item"><svg width="96" height="96" viewBox="0 0 64 64"><use href="#mark"/></svg><span>96</span></div>
+  <div class="item"><svg width="128" height="128" viewBox="0 0 64 64"><use href="#mark"/></svg><span>128</span></div>
+  <div class="item"><svg width="256" height="256" viewBox="0 0 64 64"><use href="#mark"/></svg><span>256</span></div>
+</div>
+
+<!-- reusable symbol -->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <defs>
+    <clipPath id="afSignClip">
+      <rect x="8" y="15" width="48" height="32" rx="7"/>
+    </clipPath>
+  </defs>
+  <symbol id="mark" viewBox="0 0 64 64">
+    <path d="M22 7 v8 M42 7 v8" stroke="#aab8b0" stroke-width="2" stroke-linecap="round"/>
+    <rect x="8" y="15" width="48" height="32" rx="7" fill="#1a9c4e"/>
+    <g clip-path="url(#afSignClip)" transform="translate(16.6 14.6) scale(0.49)">
+      <path d="M4 58 L19 9 h6 L11 58 Z" fill="#fff"/>
+      <path d="M33 58 L19 9 h6 L40 58 Z" fill="#fff"/>
+      <rect x="42" y="9" width="7" height="49" rx="2" fill="#fff"/>
+      <rect x="42" y="9" width="22" height="7" rx="2" fill="#fff"/>
+      <path d="M6 37 l9 10 L56 25" fill="none" stroke="#aaf0ce" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+    <rect x="1" y="3" width="5" height="5" rx="1" fill="#f5a623" transform="rotate(30 3.5 5.5)"/>
+    <circle cx="61" cy="5" r="2.8" fill="#2ecc71"/>
+    <path d="M5 55 l3.5 -5.5 h-7 Z" fill="#27ae60"/>
+    <rect x="57" y="52" width="5" height="5" rx="1" fill="#f5a623" transform="rotate(-28 59.5 54.5)"/>
+  </symbol>
+</svg>
+
+<div style="height:40px"></div>
+</body>
+</html>

@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AisleFinder — logo concepts, batch 3 (final round)</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", sans-serif; margin: 0; background: #f4f6f5; color: #1c2b22; }
+  header { padding: 28px 32px 8px; }
+  h1 { margin: 0 0 4px; font-size: 22px; }
+  header p { margin: 0; color: #5c6b62; font-size: 14px; }
+  h2 { font-size: 15px; text-transform: uppercase; letter-spacing: .08em; color: #157a40; margin: 32px 32px 0; }
+  h2 small { font-size: 12px; text-transform: none; letter-spacing: 0; color: #8fa396; margin-left: 8px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; padding: 14px 32px; max-width: 760px; }
+  .card { background: #fff; border: 1px solid #e2e8e4; border-radius: 14px; padding: 22px 14px 16px; text-align: center; }
+  body.dark .card { background: #16211a; border-color: #24352b; }
+  .card svg { width: 120px; height: 120px; }
+  .card h3 { font-size: 14px; margin: 10px 0 3px; }
+  body.dark .card h3 { color: #e8f2ec; }
+  .card p { font-size: 12px; color: #6b7a70; margin: 0; line-height: 1.4; }
+  body.dark .card p { color: #8fa396; }
+  .num { display: inline-block; font-size: 11px; font-weight: 700; color: #fff; background: #229955; border-radius: 999px; padding: 1px 8px; margin-bottom: 10px; }
+  .arrow { display: flex; align-items: center; gap: 10px; padding: 0 32px; font-size: 12px; color: #8fa396; margin-top: 6px; }
+  .arrow span { flex: 1; height: 1px; background: #e2e8e4; }
+  .toggle { position: fixed; top: 22px; right: 28px; font-size: 13px; user-select: none; cursor: pointer; background: #fff; border: 1px solid #dbe3de; border-radius: 999px; padding: 6px 12px; }
+  body.dark { background: #0d1510; color: #dfe9e3; }
+  body.dark .card { background: #16211a; border-color: #24352b; }
+  body.dark .toggle { background: #16211a; border-color: #2a3d31; color: #dfe9e3; }
+  body.dark .arrow span { background: #2a3d31; }
+</style>
+</head>
+<body>
+<label class="toggle"><input type="checkbox" onchange="document.body.classList.toggle('dark', this.checked)"> dark background</label>
+<header>
+  <h1>AisleFinder — batch 3 (final round)</h1>
+  <p>Three variants each of #27, #38, #39 — left to right is simpler. Pick the one that feels right.</p>
+</header>
+
+<!-- ─── AF SIGN (from #27) ─────────────────────────────────────── -->
+<h2>AF aisle sign <small>from #27 — left = more confetti → right = most minimal</small></h2>
+<div class="arrow"><span></span>simpler<span></span></div>
+<div class="grid">
+
+<!-- 43: 4 confetti, balanced corners -->
+<div class="card"><span class="num">43</span><br>
+<svg viewBox="0 0 64 64">
+  <path d="M22 7 v8 M42 7 v8" stroke="#aab8b0" stroke-width="2" stroke-linecap="round"/>
+  <rect x="8" y="15" width="48" height="32" rx="7" fill="#1a9c4e"/>
+  <text x="32" y="39" text-anchor="middle" font-family="-apple-system,Segoe UI,sans-serif" font-size="22" font-weight="800" fill="#fff" letter-spacing="1">AF</text>
+  <!-- top-left: rotated square -->
+  <rect x="1" y="3" width="5" height="5" rx="1" fill="#f5a623" transform="rotate(30 3.5 5.5)"/>
+  <!-- top-right: circle -->
+  <circle cx="61" cy="5" r="2.8" fill="#2ecc71"/>
+  <!-- bottom-left: triangle -->
+  <path d="M5 55 l3.5 -5.5 h-7 Z" fill="#27ae60"/>
+  <!-- bottom-right: rotated square -->
+  <rect x="57" y="52" width="5" height="5" rx="1" fill="#f5a623" transform="rotate(-28 59.5 54.5)"/>
+</svg>
+<h3>Sign + 4 confetti</h3><p>One piece in each corner — balanced, not frantic.</p></div>
+
+<!-- 44: 2 sparkles + 1 dot -->
+<div class="card"><span class="num">44</span><br>
+<svg viewBox="0 0 64 64">
+  <path d="M22 7 v8 M42 7 v8" stroke="#aab8b0" stroke-width="2" stroke-linecap="round"/>
+  <rect x="8" y="15" width="48" height="32" rx="7" fill="#1a9c4e"/>
+  <text x="32" y="39" text-anchor="middle" font-family="-apple-system,Segoe UI,sans-serif" font-size="22" font-weight="800" fill="#fff" letter-spacing="1">AF</text>
+  <!-- large 4-point sparkle, top right -->
+  <path d="M57 4 q1.5 5.8 6.5 6.5 q-5.8 1.5 -6.5 6.5 q-1.5 -5.8 -6.5 -6.5 q5.8 -1.5 6.5 -6.5 Z" fill="#f5a623"/>
+  <!-- small sparkle, bottom left -->
+  <path d="M6 54 q.9 3.5 4 4 q-3.5 .9 -4 4 q-.9 -3.5 -4 -4 q3.5 -.9 4 -4 Z" fill="#f5a623" opacity=".85"/>
+  <!-- single accent dot -->
+  <circle cx="5" cy="9" r="2" fill="#2ecc71"/>
+</svg>
+<h3>Sign + 2 sparkles</h3><p>Subtle glints — celebratory without the clutter.</p></div>
+
+<!-- 45: single star only -->
+<div class="card"><span class="num">45</span><br>
+<svg viewBox="0 0 64 64">
+  <path d="M22 7 v8 M42 7 v8" stroke="#aab8b0" stroke-width="2" stroke-linecap="round"/>
+  <rect x="8" y="15" width="48" height="32" rx="7" fill="#1a9c4e"/>
+  <text x="32" y="39" text-anchor="middle" font-family="-apple-system,Segoe UI,sans-serif" font-size="22" font-weight="800" fill="#fff" letter-spacing="1">AF</text>
+  <!-- single 5-point star, floating top-right like a rating badge -->
+  <path d="M57 1 L58.7 6.4 L64.5 6.4 L59.9 9.8 L61.6 15.2 L57 11.8 L52.4 15.2 L54.1 9.8 L49.5 6.4 L55.3 6.4 Z" fill="#f5a623"/>
+</svg>
+<h3>Sign + one star</h3><p>The most restrained — just the star badge, nothing else fighting for attention.</p></div>
+
+</div>
+
+<!-- ─── AISLE ROUTE (from #38) ─────────────────────────────────── -->
+<h2>Aisle route + pin <small>from #38 — left = 2 rungs → middle = 1 rung → right = no rungs</small></h2>
+<div class="arrow"><span></span>simpler<span></span></div>
+<div class="grid">
+
+<!-- 46: 1 amber rung each side + slight curve route + pin -->
+<div class="card"><span class="num">46</span><br>
+<svg viewBox="0 0 64 64">
+  <path d="M4 58 L28 12 L32 12 L14 58 Z" fill="#1a9c4e"/>
+  <path d="M60 58 L36 12 L32 12 L50 58 Z" fill="#157a40"/>
+  <!-- 1 amber rung left, 1 green rung right -->
+  <path d="M9 40 L23 40" stroke="#f5a623" stroke-width="3.5" stroke-linecap="round"/>
+  <path d="M55 40 L41 40" stroke="#229955" stroke-width="3.5" stroke-linecap="round"/>
+  <!-- gentle curved route up the walkway -->
+  <path d="M32 54 C32 46 30 38 32 30 C34 22 32 18 32 22" fill="none" stroke="#f5a623" stroke-width="2.5" stroke-dasharray="1.5 7" stroke-linecap="round"/>
+  <!-- pin -->
+  <path d="M32 5 c4.2 0 6.8 3.1 6.8 6.5 C38.8 17 32 22 32 22 S25.2 17 25.2 11.5 C25.2 8.1 27.8 5 32 5 Z" fill="#f5a623"/>
+  <circle cx="32" cy="11" r="2.5" fill="#fff"/>
+</svg>
+<h3>Route, 1 rung</h3><p>One amber shelf marks your destination; the route curves naturally up the aisle.</p></div>
+
+<!-- 47: no rungs, straight dashed line, pin -->
+<div class="card"><span class="num">47</span><br>
+<svg viewBox="0 0 64 64">
+  <path d="M4 58 L28 12 L32 12 L14 58 Z" fill="#1a9c4e"/>
+  <path d="M60 58 L36 12 L32 12 L50 58 Z" fill="#157a40"/>
+  <!-- straight dashed route, no rungs -->
+  <line x1="32" y1="54" x2="32" y2="22" stroke="#f5a623" stroke-width="2.5" stroke-dasharray="1.5 7" stroke-linecap="round"/>
+  <!-- pin -->
+  <path d="M32 5 c4.2 0 6.8 3.1 6.8 6.5 C38.8 17 32 22 32 22 S25.2 17 25.2 11.5 C25.2 8.1 27.8 5 32 5 Z" fill="#f5a623"/>
+  <circle cx="32" cy="11" r="2.5" fill="#fff"/>
+</svg>
+<h3>Route, no rungs</h3><p>Walls + dotted line + pin — the purest read of "walk here, find it."</p></div>
+
+<!-- 48: no rungs, graduated dot trail, pin -->
+<div class="card"><span class="num">48</span><br>
+<svg viewBox="0 0 64 64">
+  <path d="M4 58 L28 12 L32 12 L14 58 Z" fill="#1a9c4e"/>
+  <path d="M60 58 L36 12 L32 12 L50 58 Z" fill="#157a40"/>
+  <!-- graduated dots — larger near viewer (bottom), smaller at distance (top) -->
+  <circle cx="32" cy="52" r="2.6" fill="#f5a623"/>
+  <circle cx="32" cy="44" r="2.1" fill="#f5a623"/>
+  <circle cx="32" cy="37" r="1.7" fill="#f5a623"/>
+  <circle cx="32" cy="30" r="1.3" fill="#f5a623"/>
+  <!-- pin -->
+  <path d="M32 5 c4.2 0 6.8 3.1 6.8 6.5 C38.8 17 32 22 32 22 S25.2 17 25.2 11.5 C25.2 8.1 27.8 5 32 5 Z" fill="#f5a623"/>
+  <circle cx="32" cy="11" r="2.5" fill="#fff"/>
+</svg>
+<h3>Dot trail, no rungs</h3><p>Footstep-like dots grow as they approach — perspective built into the trail.</p></div>
+
+</div>
+
+<!-- ─── AF + CHECK CROSSBAR (from #39) ───────────────────────────── -->
+<h2>AF + check crossbar <small>from #39 — left = AF balanced → middle = A only → right = app tile</small></h2>
+<div class="arrow"><span></span>simpler<span></span></div>
+<div class="grid">
+
+<!-- 49: AF balanced + refined check -->
+<div class="card"><span class="num">49</span><br>
+<svg viewBox="0 0 64 64">
+  <!-- A: narrowed for better balance with the F -->
+  <path d="M4 58 L19 9 h6 L11 58 Z" fill="#229955"/>
+  <path d="M33 58 L19 9 h6 L40 58 Z" fill="#1a8a49"/>
+  <!-- F: stem + top bar only -->
+  <rect x="42" y="9" width="7" height="49" rx="2" fill="#157a40"/>
+  <rect x="42" y="9" width="17" height="7" rx="2" fill="#2ecc71"/>
+  <!-- check — starts at outer left of A, natural crossbar height, sweeps to F -->
+  <path d="M6 37 l9 10 L56 25" fill="none" stroke="#f5a623" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+<h3>AF + check, balanced</h3><p>Tighter proportions than #39 — A and F feel more equal in visual weight.</p></div>
+
+<!-- 50: A only + check (no F) -->
+<div class="card"><span class="num">50</span><br>
+<svg viewBox="0 0 64 64">
+  <!-- Wider A, centered, no F -->
+  <path d="M5 58 L26 8 h8 L15 58 Z" fill="#229955"/>
+  <path d="M47 58 L26 8 h8 L57 58 Z" fill="#1a8a49"/>
+  <!-- check crossbar -->
+  <path d="M9 36 l10 11 L55 24" fill="none" stroke="#f5a623" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+<h3>A + check only</h3><p>Drop the F entirely — the A with a bold check is the whole story.</p></div>
+
+<!-- 51: App-icon tile with AF + check -->
+<div class="card"><span class="num">51</span><br>
+<svg viewBox="0 0 64 64">
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="#157a40"/>
+  <!-- A: left leg white -->
+  <path d="M10 54 L23 12 h5 L18 54 Z" fill="#fff"/>
+  <!-- A: right leg, slightly dimmer -->
+  <path d="M36 54 L23 12 h5 L41 54 Z" fill="#fff" opacity=".88"/>
+  <!-- F: stem + top bar white -->
+  <rect x="43" y="12" width="5" height="42" rx="1.5" fill="#fff"/>
+  <rect x="43" y="12" width="15" height="5" rx="1.5" fill="#fff"/>
+  <!-- amber check crossbar -->
+  <path d="M12 38 l8 9 L55 27" fill="none" stroke="#f5a623" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+<h3>AF tile</h3><p>App-icon form: white marks on deep green, check pops in amber.</p></div>
+
+</div>
+<div style="height:48px"></div>
+</body>
+</html>
