@@ -1,4 +1,5 @@
 import base64
+import re
 import requests
 import time
 import os
@@ -43,6 +44,10 @@ class KrogerAPI:
     AUTH_URL = 'https://api.kroger.com/v1/connect/oauth2/token'
     PRODUCT_URL = 'https://api.kroger.com/v1/products'
     LOCATIONS_URL = 'https://api.kroger.com/v1/locations'
+
+    # Kroger uses aisle numbers >= 100 as internal codes for perimeter/case
+    # departments (dairy, meat) rather than real walkable aisles.
+    MAX_VALID_AISLE = 100
 
     def __init__(self, store_id: str = "01400943"):
         self.store_id = store_id
@@ -92,9 +97,17 @@ class KrogerAPI:
         return preprocess_search_term(product_name)
 
     _spell_checker = None  # lazy class-level cache
+    _spell_checker_warned = False
 
     def _spell_correct(self, term: str) -> str:
-        """Return spell-corrected term; returns original if correction unavailable."""
+        """Return spell-corrected term; returns original if correction unavailable.
+
+        This is a fallback for the case where Kroger's search returns zero
+        candidates at all for a misspelled term. Word-level typo tolerance in
+        _fuzzy_word_match() is the primary defense and doesn't depend on this
+        package being installed, so a missing/broken dependency here degrades
+        gracefully instead of causing "not found" results outright.
+        """
         try:
             from spellchecker import SpellChecker
             if KrogerAPI._spell_checker is None:
@@ -103,6 +116,9 @@ class KrogerAPI:
             corrected = [KrogerAPI._spell_checker.correction(w) or w for w in words]
             return ' '.join(corrected)
         except ImportError:
+            if not KrogerAPI._spell_checker_warned:
+                print("Warning: pyspellchecker not importable; spell-correction fallback is disabled")
+                KrogerAPI._spell_checker_warned = True
             return term
 
     @retry_api_call(max_retries=3, backoff_factor=1)
@@ -172,6 +188,11 @@ class KrogerAPI:
         category = self._normalize_category(category)
         aisle_locations = product_data.get('aisleLocations', [])
         aisle_number = int(aisle_locations[0]['number']) if aisle_locations else -1
+        if aisle_number >= self.MAX_VALID_AISLE:
+            # Kroger returns 100+ "aisle" numbers for perimeter/case
+            # departments (dairy, meat) rather than real walkable aisles -
+            # fall back to category grouping like the no-data case.
+            aisle_number = -1
 
         return FullProduct(
             product_name,
@@ -249,10 +270,41 @@ class KrogerAPI:
         'supplement', 'vitamin',
     ]
 
+    _PUNCTUATION_RE = re.compile(r"[^\w\s]")
+
+    @classmethod
+    def _normalize(cls, text):
+        """Strip punctuation for fuzzy comparison.
+
+        Kroger descriptions often glue punctuation onto words (e.g. "Banana,
+        Each", "Eggs (12 ct)"), which would otherwise break word-level
+        tokenization for anything but exact/prefix matches.
+        """
+        return cls._PUNCTUATION_RE.sub('', text)
+
     @staticmethod
-    def _normalize(text):
-        """Remove hyphens and apostrophes for fuzzy comparison"""
-        return text.replace('-', '').replace("'", '')
+    def _edit_distance(a, b):
+        """Restricted Damerau-Levenshtein distance (insert/delete/substitute/
+        adjacent transpose). Self-contained so typo tolerance doesn't depend
+        on an external spell-checking package being installed and working.
+        """
+        len_a, len_b = len(a), len(b)
+        d = [[0] * (len_b + 1) for _ in range(len_a + 1)]
+        for i in range(len_a + 1):
+            d[i][0] = i
+        for j in range(len_b + 1):
+            d[0][j] = j
+        for i in range(1, len_a + 1):
+            for j in range(1, len_b + 1):
+                cost = 0 if a[i - 1] == b[j - 1] else 1
+                d[i][j] = min(
+                    d[i - 1][j] + 1,          # deletion
+                    d[i][j - 1] + 1,          # insertion
+                    d[i - 1][j - 1] + cost,   # substitution
+                )
+                if i > 1 and j > 1 and a[i - 1] == b[j - 2] and a[i - 2] == b[j - 1]:
+                    d[i][j] = min(d[i][j], d[i - 2][j - 2] + cost)  # transposition
+        return d[len_a][len_b]
 
     def _fuzzy_word_match(self, search_word, description):
         """Check if a search word matches any word in the description.
@@ -260,6 +312,9 @@ class KrogerAPI:
         Uses word-level comparison to avoid false positives like "ice" matching "rice".
         Allows prefix/suffix overlap so "cheezit" matches "cheezits" and vice versa.
         Also allows suffix matching for compound words like "berries" in "strawberries".
+        Tolerates small typos (one wrong/missing/doubled/swapped letter) in words of
+        5+ characters, e.g. "bananna" matches "banana" — this covers misspellings even
+        when Kroger's own search returns the right product for a mistyped query.
         """
         word_norm = self._normalize(search_word.lower())
         desc_words = self._normalize(description.lower()).split()
@@ -274,6 +329,12 @@ class KrogerAPI:
                 # Suffix: search word is a suffix of description word
                 # e.g. "berries" matches "strawberries", "fish" matches "swordfish"
                 if len(word_norm) >= 5 and dw.endswith(word_norm):
+                    return True
+            # Typo tolerance: only for longer words, and only when the lengths
+            # are close, to keep short/unrelated words (e.g. "milk"/"silk") safe.
+            if len(word_norm) >= 5 and len(dw) >= 5 and abs(len(word_norm) - len(dw)) <= 2:
+                max_dist = 1 if max(len(word_norm), len(dw)) <= 7 else 2
+                if self._edit_distance(word_norm, dw) <= max_dist:
                     return True
         return False
 

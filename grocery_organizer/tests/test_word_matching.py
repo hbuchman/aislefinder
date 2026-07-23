@@ -110,6 +110,35 @@ class TestFuzzyWordMatch:
     def test_completely_different(self, api):
         assert api._fuzzy_word_match("butter", "Coca Cola Soda") is False
 
+    # --- Typo tolerance (edit distance) ---
+
+    def test_doubled_letter_typo(self, api):
+        """'bananna' (doubled n) should still match 'banana'."""
+        assert api._fuzzy_word_match("bananna", "Banana, Each") is True
+
+    def test_missing_letter_typo(self, api):
+        assert api._fuzzy_word_match("tomatoe", "Tomato, Roma") is True
+
+    def test_transposed_letters_typo(self, api):
+        """Adjacent-letter swap ('chikcen') should still match 'chicken'."""
+        assert api._fuzzy_word_match("chikcen", "Chicken Breast Boneless") is True
+
+    def test_missing_letter_longer_word(self, api):
+        assert api._fuzzy_word_match("brocoli", "Broccoli Crowns") is True
+
+    def test_typo_tolerance_does_not_match_unrelated_word(self, api):
+        """Typo tolerance is length-gated so it doesn't loosely match unrelated words."""
+        assert api._fuzzy_word_match("bananna", "Banane Loaf Bread") is False
+
+    def test_typo_tolerance_excludes_short_words(self, api):
+        """Short words stay strict — 'milk' must not fuzzy-match 'silk'."""
+        assert api._fuzzy_word_match("milk", "Pantene Silk Conditioner") is False
+
+    def test_comma_attached_to_word_still_matches(self, api):
+        """Kroger descriptions like 'Banana, Each' glue punctuation onto words;
+        normalization must strip it so exact matches aren't accidentally missed."""
+        assert api._fuzzy_word_match("banana", "Banana, Each") is True
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 2. _preprocess_search_term
@@ -408,6 +437,34 @@ class TestFindProductSelection:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# 6. find_product — aisle number clamping
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestFindProductAisleClamping:
+    """Kroger returns 100+ style 'aisle' numbers for perimeter/case
+    departments (dairy, meat) rather than real walkable aisles; find_product
+    should treat those like missing aisle data (-1) instead of a real aisle."""
+
+    def test_walkable_aisle_passes_through(self, api):
+        product = make_product("Kroger Whole Milk", categories=["Dairy"], aisle_number=12)
+        with patch.object(api, '_search_best_match', return_value=product):
+            result = api.find_product("milk")
+        assert result.aisle_number == 12
+
+    def test_perimeter_case_aisle_falls_back_to_unknown(self, api):
+        product = make_product("Kroger Whole Milk", categories=["Dairy"], aisle_number=100)
+        with patch.object(api, '_search_best_match', return_value=product):
+            result = api.find_product("milk")
+        assert result.aisle_number == -1
+
+    def test_high_perimeter_case_aisle_falls_back_to_unknown(self, api):
+        product = make_product("Ground Beef", categories=["Meat"], aisle_number=104)
+        with patch.object(api, '_search_best_match', return_value=product):
+            result = api.find_product("ground beef")
+        assert result.aisle_number == -1
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # 6. Spell correction fallback in _search_top_matches
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -480,3 +537,11 @@ class TestNormalize:
 
     def test_no_change_needed(self):
         assert KrogerAPI._normalize("milk") == "milk"
+
+    def test_removes_comma(self):
+        """Kroger descriptions like 'Banana, Each' need the comma stripped
+        so 'each' doesn't stay glued to the previous word's tokenization."""
+        assert KrogerAPI._normalize("banana, each") == "banana each"
+
+    def test_removes_parentheses(self):
+        assert KrogerAPI._normalize("eggs (12 ct)") == "eggs 12 ct"
