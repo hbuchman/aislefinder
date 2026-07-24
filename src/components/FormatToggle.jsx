@@ -2,8 +2,9 @@ import React from 'react';
 
 // Segmented aisle/category switch, shared by the home screen (set a
 // preference before shopping) and shop mode (change it mid-trip).
-// Aisle needs a store picked first (aisle numbers are store-specific), so it
-// can be disabled independently of the other option.
+// Aisle needs a store picked first (aisle numbers are store-specific). Rather
+// than hard-disabling it in that case, it stays clickable so onChange can
+// prompt store selection instead of silently doing nothing.
 const FormatToggle = ({ format, onChange, disabled, aisleDisabled }) => (
   <div style={{
     display: 'inline-flex',
@@ -14,7 +15,7 @@ const FormatToggle = ({ format, onChange, disabled, aisleDisabled }) => (
   }}>
     {['aisle', 'category'].map((option) => {
       const active = option === format;
-      const optionDisabled = disabled || (option === 'aisle' && aisleDisabled);
+      const optionDisabled = disabled;
       return (
         <button
           key={option}

@@ -34,6 +34,20 @@ def retry_api_call(max_retries=3, backoff_factor=1):
         return wrapper
     return decorator
 
+# Shared across all KrogerAPI instances (one is created per request) so
+# concurrent calls - e.g. the 10 parallel workers processing one list - reuse
+# pooled TCP/TLS connections instead of each paying a fresh handshake.
+_session = requests.Session()
+_session.mount('https://', requests.adapters.HTTPAdapter(pool_connections=20, pool_maxsize=20))
+
+# (store_id, search_term) -> (expiry, raw candidates). Product/aisle data
+# barely changes day to day, so repeat lookups for common items (milk, eggs,
+# bread) across different lists/users skip the Kroger round trip entirely.
+_search_cache = {}
+_SEARCH_CACHE_TTL = 6 * 60 * 60
+_search_cache_lock = threading.Lock()
+
+
 class KrogerAPI:
     """Client for the Kroger Products and Locations APIs.
 
@@ -82,7 +96,7 @@ class KrogerAPI:
             }
             data = {'grant_type': 'client_credentials', 'scope': 'product.compact'}
 
-            response = requests.post(self.AUTH_URL, headers = headers, data=data)
+            response = _session.post(self.AUTH_URL, headers = headers, data=data)
             response.raise_for_status()
 
             response_data = response.json()
@@ -121,21 +135,47 @@ class KrogerAPI:
                 KrogerAPI._spell_checker_warned = True
             return term
 
+    def _fetch_raw_candidates(self, search_term):
+        """Up to 10 raw Products API candidates for `search_term`, cached per store.
+
+        Scoring depends on the original (uncleaned) product name too, so that
+        stays out of the cache key and is applied fresh on every call.
+        """
+        cache_key = (self.store_id, search_term)
+        now = time.time()
+        with _search_cache_lock:
+            cached = _search_cache.get(cache_key)
+            if cached and cached[0] > now:
+                return cached[1]
+
+        candidates = self._fetch_raw_candidates_uncached(search_term)
+
+        with _search_cache_lock:
+            # Drop expired entries so the cache can't grow without bound
+            for key in [k for k, v in _search_cache.items() if v[0] <= now]:
+                del _search_cache[key]
+            _search_cache[cache_key] = (now + _SEARCH_CACHE_TTL, candidates)
+        return candidates
+
     @retry_api_call(max_retries=3, backoff_factor=1)
-    def _fetch_scored_candidates(self, product_name, search_term, limit):
-        """Make one Products API call and return up to `limit` scored candidates."""
+    def _fetch_raw_candidates_uncached(self, search_term):
+        """Make one Products API call and return up to 10 raw candidates."""
         token = self.get_auth_token()
         headers = {'Authorization': 'Bearer ' + token, 'Cache-Control': 'no-cache'}
         payload = {'filter.term': search_term, 'filter.locationId': self.store_id}
-        response = requests.get(self.PRODUCT_URL, headers=headers, params=payload)
+        response = _session.get(self.PRODUCT_URL, headers=headers, params=payload)
         response.raise_for_status()
 
-        candidates = response.json().get('data') or []
+        return (response.json().get('data') or [])[:10]
+
+    def _fetch_scored_candidates(self, product_name, search_term, limit):
+        """Score cached candidates for `search_term` and return up to `limit`, best first."""
+        candidates = self._fetch_raw_candidates(search_term)
         if not candidates:
             return []
 
         scored = []
-        for candidate in candidates[:10]:
+        for candidate in candidates:
             if self._is_product_relevant(product_name, candidate) or self._is_product_relevant(search_term, candidate):
                 score = max(
                     self._score_product(product_name, candidate),
@@ -434,7 +474,7 @@ class KrogerAPI:
         headers = {'Authorization': 'Bearer ' + token, 'Cache-Control': 'no-cache'}
         payload = {'filter.zipCode.near': zip_code, 'filter.radiusInMiles': 25, 'filter.limit': 10}
 
-        response = requests.get(self.LOCATIONS_URL, headers=headers, params=payload)
+        response = _session.get(self.LOCATIONS_URL, headers=headers, params=payload)
         response.raise_for_status()  # Raise an exception for bad status codes
 
         return self._parse_locations(response.json().get('data', []))

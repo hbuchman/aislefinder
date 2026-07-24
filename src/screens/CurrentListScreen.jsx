@@ -96,7 +96,10 @@ const CurrentListScreen = ({
   };
 
   const setFormat = (format) => {
-    if (format === 'aisle' && !list.store) return;
+    if (format === 'aisle' && !list.store) {
+      onShowStore();
+      return;
+    }
     if (format === resolveOrganizeFormat(list)) return;
     updateList(list.id, { formatPreference: format, customCategoryOrder: null });
   };

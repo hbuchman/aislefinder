@@ -123,6 +123,7 @@ const AisleFinder = () => {
           --af-green-dark: #175c3d;
           --af-chrome: #1d5c40;
           --af-amber: #ffc439;
+          --af-amber-text: #7a4f00;
           --af-error-text: #b3541e;
           /* derived — aliases and tints of the core colors */
           --af-chrome-text: #f2f8f2;
@@ -167,6 +168,7 @@ const AisleFinder = () => {
             --af-green-dark: #9ecfb2;
             --af-chrome: #16382a;
             --af-error-text: #ffab70;
+            --af-amber-text: var(--af-amber);
             --af-logo-tile: rgba(255, 255, 255, 0.08);
             /* derived */
             --af-popup-bg: var(--af-surface);

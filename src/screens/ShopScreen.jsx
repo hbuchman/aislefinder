@@ -5,6 +5,7 @@ import { processGroceryList, findItemAisle } from '../api';
 import { newItem } from '../listsStore';
 import ItemInfoSheet from '../components/ItemInfoSheet';
 import FormatToggle from '../components/FormatToggle';
+import ShopSummary from './ShopSummary';
 import {
   parseGroceryListToGroups,
   buildMarkdownFromGroups,
@@ -197,13 +198,15 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
   const [singleItemQuery, setSingleItemQuery] = useState('');
   const [singleItemError, setSingleItemError] = useState(false);
   const [singleItemLoading, setSingleItemLoading] = useState(false);
-  const [showCelebration, setShowCelebration] = useState(false);
   const [showSettingsPopup, setShowSettingsPopup] = useState(false);
   const [infoItem, setInfoItem] = useState(null);
   const hasFiredConfetti = useRef(false);
   const confettiCanvasRef = useRef(null);
   const confettiInstance = useRef(null);
   const organizedKey = useRef(null);
+  const shopStartRef = useRef(null);
+  const [checkTimestamps, setCheckTimestamps] = useState({});
+  const [showSummary, setShowSummary] = useState(false);
 
   const listId = list ? list.id : null;
   const itemCount = list ? list.items.length : 0;
@@ -253,7 +256,10 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
   // Explicit aisle/category switch, available mid-shop; overrides the
   // store-driven default and re-triggers the organize effect above
   const setFormat = (format) => {
-    if (format === 'aisle' && !list.store) return;
+    if (format === 'aisle' && !list.store) {
+      onShowStore();
+      return;
+    }
     if (format === resolveOrganizeFormat(list)) return;
     updateList(listId, { formatPreference: format, customCategoryOrder: null });
   };
@@ -293,43 +299,90 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
     [checkedItems]
   );
 
-  // Confetti when the last item is checked. Skipped whenever `organized`
-  // doesn't match the list's current items — a previous shop session can
-  // leave stale, fully-checked data in place while this one is (re)organizing
-  // or failed to organize, and that stale completeness shouldn't fire confetti.
+  // Groups that represent actual store locations (skip "Not Found" — no physical position)
+  const routeGroups = useMemo(
+    () => orderedGroups.filter(g => g.name !== 'Not Found'),
+    [orderedGroups]
+  );
+
+  // Start the shop timer when the organized list is first ready
+  useEffect(() => {
+    if (!loading && !error && routeGroups.length > 0 && !shopStartRef.current) {
+      shopStartRef.current = Date.now();
+    }
+  }, [loading, error, routeGroups.length]);
+
+  // Confetti when the last item is checked, then drop straight into the
+  // summary screen once it finishes — no "Finish" tap required. Skipped
+  // whenever `organized` doesn't match the list's current items — a previous
+  // shop session can leave stale, fully-checked data in place while this one
+  // is (re)organizing or failed to organize, and that stale completeness
+  // shouldn't fire confetti.
   const isStale = !list || !list.organized || list.organizedForHash !== itemsHash(list.items);
   useEffect(() => {
     if (loading || isStale) return;
     if (totalItems > 0 && checkedCount === totalItems && !hasFiredConfetti.current) {
       hasFiredConfetti.current = true;
-      setShowCelebration(true);
       setTimeout(() => {
         const fire = confettiInstance.current;
-        if (!fire) return;
         const duration = 3000;
         const end = Date.now() + duration;
         const frame = () => {
-          fire({
-            particleCount: 4,
-            angle: 90,
-            spread: 160,
-            startVelocity: 25,
-            origin: { x: Math.random(), y: 0 },
-            colors: ['#27ae60', '#157a40', '#a3e9c2', '#ffc439'],
-          });
-          if (Date.now() < end) requestAnimationFrame(frame);
+          if (fire) {
+            fire({
+              particleCount: 4,
+              angle: 90,
+              spread: 160,
+              startVelocity: 25,
+              origin: { x: Math.random(), y: 0 },
+              colors: ['#27ae60', '#157a40', '#a3e9c2', '#ffc439'],
+            });
+          }
+          if (Date.now() < end) {
+            requestAnimationFrame(frame);
+          } else {
+            setShowSummary(true);
+          }
         };
         frame();
       }, 0);
     }
     if (totalItems > 0 && checkedCount < totalItems) {
       hasFiredConfetti.current = false;
-      setShowCelebration(false);
     }
   }, [checkedCount, totalItems, loading, isStale]);
 
+  // Longest gap between consecutive checked-off items — the item that took
+  // the longest to track down, used as the summary's headline stat in place
+  // of a generic per-item average.
+  const hardestToFind = useMemo(() => {
+    if (!shopStartRef.current) return null;
+    const entries = Object.entries(checkTimestamps).sort((a, b) => a[1] - b[1]);
+    if (entries.length === 0) return null;
+    let prevTime = shopStartRef.current;
+    let best = null;
+    for (const [key, time] of entries) {
+      const gapMs = time - prevTime;
+      if (!best || gapMs > best.gapMs) {
+        best = { item: key.slice(key.indexOf('::') + 2), gapMs };
+      }
+      prevTime = time;
+    }
+    return best;
+  }, [checkTimestamps]);
+
   const toggleItem = (groupName, itemName) => {
     const key = `${groupName}::${itemName}`;
+    const isChecking = !checkedItems[key];
+
+    setCheckTimestamps((prev) => {
+      if (isChecking) return { ...prev, [key]: Date.now() };
+      if (!(key in prev)) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+
     updateList(listId, (l) => ({
       checkedItems: { ...(l.checkedItems || {}), [key]: !(l.checkedItems || {})[key] },
     }));
@@ -396,7 +449,6 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
             : [newItem(query), ...l.items];
           return { organized, items, organizedForHash: itemsHash(items) };
         });
-        setShowCelebration(false);
         hasFiredConfetti.current = false;
         setSingleItemQuery('');
       } else {
@@ -420,11 +472,28 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
   };
 
   const finishShopping = () => {
+    setShowSummary(true);
+  };
+
+  const completeShopping = () => {
     completeList(listId);
     onFinished();
   };
 
   if (!list) return null;
+
+  if (showSummary) {
+    return (
+      <ShopSummary
+        totalItems={totalItems}
+        checkedCount={checkedCount}
+        shopStartTime={shopStartRef.current}
+        hardestToFind={hardestToFind}
+        list={list}
+        onDone={completeShopping}
+      />
+    );
+  }
 
   const allDone = totalItems > 0 && checkedCount === totalItems;
 
@@ -549,23 +618,6 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
                 }} />
               </div>
             </div>
-
-            {/* Celebration banner */}
-            {showCelebration && (
-              <div style={{
-                textAlign: 'center',
-                padding: '20px',
-                margin: '15px 0',
-                background: 'var(--af-celebrate-bg)',
-                borderRadius: '12px',
-                border: '2px solid var(--af-green)',
-                animation: 'celebrationFadeIn 0.5s ease-out',
-              }}>
-                <h3 style={{ margin: 0, color: 'var(--af-celebrate-text)', fontSize: '1.2rem' }}>
-                  Shopping Complete!
-                </h3>
-              </div>
-            )}
 
             {/* Single item quick lookup */}
             <div style={{
