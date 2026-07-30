@@ -52,15 +52,46 @@ class StubKrogerAPI:
         return []
 
 
+class StubStoreDatabaseAPI:
+    """Deterministic stand-in for StoreDatabaseAPI."""
+
+    def __init__(self, chain, store_id=None):
+        self.chain = chain
+        self.store_id = store_id
+
+    def get_auth_token(self):
+        pass
+
+    def find_product(self, product_name):
+        if product_name == 'bagels':
+            return FullProduct('bagels', 'Plain Bagels', 'Bakery', -1)
+        return FullProduct(product_name, f'{product_name} (not found in store)', 'Not Found', -1)
+
+    def find_stores_by_zip(self, zip_code):
+        if zip_code == '53186':
+            return [{'id': '407077', 'name': "Woodman's Markets", 'address': 'Waukesha, WI 53186', 'distance': None}]
+        return []
+
+    def find_item_details(self, product_name):
+        if product_name == 'bagels':
+            return [{
+                'name': 'Plain Bagels', 'brand': None, 'size': None,
+                'category': 'Bakery', 'image': None, 'location': None,
+            }]
+        return []
+
+
 @pytest.fixture
 def client():
     app = Flask(__name__)
     app.register_blueprint(grocery_bp)
     # Rate-limit state is module-global; isolate it per test
     rate_limit._rate_hits.clear()
-    # Both the routes and the processor import KrogerAPI by name
+    # Both the routes and the processor import these clients by name
     with patch.object(grocery_routes, 'KrogerAPI', StubKrogerAPI), \
-         patch.object(processor, 'KrogerAPI', StubKrogerAPI):
+         patch.object(processor, 'KrogerAPI', StubKrogerAPI), \
+         patch.object(grocery_routes, 'StoreDatabaseAPI', StubStoreDatabaseAPI), \
+         patch.object(processor, 'StoreDatabaseAPI', StubStoreDatabaseAPI):
         with app.test_client() as test_client:
             yield test_client
 
@@ -316,6 +347,41 @@ class TestPhotoToList:
             mock_client.return_value.messages.create.side_effect = billing_error
             with pytest.raises(grocery_routes._PhotoCaptureUnavailable):
                 grocery_routes._extract_items_from_photo(b'fake-jpeg-bytes', 'image/jpeg')
+
+
+class TestStoreChainDispatch:
+    def test_process_grocery_list_uses_woodmans(self, client):
+        response = client.post('/api/process-grocery-list', data={
+            'file': (io.BytesIO(b'bagels'), 'list.txt'),
+            'store_chain': 'woodmans',
+        })
+        assert response.status_code == 200
+        assert '## Bakery\n- bagels' in response.get_data(as_text=True)
+
+    def test_find_stores_uses_woodmans(self, client):
+        response = client.post('/api/find-stores', json={'zipCode': '53186', 'store_chain': 'woodmans'})
+        assert response.status_code == 200
+        stores = response.get_json()['stores']
+        assert stores == [{'id': '407077', 'name': "Woodman's Markets", 'address': 'Waukesha, WI 53186', 'distance': None}]
+
+    def test_find_item_aisle_uses_woodmans(self, client):
+        response = client.post('/api/find-item-aisle', json={'item': 'bagels', 'store_chain': 'woodmans'})
+        assert response.status_code == 200
+        assert response.get_json()['aisle'] == 'Bakery'
+
+    def test_item_details_uses_woodmans(self, client):
+        response = client.post('/api/item-details', json={'item': 'bagels', 'store_chain': 'woodmans'})
+        assert response.status_code == 200
+        assert response.get_json()['results'][0]['name'] == 'Plain Bagels'
+
+    def test_default_chain_is_still_kroger(self, client):
+        response = client.post('/api/find-item-aisle', json={'item': 'rice'})
+        assert response.status_code == 200
+        assert response.get_json()['aisle'] == 'Aisle 5'
+
+    def test_unknown_store_chain_is_server_error(self, client):
+        response = client.post('/api/find-item-aisle', json={'item': 'rice', 'store_chain': 'costco'})
+        assert response.status_code == 500
 
 
 def test_health(client):

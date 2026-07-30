@@ -13,11 +13,14 @@ AisleFinder organizes grocery lists by store aisle or category using the Kroger 
 Modular pipeline, orchestrated by **GroceryListProcessor** (`grocery_organizer/src/core/processor.py`):
 
 1. **InputParser** (`src/input_parsing/`) — parses grocery-list text (file or raw string; one item per line or comma-separated; strips bullets/checkboxes/numbering)
-2. **KrogerAPI** (`src/store_api/kroger.py`) — OAuth token handling, product search with fuzzy word matching/scoring, store search by zip. Search-term cleanup (quantities/filler words) lives in `search_terms.py`
-3. **FullProduct** (`src/core/models.py`) — dataclass with input name, matched product, category, and aisle number (-1 = unknown)
-4. **OutputFormatter** (`src/output_formatting/`) — renders markdown (`## Section\n- item`) grouped by aisle or category, sorted in a food-safe shopping order (fresh first, frozen/dairy last)
+2. **KrogerAPI** (`src/store_api/kroger.py`) — OAuth token handling, product search with fuzzy word matching/scoring, store search by zip. Search-term cleanup (quantities/filler words) lives in `search_terms.py`; word-matching/scoring lives in `matching.py`
+3. **StoreDatabaseAPI** (`src/store_api/store_database.py`) — same duck-typed interface as `KrogerAPI`, for chains with no public API (currently `woodmans`). Backed entirely by committed data files under `grocery_organizer/data/stores/*.csv` — never makes a network call. Exact matches come straight from the file; anything else falls back to the same fuzzy scoring `matching.py` gives Kroger, so a data file doesn't need to list every possible item verbatim. Unmatched lookups print a log line and return "Not Found" rather than querying anything live. See `grocery_organizer/data/stores/README.md` for the file format and how to add items by hand.
+4. **FullProduct** (`src/core/models.py`) — dataclass with input name, matched product, category, and aisle number (-1 = unknown)
+5. **OutputFormatter** (`src/output_formatting/`) — renders markdown (`## Section\n- item`) grouped by aisle or category, sorted in a food-safe shopping order (fresh first, frozen/dairy last)
 
-Item lookups run in parallel (ThreadPoolExecutor); a failed lookup becomes a "Not Found" entry instead of failing the list.
+`GroceryListProcessor(store_chain=...)` picks `KrogerAPI` vs `StoreDatabaseAPI` (`KNOWN_STORE_CHAINS` in `processor.py`); `grocery_routes.py`'s `_store_client()` does the same for the Flask routes. Item lookups run in parallel (ThreadPoolExecutor); a failed lookup becomes a "Not Found" entry instead of failing the list.
+
+Not part of the shipped app: `store-capture/` (repo root, git-ignored) holds local-only tooling. The data files it produces are the only thing that ships. See its module docstrings if you need to re-run or extend it.
 
 ### Flask servers — shared blueprints, two entry points
 
@@ -54,13 +57,16 @@ PYTHONPATH=. python grocery_organizer/main.py --file=grocery_organizer/list.txt 
 
 ```bash
 # Python (pytest; run from repo root)
+# First time: create a venv (Homebrew's system Python is externally managed,
+# so pytest/requirements can't install globally) — .venv/ is gitignored.
+python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt pytest
 PYTHONPATH=. python -m pytest grocery_organizer/tests
 
 # JavaScript (Jest via react-scripts)
 CI=true npm test
 ```
 
-Python tests cover input parsing, output formatting, search-term cleanup, Kroger word matching/scoring, and the Flask routes (with a stubbed Kroger client). JS tests cover `listUtils` and app rendering/migration.
+Python tests cover input parsing, output formatting, search-term cleanup, shared word matching/scoring (`matching.py`), `StoreDatabaseAPI` (with `_rows_for` patched — no real data files touched), store-chain dispatch (`processor.py`), and the Flask routes (with stubbed Kroger/StoreDatabase clients). JS tests cover `listUtils` and app rendering/migration.
 
 ## Configuration
 
@@ -71,7 +77,7 @@ All credentials come from environment variables (never commit secrets):
 - `ANTHROPIC_API_KEY` — photo capture of grocery lists (`/api/photo-to-list` uses Claude vision); unset means the endpoint returns 503
 - Frontend: `REACT_APP_API_URL`, `REACT_APP_COGNITO_USER_POOL_ID`, `REACT_APP_COGNITO_CLIENT_ID`
 
-The default store is Kroger `01400943` ("4500S Smiths"), defined in `grocery_routes.py`.
+The default store is Kroger `01400943` ("4500S Smiths"), defined in `grocery_routes.py`. Non-Kroger chains (`store_chain` other than `"kroger"`) need no credentials at request time — they read `grocery_organizer/data/stores/*.csv` instead.
 
 ## Development Notes
 

@@ -5,12 +5,26 @@ import { loadState, saveState } from '../storage';
 
 const isValidZipCode = (zip) => /^\d{5}(-\d{4})?$/.test(zip.trim());
 
+const CHAINS = [
+  { id: 'kroger', label: 'Kroger' },
+  { id: 'woodmans', label: "Woodman's" },
+];
+
 const StoreSheet = ({ open, onClose, list, updateList, toast }) => {
+  const [chain, setChain] = useState(() => (list && list.store && list.store.chain) || loadState('storeChain', 'kroger'));
   const [zipCode, setZipCode] = useState(() => loadState('zipCode', ''));
   const [stores, setStores] = useState(() => loadState('stores', []));
   const [searching, setSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [error, setError] = useState('');
+
+  const changeChain = (next) => {
+    setChain(next);
+    saveState('storeChain', next);
+    setHasSearched(false);
+    setStores([]);
+    setError('');
+  };
 
   const search = async () => {
     if (!isValidZipCode(zipCode)) {
@@ -20,7 +34,7 @@ const StoreSheet = ({ open, onClose, list, updateList, toast }) => {
     setSearching(true);
     setError('');
     try {
-      const found = await findStores(zipCode.trim());
+      const found = await findStores(zipCode.trim(), chain);
       setStores(found);
       setHasSearched(true);
       saveState('zipCode', zipCode.trim());
@@ -35,12 +49,14 @@ const StoreSheet = ({ open, onClose, list, updateList, toast }) => {
   };
 
   const selectStore = (store) => {
-    updateList(list.id, { store, organized: null, organizedBy: null, organizedForHash: null });
+    const storeWithChain = store.chain ? store : { ...store, chain };
+    updateList(list.id, { store: storeWithChain, organized: null, organizedBy: null, organizedForHash: null });
     toast(`Store set to ${store.name}`);
     onClose();
   };
 
   const currentStoreId = list && list.store ? list.store.id : null;
+  const currentStoreChain = (list && list.store && list.store.chain) || 'kroger';
 
   return (
     <Sheet open={open} onClose={onClose}>
@@ -49,8 +65,35 @@ const StoreSheet = ({ open, onClose, list, updateList, toast }) => {
         Choose your store
       </h3>
       <p style={{ fontSize: '12px', color: 'var(--af-text-muted)', margin: '0 0 14px' }}>
-        Kroger family stores: Pick 'N Save, Ralphs, King Soopers, Smith's, Fry's, QFC, and more
+        {chain === 'woodmans'
+          ? "Woodman's Markets"
+          : "Kroger family stores: Pick 'N Save, Ralphs, King Soopers, Smith's, Fry's, QFC, and more"}
       </p>
+
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
+        {CHAINS.map(({ id, label }) => (
+          <button
+            key={id}
+            onClick={() => changeChain(id)}
+            className="af-storeoption"
+            style={{
+              flex: 1,
+              textAlign: 'center',
+              padding: '8px 10px',
+              border: `2px solid ${chain === id ? 'var(--af-focus)' : 'var(--af-border)'}`,
+              borderRadius: '10px',
+              backgroundColor: chain === id ? 'var(--af-highlight-bg)' : 'var(--af-inset-bg)',
+              color: 'var(--af-text)',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              fontSize: '13px',
+              fontWeight: 600,
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
       <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
         <input
@@ -98,10 +141,10 @@ const StoreSheet = ({ open, onClose, list, updateList, toast }) => {
       )}
 
       {stores.map((store) => {
-        const selected = store.id === currentStoreId;
+        const selected = store.id === currentStoreId && chain === currentStoreChain;
         return (
           <button
-            key={store.id}
+            key={`${chain}-${store.id}`}
             onClick={() => selectStore(store)}
             className="af-storeoption"
             style={{

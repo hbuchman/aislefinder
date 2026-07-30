@@ -1,5 +1,4 @@
 import base64
-import re
 import requests
 import time
 import os
@@ -8,6 +7,7 @@ from functools import wraps
 
 from grocery_organizer.src.core.models import FullProduct
 from grocery_organizer.src.store_api.search_terms import preprocess_search_term
+from grocery_organizer.src.store_api import matching
 
 def retry_api_call(max_retries=3, backoff_factor=1):
     """Retry network failures with exponential backoff.
@@ -300,172 +300,31 @@ class KrogerAPI:
         """Map API categories to more intuitive names for shoppers."""
         return cls.CATEGORY_MAP.get(category.lower(), category)
 
-    # Non-grocery categories that indicate a bad match
-    NON_GROCERY_KEYWORDS = [
-        'gift card', 'digital', 'download', 'membership', 'subscription',
-        'delivery fee', 'service charge', 'warranty', 'insurance',
-        'candle', 'air freshener', 'detergent', 'cleaner', 'cleaning',
-        'soap', 'shampoo', 'lotion', 'fragrance', 'scented',
-        'pet food', 'dog food', 'cat food', 'pet treat',
-        'supplement', 'vitamin',
-    ]
-
-    _PUNCTUATION_RE = re.compile(r"[^\w\s]")
-
-    @classmethod
-    def _normalize(cls, text):
-        """Strip punctuation for fuzzy comparison.
-
-        Kroger descriptions often glue punctuation onto words (e.g. "Banana,
-        Each", "Eggs (12 ct)"), which would otherwise break word-level
-        tokenization for anything but exact/prefix matches.
-        """
-        return cls._PUNCTUATION_RE.sub('', text)
+    # Non-grocery categories that indicate a bad match (shared with matching.py)
+    NON_GROCERY_KEYWORDS = matching.NON_GROCERY_KEYWORDS
 
     @staticmethod
-    def _edit_distance(a, b):
-        """Restricted Damerau-Levenshtein distance (insert/delete/substitute/
-        adjacent transpose). Self-contained so typo tolerance doesn't depend
-        on an external spell-checking package being installed and working.
-        """
-        len_a, len_b = len(a), len(b)
-        d = [[0] * (len_b + 1) for _ in range(len_a + 1)]
-        for i in range(len_a + 1):
-            d[i][0] = i
-        for j in range(len_b + 1):
-            d[0][j] = j
-        for i in range(1, len_a + 1):
-            for j in range(1, len_b + 1):
-                cost = 0 if a[i - 1] == b[j - 1] else 1
-                d[i][j] = min(
-                    d[i - 1][j] + 1,          # deletion
-                    d[i][j - 1] + 1,          # insertion
-                    d[i - 1][j - 1] + cost,   # substitution
-                )
-                if i > 1 and j > 1 and a[i - 1] == b[j - 2] and a[i - 2] == b[j - 1]:
-                    d[i][j] = min(d[i][j], d[i - 2][j - 2] + cost)  # transposition
-        return d[len_a][len_b]
+    def _normalize(text):
+        return matching.normalize(text)
 
     def _fuzzy_word_match(self, search_word, description):
-        """Check if a search word matches any word in the description.
-
-        Uses word-level comparison to avoid false positives like "ice" matching "rice".
-        Allows prefix/suffix overlap so "cheezit" matches "cheezits" and vice versa.
-        Also allows suffix matching for compound words like "berries" in "strawberries".
-        Tolerates small typos (one wrong/missing/doubled/swapped letter) in words of
-        5+ characters, e.g. "bananna" matches "banana" — this covers misspellings even
-        when Kroger's own search returns the right product for a mistyped query.
-        """
-        word_norm = self._normalize(search_word.lower())
-        desc_words = self._normalize(description.lower()).split()
-        for dw in desc_words:
-            # Exact word match
-            if word_norm == dw:
-                return True
-            if len(word_norm) >= 3 and len(dw) >= 3:
-                # Prefix: one word starts with the other (plurals, brand variants)
-                if dw.startswith(word_norm) or word_norm.startswith(dw):
-                    return True
-                # Suffix: search word is a suffix of description word
-                # e.g. "berries" matches "strawberries", "fish" matches "swordfish"
-                if len(word_norm) >= 5 and dw.endswith(word_norm):
-                    return True
-            # Typo tolerance: only for longer words, and only when the lengths
-            # are close, to keep short/unrelated words (e.g. "milk"/"silk") safe.
-            if len(word_norm) >= 5 and len(dw) >= 5 and abs(len(word_norm) - len(dw)) <= 2:
-                max_dist = 1 if max(len(word_norm), len(dw)) <= 7 else 2
-                if self._edit_distance(word_norm, dw) <= max_dist:
-                    return True
-        return False
+        return matching.fuzzy_word_match(search_word, description)
 
     def _is_product_relevant(self, search_term, product_data):
         """Check if the returned product is relevant to the search term"""
-        search_words = set(search_term.lower().split())
         description = product_data.get('description', '').lower()
-
-        # Remove common words that don't help with matching
-        common_words = {'the', 'and', 'or', 'with', 'in', 'on', 'at', 'to', 'for', 'of', 'a', 'an'}
-        search_words = search_words - common_words
-        # Only consider words long enough to be meaningful
-        matchable_words = [w for w in search_words if len(w) >= 3]
-
-        if not matchable_words:
-            return True  # If only common/short words, accept the match
-
-        # Count how many search words appear in the product description
-        matched_count = sum(1 for word in matchable_words
-                           if self._fuzzy_word_match(word, description))
-
-        # For multi-word searches, require at least half of words to match
-        # For single-word searches, require that one word to match
-        required = max(1, (len(matchable_words) + 1) // 2)
-        if matched_count < required:
-            # If search term is very short, be more lenient
-            if len(search_term.strip()) <= 3:
-                return True
-            return False
-
-        # Words matched, but check it's not a non-grocery product
-        # e.g. "lemon" matches "lemon-scented candle" but that's not what we want
-        # Only filter if the blocked keyword is NOT part of what the user searched for
-        search_lower = search_term.lower()
-        for keyword in self.NON_GROCERY_KEYWORDS:
-            if keyword in description and keyword not in search_lower:
-                return False
-
-        return True
+        return matching.is_relevant(search_term, description)
 
     def _score_product(self, search_term, product_data):
         """Score a product result for relevance. Higher is better."""
         description = product_data.get('description', '').lower()
-        description_norm = self._normalize(description)
-        search_lower = search_term.lower().strip()
-        search_lower_norm = self._normalize(search_lower)
-        search_words = set(search_lower.split())
-        score = 0
-
-        # Full description matches the search term (best possible match)
-        desc_words = set(description.split())
-        search_word_set = set(search_lower.split())
-        if desc_words == search_word_set or set(description_norm.split()) == set(search_lower_norm.split()):
-            score += 15
-
-        # Exact phrase match in description
-        if search_lower in description or search_lower_norm in description_norm:
-            score += 10
-
-        # Count how many search words appear in description
-        for word in search_words:
-            if len(word) >= 3 and self._fuzzy_word_match(word, description):
-                score += 3
-
-        # Penalize non-grocery products, but not if the user searched for that keyword
-        for keyword in self.NON_GROCERY_KEYWORDS:
-            if keyword in description and keyword not in search_lower:
-                score -= 20
-
-        # Prefer products with aisle locations (actual in-store items)
-        if product_data.get('aisleLocations'):
-            score += 5
-
-        # Prefer fresh categories over frozen when user didn't ask for frozen
         categories = product_data.get('categories', [])
-        cat_lower = categories[0].lower() if categories else ''
-        if 'frozen' not in search_lower:
-            if cat_lower in ['produce', 'fresh fruits & vegetables', 'fresh vegetables',
-                             'fresh fruits', 'bakery', 'deli', 'meat & seafood']:
-                score += 5
-            elif 'frozen' in cat_lower:
-                score -= 5
-
-        # Prefer shorter descriptions (closer to base product)
-        desc_len = len(description)
-        if desc_len < 20:
-            score += 4
-        elif desc_len < 40:
-            score += 2
-
-        return score
+        return matching.score_description(
+            search_term,
+            description,
+            has_location=bool(product_data.get('aisleLocations')),
+            category=categories[0] if categories else None,
+        )
 
     @retry_api_call(max_retries=3, backoff_factor=1)
     def find_stores_by_zip(self, zip_code):

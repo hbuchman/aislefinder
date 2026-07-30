@@ -11,14 +11,14 @@ import traceback
 
 from flask import Blueprint, jsonify, request
 
-from grocery_organizer.src.core.processor import GroceryListProcessor
+from grocery_organizer.src.core.processor import DEFAULT_STORE_CHAIN, KNOWN_STORE_CHAINS, GroceryListProcessor
 from grocery_organizer.src.input_parsing.input_parser import InputParser
 from grocery_organizer.src.store_api.kroger import KrogerAPI
+from grocery_organizer.src.store_api.store_database import StoreDatabaseAPI
 from rate_limit import rate_limited
 
 grocery_bp = Blueprint('grocery', __name__)
 
-DEFAULT_STORE_ID = '01400943'
 DEFAULT_STORE_NAME = '4500S Smiths'
 
 # Every list item costs 1-2 Kroger Products calls against a shared 10,000/day
@@ -58,6 +58,15 @@ def _clean_item(data):
     return item.strip() if isinstance(item, str) else None
 
 
+def _store_client(data, store_id=None):
+    chain = data.get('store_chain', DEFAULT_STORE_CHAIN)
+    if chain not in KNOWN_STORE_CHAINS:
+        raise ValueError(f"Unknown store_chain '{chain}'")
+    if chain == 'kroger':
+        return KrogerAPI(store_id) if store_id else KrogerAPI()
+    return StoreDatabaseAPI(chain, store_id)
+
+
 @grocery_bp.route('/api/process-grocery-list', methods=['POST'])
 @rate_limited
 def process_grocery_list():
@@ -83,7 +92,8 @@ def process_grocery_list():
             return jsonify({'error': f'Lists are limited to {MAX_ITEMS_PER_REQUEST} items (got {item_count})'}), 400
 
         output_format = request.form.get('output_format', 'aisle')
-        store_id = request.form.get('store_id', DEFAULT_STORE_ID)
+        store_chain = request.form.get('store_chain', DEFAULT_STORE_CHAIN)
+        store_id = request.form.get('store_id') or None
         store = request.form.get('store', DEFAULT_STORE_NAME)
         print(f"Processing {file.filename}: format={output_format}, store={store} ({store_id})")
 
@@ -91,6 +101,7 @@ def process_grocery_list():
             text=text,
             store=store,
             output_format=output_format,
+            store_chain=store_chain,
             store_id=store_id,
         )
         result = processor.process_list()
@@ -114,7 +125,7 @@ def find_stores():
         zip_code = data['zipCode']
         print(f"Searching for stores near zip code: {zip_code}")
 
-        stores = KrogerAPI().find_stores_by_zip(zip_code)
+        stores = _store_client(data).find_stores_by_zip(zip_code)
         stores.sort(key=lambda s: s.get('distance') or 999)
         return jsonify({'stores': stores}), 200
 
@@ -134,8 +145,7 @@ def find_item_aisle():
         if not item:
             return jsonify({'error': 'Item name cannot be empty'}), 400
 
-        store_id = data.get('store_id', DEFAULT_STORE_ID)
-        product = KrogerAPI(store_id).find_product(item)
+        product = _store_client(data, data.get('store_id')).find_product(item)
 
         result = {
             'item': item,
@@ -168,8 +178,7 @@ def item_details():
         if not item:
             return jsonify({'error': 'Item name cannot be empty'}), 400
 
-        store_id = data.get('store_id', DEFAULT_STORE_ID)
-        results = KrogerAPI(store_id).find_item_details(item)
+        results = _store_client(data, data.get('store_id')).find_item_details(item)
         if not results:
             return jsonify({'error': 'Item not found in store'}), 404
 

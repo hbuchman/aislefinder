@@ -1,0 +1,140 @@
+item,found_product,category,aisle_number,raw_location
+bananas,Banana Bag,Produce,-1,Produce
+avocado,Hass Avocado,Produce,-1,Produce
+bagels,"Thomas’ 6 ct, Plain, Bagels, 9g Protein, Kosher, Original Bagels, 18 oz",Bakery,-1,Bakery
+sliced deli turkey,Sara Lee Premium Meats Oven Roasted Turkey Breast,Meat,-1,Meat
+chicken breast,Gold'n Plump Boneless Skinless Chicken Breasts Family Pack,Meat,-1,Meat
+salmon fillet,"The Great Fish Co. Salmon, Wild Caught, Whole Boneless, Side Fillet, Pouch",Meat,-1,Meat
+milk,Prairie Farms 2% Reduced Fat Milk,Dairy,-1,Dairy
+eggs,Pearl Valley Large Eggs,Dairy,-1,Dairy
+butter,Weyauwega Cheese Salted Butter,Dairy - Shelf 29,-1,Dairy - Shelf 29
+shredded cheese,"Food Club Finely Shredded Cheese, Four Cheese Blend, Mexican Style",Dairy,-1,Dairy
+yogurt,Yoplait Original Smooth Style Vanilla Low Fat Yogurt Tub,Dairy,-1,Dairy
+ice cream,"Blue Ribbon Classics Cookies 'N Cream Frozen Dessert, 48 fl oz",Ice Cream,-1,Ice Cream
+frozen peas,Flav-R-Pac Sweet Green Peas,Frozen Peas,24,Aisle 24 - Shelf B08
+frozen pizza,Jack's Original Thin Crust Pepperoni Pizza,Frozen Food,-1,Frozen Food
+frozen waffles,"Food Club Waffles, Buttermilk, Family Size",Frozen Waffles,26,Aisle 26 - Shelf B61
+2l soda,Squirt Caffeine Free Citrus Soda Thirst Quencher,Soda Wall - Shelf A05,-1,Soda Wall - Shelf A05
+orange juice,Simply Pulp-Free Orange Juice Bottle,Dairy,-1,Dairy
+sparkling water,Polar Premium Strawberry Watermelon Seltzer,Sparkling Water,35,Aisle 35 - Shelf B02
+bottled water,Food Club Spring Water,Spring Water,38,Aisle 38 - Shelf A03
+beer,Icehouse American Lager Beer,Beer,-1,Beer
+cold brew coffee,"SToK Bold & Smooth Black Unsweetened Cold Brew Coffee, Ready to Drink Bottled Coffee, 48 fl oz​",Dairy,-1,Dairy
+hot chocolate,Swiss Miss Chocolate Hot Cocoa Mix With Marshmallows,Hot Cocoa Mix,16,Aisle 16 - Shelf B04
+tea bags,Food Club Black Tea Bags,Black Tea,16,Aisle 16 - Shelf B09
+lays chips,Lay's Potato Chips Classic,Chip Wall - Shelf A47,-1,Chip Wall - Shelf A47
+popcorn,ACT II Butter Lovers Microwave Popcorn,Popcorn,4,Aisle 4 - Shelf B03
+pretzels,Crav'n Flavor Mini Twist Pretzels,Chip Wall - Shelf A13,-1,Chip Wall - Shelf A13
+tortilla chips,"El Milagro Tortilla Chips, Mexican Kitchen Style",Chip Wall - Shelf A34,-1,Chip Wall - Shelf A34
+chocolate bars,"Hershey's Milk Chocolate Candy Bars, 1.55 oz (6 Count)",Aisle C - Shelf B06,-1,Aisle C - Shelf B06
+oreos,"Oreo Chocolate Sandwich Cookies, Family Size 18.12 oz",Packaged Cookies,4,Aisle 4 - Shelf B24
+saltine crackers,"Premium Original Saltine Crackers, Lunch Snacks 16 oz",Crackers,4,Aisle 4 - Shelf A18
+cereal,Cap'N Crunch Crunch Berries Cereal,Cereal,7,Aisle 7 - Shelf A07
+oatmeal,"Quaker Instant Oatmeal, Maple & Brown Sugar - Pack",Quick Oats,7,Aisle 7 - Shelf B05
+pancake mix,"Food Club Pancake & Waffle Mix, Buttermilk, Complete",Pancake & Waffle Mix,7,Aisle 7 - Shelf B12
+maple syrup,Wagner's Pure Maple Syrup,Maple Syrup,7,Aisle 7 - Shelf B14
+flour,Food Club All-Purpose Flour,All Purpose Flour,15,Aisle 15 - Shelf B16
+sugar,"Food Club Sugar, Pure, Granulated",Granulated Sugars,15,Aisle 15 - Shelf B21
+cake mix,Betty Crocker Favorites Super Moist Yellow Cake Mix,Cake Mixes,14,Aisle 14 - Shelf A18
+chocolate chips,"Food Club Chips, Real, Chocolate, Semi-Sweet",Chocolate Chips,14,Aisle 14 - Shelf B08
+black beans,Food Club Black Beans,Canned Black Beans,9,Aisle 9 - Shelf A20
+canned corn,"Food Club Corn, Whole Kernel, Golden Sweet",Canned Corn,9,Aisle 9 - Shelf A10
+canned tomatoes,Food Club Petite Diced Tomatoes In Juice,Canned Diced Tomatoes,9,Aisle 9 - Shelf B20
+chicken noodle soup,Campbell's Chicken Noodle Soup,Grocery,-1,Grocery
+canned tuna,"Food Club Tuna in Water, Chunk Light",Canned Tuna,11,Aisle 11 - Shelf A05
+spaghetti,Barilla Spaghetti - Non-GMO Pasta Made with Durum Wheat Semolina & Kosher Certified,Spaghetti Pasta,10,Aisle 10 - Shelf B03
+rice,"Minute Rice Instant White Rice, Gluten-Free",White Rice,9,Aisle 9 - Shelf B01
+rice noodles,"A Taste of Thai Rice Noodles, Linguine",Rice Noodles,12,Aisle 12 - Shelf B10
+soy sauce,Food Club Soy Sauce,Soy Sauces,12,Aisle 12 - Shelf B21
+salsa,Pace Chunky Mild Salsa,Salsas,13,Aisle 13 - Shelf A25
+tortillas,Mission Super Soft Soft Taco Flour Tortillas,Grocery,-1,Grocery
+ketchup,Food Club Tomato Ketchup,Ketchup,5,Aisle 5 - Shelf A23
+mayonnaise,"Food Club Mayonnaise, Real",Mayonnaise,5,Aisle 5 - Shelf B23
+peanut butter,"Food Club Peanut Butter, Creamy",Peanut Butter,5,Aisle 5 - Shelf A03
+jelly,"Food Club Jelly, Concord Grape",Jams and Jellies,5,Aisle 5 - Shelf A07
+olive oil,"Food Club Olive Oil, Extra Virgin",Olive Oils,15,Aisle 15 - Shelf B04
+hot sauce,FRANK'S REDHOT Original Cayenne Pepper Hot Sauce,Hot Sauces,5,Aisle 5 - Shelf A17
+dried beans,Brown's Best Pinto Beans,Dried Pinto Beans,13,Aisle 13 - Shelf B10
+lentils,Food Club Lentils,Dried Lentils,9,Aisle 9 - Shelf A16
+trail mix,EIllien's Country Mix,Aisle E - Shelf B01,-1,Aisle E - Shelf B01
+almonds,Eillien's California Almonds,Almonds,14,Aisle 14 - Shelf B13
+paper towels,"Simply Done Paper Towels, Printed, Absorbent, Simple Size Select, 2-Ply",Paper Towels,2,Aisle 2 - Shelf B17
+toilet paper,Angel Soft Toilet Paper,Grocery,-1,Grocery
+napkins,Simply Done Everyday Napkins,Paper Napkins,3,Aisle 3 - Shelf A20
+paper plates,Simply Done Designer Paper Plates,Disposable Plates,3,Aisle 3 - Shelf A04
+trash bags,Simply Done Drawstring Tall Kitchen Bags,Trash Bags,3,Aisle 3 - Shelf B06
+aluminum foil,"Simply Done Aluminum Foil 12"" Wide",Aluminum Foil,3,Aisle 3 - Shelf B23
+black pepper,Food Club Black Pepper,Pepper,15,Aisle 15 - Shelf A22
+vinegar,"Food Club Vinegar, Distilled White",White Vinegar,5,Aisle 5 - Shelf A12
+bagged ice,Serv-Ice Bagged Premium Ice,Frozen Food,-1,Frozen Food
+tofu,"House Foods Tofu, Premium, Extra Firm",Produce,-1,Produce
+halloumi,DODONI Authentic Halloumi Cheese,Dairy - Shelf 11,-1,Dairy - Shelf 11
+feta,Odyssey Traditional Crumbled Feta,Dairy - Shelf 66,-1,Dairy - Shelf 66
+oats,Food Club Old Fashioned Oats,Rolled Oats,7,Aisle 7 - Shelf B09
+gold fish crackers,Pepperidge Farm Goldfish Cheddar Crackers,Crackers,4,Aisle 4 - Shelf A12
+spinach,Fresh Express Spinach,Produce,-1,Produce
+onions,Yellow Onion,Produce,-1,Produce
+penne pasta,Barilla Penne - Non-GMO Pasta Made with Durum Wheat Semolina & Kosher Certified,Penne Pasta,10,Aisle 10 - Shelf B03
+apple sauce,"Indian Summer Apple Sauce, Natural",Applesauce,6,Aisle 6 - Shelf B24
+parmasean,"BelGioioso Cheese, Parmesan",Dairy - Shelf 9,-1,Dairy - Shelf 9
+brown rice syrup,"Lundberg Family Farms Syrup, Organic, Brown Rice",Glucose Syrup,22,Aisle 22 - Shelf A09
+ginger paste,Gourmet Garden™ Ginger Stir-In Paste,Produce,-1,Produce
+coffee filters,Simply Done 8-12 Cup Coffee Filters,Coffee Filters,16,Aisle 16 - Shelf B02
+coffee,Maxwell House Original Roast Ground Coffee,Ground Coffee,16,Aisle 16 - Shelf A08
+frozen lasgna,Stouffer's Classic Lasagna With Meat And Sauce Family Size Easy Frozen Dinners,Frozen Pasta Meals,24,Aisle 24 - Shelf A05
+chicken,Gold'n Plump Boneless Skinless Chicken Breasts Family Pack,Meat,-1,Meat
+california pizza kitchen margherita,California Pizza Kitchen Margherita Recipe Crispy Thin Crust Frozen Pizza,Frozen Pizzas,23,Aisle 23 - Shelf A24
+raisins,Sun-Maid California Sun-Dried Raisins,Dried Raisins,14,Aisle 14 - Shelf B14
+pepitas,Eillien's Roasted / Unsalted Pepitas,Aisle E - Shelf B01,-1,Aisle E - Shelf B01
+baby mozzarella,"BelGioioso Cheese, Fresh Mozzarella, Pearls",Dairy - Shelf 68,-1,Dairy - Shelf 68
+killer bread,Dave's Killer Bread 21 Whole Grains and Seeds Organic Bread,Bakery,-1,Bakery
+decaf coffee,"Food Club Coffee, Ground, Decaffeinated, Medium",Ground Coffee,16,Aisle 16 - Shelf A06
+bay bell,"Babybel Original Snack Cheese, 8.5 oz (12 Count Net)",Dairy - Shelf 58,-1,Dairy - Shelf 58
+garlic,Garlic,Produce,-1,Produce
+flax seed,"Bob's Red Mill Whole Brown Flaxseed, Raw",Flax Seeds,22,Aisle 22 - Shelf A02
+plain greek yogurt,Chobani Plain Nonfat Greek Yogurt,Dairy,-1,Dairy
+fire roasted crushed or whole tomatoes,Muir Glen Crushed Fire Roasted Tomatoes,Canned Crushed Tomatoes,23,Aisle 23 - Shelf A03
+refried beans rosarita brand,"Rosarita Traditional Refried Beans, Canned Beans",Canned Refried Beans,13,Aisle 13 - Shelf A12
+queso fresco crumbling kind,"V&V Supremo Queso Fresco Cheese Chunk, Mexican Style Fresh Farmer's,Crumbling",Dairy - Shelf 24,-1,Dairy - Shelf 24
+jalapeño,Jalapeno Pepper,Produce,-1,Produce
+cilantro,Cilantro,Produce,-1,Produce
+limes,Limes,Produce,-1,Produce
+celery,Celery Heart,Produce,-1,Produce
+kimchi,Lucky Foods Original Kimchi,Produce,-1,Produce
+walnuts,Eillien's Walnut Pieces,Walnuts,14,Aisle 14 - Shelf B12
+coconut milk,A Taste of Thai Coconut Milk,Canned Coconut Milk and Cream,12,Aisle 12 - Shelf A06
+white vinegar,"Food Club Vinegar, Distilled White",White Vinegar,5,Aisle 5 - Shelf A12
+sirachia,Huy Fong Foods Hot Chili Sauce,Chili Sauces,12,Aisle 12 - Shelf A12
+napa cabbage,Napa Cabbage,Produce,-1,Produce
+tri color coleslaw,"Fresh Express Deli Coleslaw, 3 Color, Americas Fresh, Garden",Produce,-1,Produce
+lemon,Lemon,Produce,-1,Produce
+basil leaves,Jacobs Farm Organic Fresh Basil,Produce,-1,Produce
+frzn hash browns,Lynden Farms Shredded Hash Browns,Frozen Hash Browns,26,Aisle 26 - Shelf B51
+cubed ham in plastic pouch,CURE 81 Cubed Boneless Ham,Meat,-1,Meat
+dried navy bean,Food Club Navy Beans,Dried Navy Beans,9,Aisle 9 - Shelf A15
+pitted castle olives green,Divina Organic Pitted Green Olives,Olives,22,Aisle 22 - Shelf B12
+hot dog buns,Butternut Hot Dog Buns,Bakery,-1,Bakery
+kimchi,Lucky Foods Original Kimchi,Produce,-1,Produce
+parsley,Plain Parsley,Produce,-1,Produce
+broccoli,Broccoli,Produce,-1,Produce
+chickpeas,Food Club Garbanzo Beans,Canned Chickpeas,9,Aisle 9 - Shelf A20
+chichken thighs,Gerber's Amish Farm Boneless Skinless Chicken Thighs,Meat,-1,Meat
+bunch dill,Dill,Produce,-1,Produce
+spindrift,Spindrift Unsweetened Blood Orange Tangerine Sparkling Water,Sparkling Water,36,Aisle 36 - Shelf B01
+basil,Jacobs Farm Organic Fresh Basil,Produce,-1,Produce
+carrot,Bolthouse Fresh Baby Carrots,Produce,-1,Produce
+english cucumbers,English Seedless Cucumber,Produce,-1,Produce
+arugula,Earthbound Farm Organic Baby Arugula,Produce,-1,Produce
+ginger,Ginger Root,Produce,-1,Produce
+chard,Collard Greens,Produce,-1,Produce
+kale,Kale,Produce,-1,Produce
+pecans,Eillien's Pecan Pieces,Pecans,14,Aisle 14 - Shelf B13
+hummas,Sabra Classic Hummus,Produce - Shelf 22,-1,Produce - Shelf 22
+ravioli,"Chef Boyardee Beef Ravioli in Pasta Sauce, Ready-to-Eat Meal",Canned Pasta Meals,11,Aisle 11 - Shelf A16
+ciabatta,"August Rolls, Ciabatta, 4 Inches",Bakery,-1,Bakery
+granola,Nature Valley Protein Oats and Honey Granola,Granola,7,Aisle 7 - Shelf B13
+shrimp,CenSea 31 to 40 Uncooked Deveined Easy Peel Shrimp,Meat,-1,Meat
+guacamole,Herdez Guacamole Mild Cup,Produce - Shelf 20,-1,Produce - Shelf 20
+chia,"Bob's Red Mill Chia Seeds, Organic",Chia Seeds,22,Aisle 22 - Shelf A02
+dehydrated strawberries,Brothers All Natural Freeze Dried Strawberry Fruit Crisps,Produce,-1,Produce
+sun dried tomatoes,"California Sun Dry Sundried Tomatoes in Oil,  Julienne Cut",Produce,-1,Produce

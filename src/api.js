@@ -12,6 +12,7 @@ export const processGroceryList = async ({ items, format, store }) => {
   const blob = new Blob([items.join('\n')], { type: 'text/plain' });
   formData.append('file', blob, 'grocery-list.txt');
   formData.append('output_format', format);
+  formData.append('store_chain', store && store.chain ? store.chain : 'kroger');
   formData.append('store_id', store ? store.id : '01400943');
   formData.append('store', store ? store.name : '4500S Smiths');
 
@@ -38,11 +39,11 @@ export const photoToItems = async (photoBlob) => {
   return result.items || [];
 };
 
-export const findStores = async (zipCode) => {
+export const findStores = async (zipCode, chain = 'kroger') => {
   const response = await fetch(`${API_BASE}/api/find-stores`, {
     method: 'POST',
     headers: jsonHeaders(),
-    body: JSON.stringify({ zipCode }),
+    body: JSON.stringify({ zipCode, store_chain: chain }),
   });
   if (!response.ok) throw new Error("Couldn't find stores — check your connection and try again");
   const result = await response.json();
@@ -55,6 +56,7 @@ export const findItemAisle = async ({ item, store }) => {
     headers: jsonHeaders(),
     body: JSON.stringify({
       item,
+      store_chain: store && store.chain ? store.chain : 'kroger',
       store_id: store ? store.id : '01400943',
     }),
   });
@@ -68,6 +70,7 @@ export const fetchItemDetails = async ({ item, store }) => {
     headers: jsonHeaders(),
     body: JSON.stringify({
       item,
+      store_chain: store && store.chain ? store.chain : 'kroger',
       store_id: store ? store.id : '01400943',
     }),
   });
