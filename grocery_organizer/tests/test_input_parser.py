@@ -25,6 +25,10 @@ class TestParseText:
     def test_multi_word_items_preserved(self):
         assert InputParser.parse_text("peanut butter\nolive oil") == ["peanut butter", "olive oil"]
 
+    def test_checkboxes_collapsed_onto_one_line_are_split(self):
+        text = "- [ ] milk - [ ] eggs - [ ] bread"
+        assert InputParser.parse_text(text) == ["milk", "eggs", "bread"]
+
 
 class TestCleanLine:
     def test_markdown_checkbox_removed(self):
