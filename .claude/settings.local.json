@@ -62,7 +62,8 @@
       "Read(//Users/hayleybuchman/**)",
       "Bash(kill 15738 15737)",
       "Bash(lsof -nP -iTCP:3000 -sTCP:LISTEN)",
-      "Skill(artifact-design)"
+      "Skill(artifact-design)",
+      "Artifact"
     ],
     "deny": [],
     "ask": []

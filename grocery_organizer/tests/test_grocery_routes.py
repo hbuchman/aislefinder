@@ -37,6 +37,10 @@ class StubKrogerAPI:
     def find_stores_by_zip(self, zip_code):
         return [{'id': '1', 'name': 'Stub Store', 'address': '1 Main St', 'distance': 2.5}]
 
+    @classmethod
+    def category_catalog(cls):
+        return [{'name': 'Produce', 'rank': 0}, {'name': 'Snacks', 'rank': 50}]
+
     def find_item_details(self, product_name):
         if product_name == 'rice':
             return [
@@ -318,7 +322,133 @@ class TestPhotoToList:
                 grocery_routes._extract_items_from_photo(b'fake-jpeg-bytes', 'image/jpeg')
 
 
+class TestChat:
+    """The Claude call itself is stubbed; these cover the route's contract."""
+
+    def _post_chat(self, client, **body):
+        body.setdefault('message', 'do I need wheat flour?')
+        return client.post('/api/chat', json=body)
+
+    def test_unconfigured_is_503(self, client):
+        env = {k: v for k, v in os.environ.items() if k != 'ANTHROPIC_API_KEY'}
+        with patch.dict(os.environ, env, clear=True):
+            response = self._post_chat(client)
+        assert response.status_code == 503
+        assert 'not configured' in response.get_json()['error']
+
+    def test_returns_reply(self, client):
+        with patch.dict(os.environ, {'ANTHROPIC_API_KEY': 'test-key'}), \
+             patch.object(grocery_routes, '_ask_chat_assistant', return_value='Yes, buy flour.') as ask:
+            response = self._post_chat(client, context='Current list: eggs, milk.')
+        assert response.status_code == 200
+        assert response.get_json() == {'reply': 'Yes, buy flour.'}
+        ask.assert_called_once_with('do I need wheat flour?', [], 'Current list: eggs, milk.')
+
+    def test_passes_through_valid_history_only(self, client):
+        history = [
+            {'role': 'user', 'content': 'hi'},
+            {'role': 'assistant', 'content': 'hello'},
+            {'role': 'system', 'content': 'ignored: bad role'},
+            {'not': 'a turn'},
+            {'role': 'user', 'content': '   '},
+        ]
+        with patch.dict(os.environ, {'ANTHROPIC_API_KEY': 'test-key'}), \
+             patch.object(grocery_routes, '_ask_chat_assistant', return_value='ok') as ask:
+            response = self._post_chat(client, history=history)
+        assert response.status_code == 200
+        ask.assert_called_once_with(
+            'do I need wheat flour?',
+            [{'role': 'user', 'content': 'hi'}, {'role': 'assistant', 'content': 'hello'}],
+            '',
+        )
+
+    def test_missing_message_is_400(self, client):
+        with patch.dict(os.environ, {'ANTHROPIC_API_KEY': 'test-key'}):
+            response = client.post('/api/chat', json={})
+        assert response.status_code == 400
+
+    def test_blank_message_is_400(self, client):
+        with patch.dict(os.environ, {'ANTHROPIC_API_KEY': 'test-key'}):
+            response = self._post_chat(client, message='   ')
+        assert response.status_code == 400
+
+    def test_out_of_credits_is_clean_503(self, client):
+        with patch.dict(os.environ, {'ANTHROPIC_API_KEY': 'test-key'}), \
+             patch.object(grocery_routes, '_ask_chat_assistant',
+                           side_effect=grocery_routes._ChatUnavailable('out of credits')):
+            response = self._post_chat(client)
+        assert response.status_code == 503
+        assert 'not configured' in response.get_json()['error']
+
+    def test_billing_error_from_anthropic_becomes_unavailable(self):
+        """A real Anthropic 'insufficient credits' response should be
+        translated to _ChatUnavailable, not bubble up as a 500."""
+        import httpx
+        import anthropic
+
+        req = httpx.Request('POST', 'https://api.anthropic.com/v1/messages')
+        resp = httpx.Response(400, request=req, json={
+            'error': {
+                'type': 'billing_error',
+                'message': 'Your credit balance is too low to access the Claude API.',
+            },
+        })
+        billing_error = anthropic.BadRequestError('boom', response=resp, body=resp.json())
+
+        with patch.dict(os.environ, {'ANTHROPIC_API_KEY': 'test-key'}), \
+             patch('anthropic.Anthropic') as mock_client:
+            mock_client.return_value.messages.create.side_effect = billing_error
+            with pytest.raises(grocery_routes._ChatUnavailable):
+                grocery_routes._ask_chat_assistant('hi', [], '')
+
+    def test_refusal_returns_friendly_message(self):
+        with patch.dict(os.environ, {'ANTHROPIC_API_KEY': 'test-key'}), \
+             patch('anthropic.Anthropic') as mock_client:
+            mock_client.return_value.messages.create.return_value = type(
+                'Resp', (), {'stop_reason': 'refusal', 'content': []},
+            )()
+            reply = grocery_routes._ask_chat_assistant('hi', [], '')
+        assert "can't help" in reply.lower()
+
+
 def test_health(client):
     response = client.get('/api/health')
     assert response.status_code == 200
     assert response.get_json() == {'status': 'healthy'}
+
+
+def test_categories_endpoint(client):
+    response = client.get('/api/categories')
+    assert response.status_code == 200
+    body = response.get_json()
+    assert 'categories' in body
+    assert {'name': 'Produce', 'rank': 0} in body['categories']
+
+
+class TestCategoryCatalog:
+    """Unit tests for the real KrogerAPI catalog (no network — classmethods)."""
+
+    def test_seed_has_common_categories(self):
+        from grocery_organizer.src.store_api.kroger import KrogerAPI
+        names = [c['name'] for c in KrogerAPI.category_catalog()]
+        assert 'Spices & Seasonings' in names
+        assert 'Produce' in names and 'Dairy' in names
+
+    def test_food_safe_order_fresh_before_cold(self):
+        from grocery_organizer.src.store_api.kroger import KrogerAPI
+        names = [c['name'] for c in KrogerAPI.category_catalog()]
+        assert names.index('Produce') < names.index('Dairy')
+        assert names.index('Produce') < names.index('Frozen')
+
+    def test_harvest_adds_new_category(self):
+        from grocery_organizer.src.store_api.kroger import KrogerAPI
+        snapshot = set(KrogerAPI._harvested_categories)
+        try:
+            KrogerAPI._harvest_category('Sushi Bar')
+            names = [c['name'] for c in KrogerAPI.category_catalog()]
+            assert 'Sushi Bar' in names
+            # 'Not Found' is never harvested
+            KrogerAPI._harvest_category('Not Found')
+            assert 'Not Found' not in [c['name'] for c in KrogerAPI.category_catalog()]
+        finally:
+            KrogerAPI._harvested_categories = snapshot

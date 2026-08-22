@@ -62,6 +62,23 @@ mobile builds.
 - If `AISLEFINDER_TABLE` is unset, those endpoints return 503 and the app
   quietly behaves as guest/local-only — so nothing breaks before setup.
 
+## Aisle overrides (shopper aisle/category corrections)
+
+`lists_backend.py` also serves `/api/aisle-overrides` (PUT one correction) and
+`/api/aisle-overrides/resolve` (POST, effective placement per trip item). These
+reuse the **same table and IAM policy** — no schema change and **no new GSI** —
+storing extra item types keyed `pk=AISLE#<storeId>#<itemKey>`:
+
+- `sk=USER#<sub>` — one vote per shopper (their correction, synced across their
+  devices and shared with the members of a shared list).
+- `sk=CONSENSUS` — derived; recomputed inline on every vote (no DynamoDB
+  Streams/Lambda). Once `CONSENSUS_MIN_AGREE` shoppers (default 3, in
+  `lists_backend.py`) agree, it's served to everyone at that store, below any
+  personal/household override.
+
+Account deletion does **not** purge a user's vote rows (they keep feeding
+consensus and carry no PII); erasing them would require a `byUser` GSI.
+
 ## Costs
 
 Both services are effectively free at hobby scale: Cognito's free tier covers

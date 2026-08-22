@@ -11,16 +11,20 @@ import CurrentListScreen from './screens/CurrentListScreen';
 import MyListsScreen from './screens/MyListsScreen';
 import HistoryScreen from './screens/HistoryScreen';
 import ShopScreen from './screens/ShopScreen';
+import ChatScreen from './screens/ChatScreen';
 
 const AisleFinder = () => {
   const auth = useAuth();
   const store = useLists(auth.user);
 
-  // screen: 'list' (home) | 'lists' | 'history' | 'shop'
+  // screen: 'list' (home) | 'lists' | 'history' | 'shop' | 'chat'
   const [screen, setScreen] = useState('list');
   // sheet: null | 'account' | 'share' | 'store'
   const [sheet, setSheet] = useState(null);
   const [outputFormat, setOutputFormat] = useState(() => loadState('outputFormat', 'numbered'));
+  // True while the home screen's add-item input is focused; hides the top
+  // bar too so the keyboard doesn't squeeze the list down to a couple of rows
+  const [listComposing, setListComposing] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
   const toastTimer = useRef(null);
 
@@ -623,11 +627,12 @@ const AisleFinder = () => {
         paddingLeft: 'var(--safe-area-inset-left)',
         paddingRight: 'var(--safe-area-inset-right)',
       }}>
-        {screen !== 'shop' && (
+        {screen !== 'shop' && !(screen === 'list' && listComposing) && (
           <TopBar
             user={auth.user}
             onShowHistory={() => setScreen('history')}
             onShowLists={() => setScreen('lists')}
+            onShowChat={() => setScreen('chat')}
             onShowAccount={() => setSheet('account')}
           />
         )}
@@ -644,6 +649,7 @@ const AisleFinder = () => {
             onShowShare={() => setSheet('share')}
             onShowStore={() => setSheet('store')}
             onShop={() => setScreen('shop')}
+            onComposingChange={setListComposing}
             toast={toast}
           />
         )}
@@ -673,6 +679,14 @@ const AisleFinder = () => {
           />
         )}
 
+        {screen === 'chat' && (
+          <ChatScreen
+            currentList={store.currentList}
+            completedLists={store.completedLists}
+            onBack={() => setScreen('list')}
+          />
+        )}
+
         {screen === 'shop' && (
           <ShopScreen
             list={store.currentList}
@@ -684,6 +698,10 @@ const AisleFinder = () => {
             onFinished={() => { setScreen('history'); toast('Trip saved to History'); }}
             onShowStore={() => setSheet('store')}
             toast={toast}
+            aisleOverrides={store.aisleOverrides}
+            setAisleOverride={store.setAisleOverride}
+            clearAisleOverride={store.clearAisleOverride}
+            syncAisleOverrides={store.syncAisleOverrides}
           />
         )}
       </div>

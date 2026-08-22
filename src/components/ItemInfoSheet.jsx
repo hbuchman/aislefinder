@@ -184,6 +184,281 @@ export function getRelevantBuzzwords(itemName, productName) {
   return results;
 }
 
+// ---------------------------------------------------------------------------
+// Produce picking guide: how to choose a good one at the store.
+// patterns detect the item; tips are shown in order, most useful first.
+// ---------------------------------------------------------------------------
+const PRODUCE_GUIDES = [
+  {
+    id: 'watermelon',
+    label: 'watermelon',
+    patterns: [/\bwatermelons?\b/i],
+    tips: [
+      'Pick it up — it should feel heavy for its size; that means more water and better flavor.',
+      'Look for a creamy yellow "field spot" where it sat on the ground. White or no spot means it was picked too early.',
+      'Rind should look dull and matte, not shiny.',
+      'Tap it — a deep, hollow thump means ripe; a flat thud means underripe.',
+    ],
+  },
+  {
+    id: 'avocado',
+    label: 'avocado',
+    patterns: [/\bavocados?\b/i],
+    tips: [
+      'Squeeze gently in your palm, not with fingertips — it should yield slightly with no mushy spots.',
+      'Flick off the small stem at the top: green underneath means ripe, brown/black means overripe, and if it won\'t budge it\'s not ready yet.',
+      'For Hass avocados, darker (near-black) skin usually means riper.',
+      'Skip any with sunken or dented patches — that\'s bruising underneath.',
+    ],
+  },
+  {
+    id: 'pineapple',
+    label: 'pineapple',
+    patterns: [/\bpineapples?\b/i],
+    tips: [
+      'Smell the base — sweet and fragrant means ripe; no smell means underripe; sour or fermented means overripe.',
+      'Try pulling a leaf from the crown — it should come out fairly easily on a ripe one.',
+      'Look for a body that gives slightly to gentle pressure.',
+      'Leaves should be green and fresh, not brown or dried out.',
+    ],
+  },
+  {
+    id: 'cantaloupe',
+    label: 'cantaloupe',
+    patterns: [/\bcantaloupes?\b/i, /\bmuskmelons?\b/i],
+    tips: [
+      'Smell the stem end — a sweet, musky fragrance means it\'s ripe.',
+      'Skin under the netting should be beige or tan, not green.',
+      'Pick it up — it should feel heavy for its size.',
+      'Look for a smooth, rounded scar where the stem was; a jagged scar means it was pulled before it was ready.',
+    ],
+  },
+  {
+    id: 'mango',
+    label: 'mango',
+    patterns: [/\bmangoe?s?\b/i],
+    tips: [
+      'Judge by feel, not color — many varieties stay green even when ripe.',
+      'Squeeze gently, like a peach — it should give slightly.',
+      'Smell the stem end for a sweet, fruity fragrance.',
+      'Wrinkled skin means it\'s overripe.',
+    ],
+  },
+  {
+    id: 'tomato',
+    label: 'tomato',
+    patterns: [/\btomato(?:es)?\b/i],
+    tips: [
+      'Look for deep, even color for the variety and skin without cracks.',
+      'It should smell sweet and earthy at the stem.',
+      'Press gently — ripe means slight give, not mushy or rock hard.',
+      'Heavier than it looks usually means juicier.',
+    ],
+  },
+  {
+    id: 'banana',
+    label: 'banana',
+    patterns: [/\bbananas?\b/i],
+    tips: [
+      'Bright yellow with a few brown speckles means ripe and at peak sweetness.',
+      'All-green bananas are still starchy — fine if you plan to eat them in a few days.',
+      'Avoid bruised or split skin.',
+      'Buy a mix of ripeness if you won\'t eat them all right away.',
+    ],
+  },
+  {
+    id: 'corn',
+    label: 'corn',
+    patterns: [/\bcorn\b/i],
+    tips: [
+      'Husk should be bright green and wrapped tightly, not dry or yellowing.',
+      'Silk should be sticky and golden-brown, not black or brittle.',
+      'Feel through the husk for plump kernels packed all the way to the tip.',
+    ],
+  },
+  {
+    id: 'bell-pepper',
+    label: 'bell pepper',
+    patterns: [/\bbell peppers?\b/i, /\bpeppers?\b/i],
+    tips: [
+      'Skin should be firm and glossy, without wrinkles.',
+      'Heavier for its size usually means thicker walls and more juice.',
+      'Stem should look green and fresh, not dried out.',
+    ],
+  },
+  {
+    id: 'onion',
+    label: 'onion',
+    patterns: [/\bonions?\b/i],
+    tips: [
+      'Should feel firm all over with no soft spots.',
+      'Outer skin should be dry and papery, not damp.',
+      'Skip any that already smell strong before cutting — that can mean it\'s starting to spoil.',
+    ],
+  },
+  {
+    id: 'garlic',
+    label: 'garlic',
+    patterns: [/\bgarlic\b/i],
+    tips: [
+      'Bulb should be firm with tight, dry skin.',
+      'Heavier for its size means plumper cloves.',
+      'Avoid bulbs with soft cloves or green sprouts poking through.',
+    ],
+  },
+  {
+    id: 'potato',
+    label: 'potato',
+    patterns: [/\bpotato(?:es)?\b/i],
+    tips: [
+      'Skin should be firm and smooth, with no soft spots or wrinkling.',
+      'Skip any with a green tinge — that\'s a natural toxin (solanine) from light exposure.',
+      'Avoid ones with sprouting "eyes" or a musty smell.',
+    ],
+  },
+  {
+    id: 'citrus',
+    label: 'lemon or lime',
+    patterns: [/\blemons?\b/i, /\blimes?\b/i],
+    tips: [
+      'Pick it up — heavier for its size means juicier.',
+      'Skin should be smooth and slightly glossy; thinner-skinned fruit gives more juice.',
+      'Should feel firm with just a slight give.',
+    ],
+  },
+  {
+    id: 'strawberries',
+    label: 'strawberries',
+    patterns: [/\bstrawberr(?:y|ies)\b/i],
+    tips: [
+      'Look for fully red color all the way to the cap — they won\'t ripen further after picking.',
+      'Caps should be fresh green, not wilted or brown.',
+      'Skin should be shiny with no mushy or dark wet spots.',
+      'Sweet smell through the container is a good sign.',
+    ],
+  },
+  {
+    id: 'blueberries',
+    label: 'blueberries',
+    patterns: [/\bblueberr(?:y|ies)\b/i],
+    tips: [
+      'A light silvery "bloom" on the skin is natural and a sign of freshness, not dirt.',
+      'Should be firm and plump, not shriveled or leaking.',
+      'Check the bottom of the container for juice pooling — that means some are crushed or overripe.',
+    ],
+  },
+  {
+    id: 'grapes',
+    label: 'grapes',
+    patterns: [/\bgrapes?\b/i],
+    tips: [
+      'Should be firmly attached to green, flexible stems, not dry or brittle ones.',
+      'Look plump, not wrinkled.',
+      'A light dusty "bloom" on the skin is natural and a good sign.',
+      'Give the bunch a gentle shake — lots of grapes falling off means overripe.',
+    ],
+  },
+  {
+    id: 'cucumber',
+    label: 'cucumber',
+    patterns: [/\bcucumbers?\b/i],
+    tips: [
+      'Should be firm from end to end with no soft spots.',
+      'Deep green color is best; avoid puffy or yellowing ones, which can be bitter and seedy.',
+    ],
+  },
+  {
+    id: 'broccoli',
+    label: 'broccoli',
+    patterns: [/\bbroccoli\b/i],
+    tips: [
+      'Buds should be tightly closed and dark green (or purplish) — avoid any with yellow flowers showing.',
+      'Stalk should be firm, not dried out or split.',
+      'Leaves, if attached, should look crisp, not wilted.',
+    ],
+  },
+  {
+    id: 'asparagus',
+    label: 'asparagus',
+    patterns: [/\basparagus\b/i],
+    tips: [
+      'Stalks should be firm and straight, and squeak slightly when rubbed together.',
+      'Tips should be tightly closed and compact, not mushy or flowering.',
+      'Thinner stalks are more tender; thicker ones are meatier.',
+    ],
+  },
+  {
+    id: 'leafy-greens',
+    label: 'lettuce or greens',
+    patterns: [/\blettuce\b/i, /\bromaine\b/i, /\bspinach\b/i, /\bkale\b/i],
+    tips: [
+      'Leaves should be crisp and snap rather than bend.',
+      'Avoid any slimy texture or dark wilted spots.',
+      'For a whole head, the cut end should look fresh, not brown or dried.',
+    ],
+  },
+  {
+    id: 'stone-fruit',
+    label: 'peach or nectarine',
+    patterns: [/\bpeach(?:es)?\b/i, /\bnectarines?\b/i],
+    tips: [
+      'Should smell sweet and fragrant at the stem end.',
+      'Press gently near the stem — ripe fruit gives slightly.',
+      'Background color between the red blush should be gold or cream, not green.',
+    ],
+  },
+  {
+    id: 'orange',
+    label: 'orange',
+    patterns: [/\boranges?\b/i],
+    tips: [
+      'Pick it up — heavier for its size means juicier.',
+      'Skin should be firm and slightly glossy.',
+      'A strong citrus smell at the stem end is a good sign.',
+    ],
+  },
+];
+
+// Single best match by item/product name — one guide per item, unlike buzzwords.
+export function getProduceGuide(itemName, productName) {
+  if (!itemName) return null;
+  const haystack = [itemName, productName].filter(Boolean).join(' ');
+  return PRODUCE_GUIDES.find(({ patterns }) => patterns.some((rx) => rx.test(haystack))) || null;
+}
+
+const PicksGuide = ({ guide }) => (
+  <div style={{
+    marginTop: '14px',
+    padding: '13px 14px 12px',
+    background: 'var(--af-highlight-bg)',
+    border: '1px solid var(--af-highlight-border)',
+    borderRadius: '10px',
+    textAlign: 'left',
+  }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '9px' }}>
+      <i className="fa-solid fa-seedling" style={{ color: 'var(--af-green)', fontSize: '13px' }} />
+      <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.4px', color: 'var(--af-green-dark)', textTransform: 'uppercase' }}>
+        How to pick a good {guide.label}
+      </span>
+    </div>
+    <ul style={{ margin: 0, paddingLeft: '18px' }}>
+      {guide.tips.map((tip, i) => (
+        <li
+          key={i}
+          style={{
+            fontSize: '12px',
+            lineHeight: 1.5,
+            color: 'var(--af-text-muted)',
+            marginBottom: i === guide.tips.length - 1 ? 0 : '6px',
+          }}
+        >
+          {tip}
+        </li>
+      ))}
+    </ul>
+  </div>
+);
+
 const TYPE_META = {
   certification: {
     label: 'Certification',
@@ -430,7 +705,7 @@ const AisleDiagram = ({ location }) => {
 
 // Centered popup (not a bottom sheet) showing product photo, full name/brand/size,
 // and an in-aisle shelf×bay grid. Opened from the info icon in shop mode.
-const ItemInfoSheet = ({ item, store, onClose }) => {
+const ItemInfoSheet = ({ item, store, onClose, onChangeAisle }) => {
   const [state, setState] = useState({ status: 'idle' });
   const [resultIndex, setResultIndex] = useState(0);
   const cache = useRef({});
@@ -464,6 +739,7 @@ const ItemInfoSheet = ({ item, store, onClose }) => {
   const subtitle = details
     && [details.brand, details.size, details.category].filter(Boolean).join(' · ');
   const buzzwords = getRelevantBuzzwords(item, details && details.name);
+  const produceGuide = getProduceGuide(item, details && details.name);
 
   return (
     <div
@@ -512,8 +788,6 @@ const ItemInfoSheet = ({ item, store, onClose }) => {
         </button>
 
         <div style={{ textAlign: 'center', minHeight: '120px', paddingRight: '20px' }}>
-          {buzzwords.length > 0 && <LabelDecoder words={buzzwords} />}
-
           {state.status === 'loading' && (
             <div style={{ padding: '30px 0', color: 'var(--af-text-muted)', fontSize: '13px' }}>
               <div className="loading-icon-0" style={{ fontSize: '22px', color: 'var(--af-green)', marginBottom: '10px' }}>
@@ -545,7 +819,6 @@ const ItemInfoSheet = ({ item, store, onClose }) => {
                   padding: '12px',
                   display: 'inline-block',
                   marginBottom: '14px',
-                  marginTop: buzzwords.length > 0 ? '14px' : '0',
                 }}>
                   <img
                     src={details.image}
@@ -574,6 +847,9 @@ const ItemInfoSheet = ({ item, store, onClose }) => {
                 </div>
               )}
 
+              {buzzwords.length > 0 && <LabelDecoder words={buzzwords} />}
+              {produceGuide && <PicksGuide guide={produceGuide} />}
+
               {results.length > 1 && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px', marginTop: '14px' }}>
                   <button
@@ -596,6 +872,28 @@ const ItemInfoSheet = ({ item, store, onClose }) => {
                 </div>
               )}
             </>
+          )}
+
+          {onChangeAisle && state.status !== 'loading' && (
+            <button
+              onClick={() => onChangeAisle(item)}
+              style={{
+                marginTop: '18px',
+                width: '100%',
+                border: '1px solid var(--af-border)',
+                background: 'var(--af-inset-bg)',
+                color: 'var(--af-green)',
+                fontFamily: 'inherit',
+                fontSize: '13px',
+                fontWeight: 700,
+                padding: '11px',
+                borderRadius: '10px',
+                cursor: 'pointer',
+              }}
+            >
+              <i className="fa-solid fa-arrows-turn-right" style={{ marginRight: '8px' }} />
+              Change aisle
+            </button>
           )}
         </div>
       </div>

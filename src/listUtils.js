@@ -54,6 +54,117 @@ export const applyCustomOrder = (groups, customCategoryOrder) => {
   });
 };
 
+// Food-safe section ordering, mirroring the backend OutputFormatter's
+// _FIRST_SECTIONS/_LAST_SECTIONS exactly (grocery_organizer/src/output_formatting/
+// output_formatter.py) so a client-created group (from an aisle/category
+// override) lands in the same slot the server would have chosen. Buckets:
+// fresh departments, generic named categories, numbered aisles, cold
+// sections, then Not Found last.
+const FIRST_SECTIONS = { produce: 0, bakery: 1, deli: 2, 'meat & seafood': 3, 'meat and seafood': 3 };
+const LAST_SECTIONS = { dairy: 0, 'dairy products': 0, milk: 0, breakfast: 0, frozen: 1, 'frozen foods': 1, 'frozen section': 1 };
+
+export const sectionSortKey = (name) => {
+  if (name === 'Not Found') return [4, 0, name];
+  const placement = placementFromGroupName(name);
+  if (placement && placement.kind === 'aisle') return [2, placement.value, ''];
+  const lower = name.toLowerCase();
+  if (lower in FIRST_SECTIONS) return [0, FIRST_SECTIONS[lower], name];
+  if (lower in LAST_SECTIONS) return [3, LAST_SECTIONS[lower], name];
+  return [1, 0, name];
+};
+
+const compareSectionKeys = (a, b) => {
+  for (let i = 0; i < 3; i += 1) {
+    if (a[i] < b[i]) return -1;
+    if (a[i] > b[i]) return 1;
+  }
+  return 0;
+};
+
+// The group header a placement belongs under. A placement is one of
+// { kind: 'aisle', value: <number> } | { kind: 'category', value: <string> } |
+// { kind: 'none' } (the shopper marked it not sold here → back to Not Found).
+export const overrideGroupName = (placement) => {
+  if (!placement) return null;
+  if (placement.kind === 'aisle') return `Aisle ${placement.value}`;
+  if (placement.kind === 'category') return placement.value;
+  if (placement.kind === 'none') return 'Not Found';
+  return null;
+};
+
+// The inverse of overrideGroupName: parses a group header back into the
+// placement it represents ("Aisle 9" → aisle mode at 9; anything else → that
+// category), or null for "Not Found"/empty. Shared so the "Aisle N" pattern
+// only needs to be recognized in one place.
+export const placementFromGroupName = (name) => {
+  if (!name || name === 'Not Found') return null;
+  const m = /^Aisle (\d+)$/.exec(name);
+  if (m) return { kind: 'aisle', value: parseInt(m[1], 10) };
+  return { kind: 'category', value: name };
+};
+
+// Normalizes an item name into the key overrides/checked-state maps use.
+export const itemKey = (name) => (name || '').trim().toLowerCase();
+
+// Re-applies a store's saved aisle/category overrides on top of the parsed
+// groups, so a shopper's correction survives the backend re-organizing the
+// list (which overwrites `organized`). Pure. `overrides` maps a lowercased
+// item name to a placement (see overrideGroupName). Only items actually on the
+// list are moved; empty groups are dropped and the result is re-sorted into
+// food-safe order.
+export const applyAisleOverrides = (groups, overrides) => {
+  if (!overrides || Object.keys(overrides).length === 0) return groups;
+  const working = groups.map((g) => ({ name: g.name, items: [...g.items] }));
+
+  // Pull every overridden item out of wherever the backend placed it.
+  const pulled = {}; // lowercased name -> original display string
+  working.forEach((g) => {
+    g.items = g.items.filter((item) => {
+      const key = itemKey(item);
+      if (key in overrides) { pulled[key] = item; return false; }
+      return true;
+    });
+  });
+
+  // Drop each into its overridden group, creating the group if needed.
+  const byName = {};
+  working.forEach((g) => { byName[g.name] = g; });
+  Object.entries(pulled).forEach(([key, display]) => {
+    const target = overrideGroupName(overrides[key]);
+    if (!target) return; // malformed override — leave the item off, don't crash
+    if (!byName[target]) {
+      byName[target] = { name: target, items: [] };
+      working.push(byName[target]);
+    }
+    byName[target].items.push(display);
+  });
+
+  return working
+    .filter((g) => g.items.length > 0)
+    .sort((a, b) => compareSectionKeys(sectionSortKey(a.name), sectionSortKey(b.name)));
+};
+
+// Turns typed or pasted list text into individual item names. Supports
+// comma- and newline-separated entries, and strips common list formatting
+// (checkboxes, bullets, numbering, brackets) so a pasted list drops in clean.
+export const parseListItems = (text) => {
+  if (!text) return [];
+  const items = [];
+  for (const line of text.split('\n')) {
+    for (const part of line.split(',')) {
+      const cleaned = part
+        .trim()
+        .replace(/^[-*+]\s*\[[xX\s]*\]\s*/, '')
+        .replace(/^[-*+•]\s*/, '')
+        .replace(/^\d+[.)]\s*/, '')
+        .replace(/[()[\]{}]/g, '')
+        .trim();
+      if (cleaned) items.push(cleaned);
+    }
+  }
+  return items;
+};
+
 // Fingerprint of a list's items so we know when the organized markdown is stale
 export const itemsHash = (items) => items.map((it) => it.name).sort().join('|');
 

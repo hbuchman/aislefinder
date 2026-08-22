@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0d1420" media="(prefers-color-scheme: dark)">
+  <meta name="description" content="AisleFinder sorts your grocery list by store aisle — start at produce, end at frozen, no backtracking.">
+  <link rel="icon" href="logo.svg" type="image/svg+xml">
+  <title>About — AisleFinder</title>
+  <style>
+    /* Palette mirrors the app's Ocean Fresh — Amber Nav scheme (AisleFinder.jsx :root) */
+    :root {
+      --bg: #ffffff;
+      --inset: #eff5fb;
+      --surface: #e4edf6;
+      --border: #d9e7f2;
+      --ink: #1c2a3a;
+      --muted: #5f7183;
+      --navy: #1f5fa0;
+      --amber: #ffb52e;
+      --amber-text: #8a5f0e;
+      --shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      --shadow-lg: 0 10px 30px rgba(21, 63, 110, 0.12);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0d1420;
+        --inset: #141f2e;
+        --surface: #1a2636;
+        --border: #28405c;
+        --ink: #e1e7ee;
+        --muted: #8fa0b3;
+        --navy: #3f7fc4;
+        --amber: #d99a2b;
+        --amber-text: #d99a2b;
+        --shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.45);
+      }
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Arial, Helvetica, sans-serif;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrap { max-width: 1000px; margin: 0 auto; padding: 0 24px 96px; }
+
+    .eyebrow {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--amber-text);
+      margin: 0 0 10px;
+    }
+
+    /* ---------- Hero ---------- */
+    .hero { padding: 88px 0 64px; text-align: center; }
+    .hero .logo-row {
+      display: inline-flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+    .hero .logo-tile {
+      width: 56px; height: 56px;
+      border-radius: 14px;
+      background: var(--inset);
+      border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .hero .wordmark { font-size: 24px; font-weight: 700; letter-spacing: -0.01em; }
+    h1 {
+      font-size: clamp(34px, 5.5vw, 54px);
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      line-height: 1.08;
+      margin: 0 auto 20px;
+      max-width: 15ch;
+      text-wrap: balance;
+    }
+    h1 .route-word {
+      position: relative;
+      white-space: nowrap;
+    }
+    h1 .route-word svg {
+      position: absolute;
+      left: 0; right: 0; bottom: -0.28em;
+      width: 100%; height: 0.32em;
+    }
+    .hero .sub {
+      font-size: 17px;
+      color: var(--muted);
+      max-width: 44ch;
+      margin: 0 auto;
+      text-wrap: balance;
+    }
+    .hero .plats {
+      display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;
+      margin-top: 28px;
+    }
+    .plats span {
+      font-size: 12px; font-weight: 600;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      background: var(--inset);
+      border-radius: 999px;
+      padding: 5px 12px;
+    }
+
+    /* ---------- Route timeline ---------- */
+    .route { position: relative; padding: 24px 0 8px; }
+    .route::before {
+      content: "";
+      position: absolute;
+      left: 19px; top: 0; bottom: 0;
+      border-left: 3px dashed var(--amber);
+      opacity: 0.85;
+    }
+    .stop {
+      position: relative;
+      display: grid;
+      grid-template-columns: 56px minmax(0, 1fr) minmax(0, 300px);
+      gap: 0 48px;
+      align-items: center;
+      padding: 56px 0;
+    }
+    .stop.flip { grid-template-columns: 56px minmax(0, 300px) minmax(0, 1fr); }
+    .stop.flip .copy { order: 3; }
+    .stop.flip .device { order: 2; }
+    .stop .marker {
+      grid-column: 1;
+      align-self: start;
+      position: relative;
+      z-index: 1;
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      background: var(--bg);
+      border: 3px solid var(--amber);
+      display: flex; align-items: center; justify-content: center;
+      margin-top: 4px;
+    }
+    .marker svg { width: 18px; height: 18px; }
+    .copy h2 {
+      font-size: clamp(24px, 3vw, 32px);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      margin: 0 0 14px;
+      text-wrap: balance;
+    }
+    .copy ul { list-style: none; margin: 0; padding: 0; }
+    .copy li {
+      position: relative;
+      padding: 5px 0 5px 16px;
+      font-size: 15.5px;
+      color: var(--muted);
+    }
+    .copy li::before {
+      content: "";
+      position: absolute;
+      left: 0; top: 0.85em;
+      width: 6px; height: 6px;
+      border-radius: 2px;
+      background: var(--navy);
+    }
+    .copy li strong { color: var(--ink); font-weight: 600; }
+
+    /* ---------- Phone mockups ---------- */
+    .device { display: flex; justify-content: center; }
+    .phone {
+      width: 258px;
+      border-radius: 38px;
+      border: 1px solid var(--border);
+      background: var(--inset);
+      padding: 9px;
+      box-shadow: var(--shadow-lg);
+      flex-shrink: 0;
+    }
+    .screen {
+      border-radius: 30px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      overflow: hidden;
+      height: 508px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+    .p-top {
+      display: flex; align-items: center; gap: 7px;
+      padding: 16px 14px 10px;
+    }
+    .p-top .p-title { font-weight: 700; font-size: 13px; }
+    .p-top .p-store {
+      margin-left: auto;
+      font-size: 8.5px; font-weight: 600;
+      color: var(--navy);
+      border: 1px solid var(--border);
+      background: var(--inset);
+      border-radius: 999px;
+      padding: 3px 8px;
+      display: flex; align-items: center; gap: 4px;
+    }
+    .p-body { padding: 4px 14px 14px; flex: 1; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+
+    .p-input {
+      display: flex; align-items: center; gap: 8px;
+      border: 1px solid var(--border);
+      background: var(--inset);
+      border-radius: 10px;
+      padding: 9px 11px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .p-input .cam { margin-left: auto; color: var(--navy); display: flex; }
+
+    .p-row {
+      display: flex; align-items: center; gap: 9px;
+      padding: 8px 2px;
+      font-size: 11.5px;
+      border-bottom: 1px solid var(--border);
+    }
+    .p-row:last-of-type { border-bottom: none; }
+    .p-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--navy); opacity: 0.5; flex-shrink: 0; }
+
+    .p-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: auto; }
+    .p-chips span {
+      font-size: 9px; font-weight: 600;
+      color: var(--muted);
+      border: 1px dashed var(--border);
+      border-radius: 999px;
+      padding: 4px 9px;
+    }
+    .p-toggle {
+      display: inline-flex;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 2px;
+      align-self: flex-start;
+    }
+    .p-toggle span { font-size: 9px; font-weight: 700; padding: 4px 11px; border-radius: 999px; color: var(--muted); }
+    .p-toggle .on { background: var(--navy); color: #fff; }
+    .p-cta {
+      background: var(--navy);
+      color: #fff;
+      text-align: center;
+      font-size: 12px; font-weight: 700;
+      border-radius: 10px;
+      padding: 11px;
+    }
+
+    .p-group {
+      border-radius: 8px;
+      background: var(--surface);
+      padding: 8px 10px;
+      display: flex; align-items: center; gap: 7px;
+      font-size: 10.5px; font-weight: 700;
+    }
+    .p-group.done { background: var(--navy); color: #fff; }
+    .p-group .grip { display: flex; flex-direction: column; gap: 2px; opacity: 0.55; }
+    .p-group .grip i { display: block; width: 3px; height: 3px; border-radius: 50%; background: currentColor; }
+    .p-group .count { margin-left: auto; font-weight: 400; font-size: 9px; opacity: 0.75; }
+    .p-check {
+      width: 15px; height: 15px;
+      border-radius: 4px;
+      border: 2px solid var(--muted);
+      background: var(--inset);
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .p-check.on { background: var(--navy); border-color: var(--navy); }
+    .p-group.done .p-check { border-color: rgba(255,255,255,0.6); background: rgba(255,255,255,0.25); }
+    .p-item {
+      display: flex; align-items: center; gap: 9px;
+      padding: 7px 4px 7px 14px;
+      font-size: 11px;
+    }
+    .p-item.on { color: var(--muted); text-decoration: line-through; }
+    .p-item .info { margin-left: auto; color: var(--muted); display: flex; }
+
+    .p-backdrop {
+      position: absolute; inset: 0;
+      background: rgba(0,0,0,0.32);
+      border-radius: 30px;
+    }
+    .p-sheet {
+      position: absolute; left: 0; right: 0; bottom: 0;
+      background: var(--bg);
+      border-top: 1px solid var(--border);
+      border-radius: 20px 20px 30px 30px;
+      padding: 16px 16px 20px;
+    }
+    .p-sheet .handle { width: 34px; height: 4px; border-radius: 2px; background: var(--border); margin: 0 auto 12px; }
+    .p-sheet .name { font-size: 13.5px; font-weight: 700; margin-bottom: 3px; }
+    .p-sheet .loc {
+      display: flex; align-items: center; gap: 5px;
+      color: var(--navy); font-size: 10.5px; font-weight: 700;
+      margin-bottom: 10px;
+    }
+    .p-sheet .price { font-size: 11px; color: var(--muted); margin-bottom: 10px; }
+    .p-sheet .tags { display: flex; gap: 5px; flex-wrap: wrap; }
+    .p-sheet .tags span {
+      font-size: 8.5px; font-weight: 600;
+      color: var(--amber-text);
+      background: color-mix(in srgb, var(--amber) 14%, transparent);
+      border: 1px solid color-mix(in srgb, var(--amber) 32%, transparent);
+      border-radius: 999px;
+      padding: 3px 8px;
+    }
+
+    .p-summary {
+      flex: 1;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      text-align: center;
+      padding: 20px;
+      gap: 4px;
+    }
+    .p-summary .ring {
+      width: 52px; height: 52px; border-radius: 50%;
+      background: var(--navy);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 0 9px color-mix(in srgb, var(--navy) 15%, transparent);
+      margin-bottom: 16px;
+    }
+    .p-summary .big { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; font-variant-numeric: tabular-nums; }
+    .p-summary .cap { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+    .p-summary .found { font-size: 12px; color: var(--muted); margin-top: 10px; }
+    .p-summary .hardest {
+      margin-top: 16px;
+      border: 1px solid var(--border);
+      background: var(--inset);
+      border-radius: 10px;
+      padding: 9px 13px;
+      font-size: 10px; color: var(--muted);
+    }
+    .p-summary .hardest strong { display: block; color: var(--ink); font-size: 11px; }
+
+    /* ---------- Everywhere strip ---------- */
+    .strip {
+      margin: 72px 0;
+      border: 1px solid var(--border);
+      background: var(--inset);
+      border-radius: 18px;
+      padding: 36px 32px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 28px;
+    }
+    .strip h3 { font-size: 15px; margin: 0 0 6px; display: flex; align-items: center; gap: 8px; }
+    .strip h3 svg { width: 15px; height: 15px; color: var(--navy); flex-shrink: 0; }
+    .strip p { margin: 0; font-size: 13.5px; color: var(--muted); }
+
+    /* ---------- App Store block ---------- */
+    .store-block { margin-top: 24px; }
+    .store-block > p.lede { color: var(--muted); font-size: 15px; max-width: 60ch; margin: 0 0 28px; }
+    .store-card {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+    .store-field { padding: 20px 26px; border-bottom: 1px solid var(--border); }
+    .store-field:last-child { border-bottom: none; }
+    .store-field .label {
+      display: flex; align-items: baseline; gap: 10px;
+      margin-bottom: 8px;
+    }
+    .store-field .label b {
+      font-size: 11px; font-weight: 700;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--ink);
+    }
+    .store-field .label span { font-size: 11px; color: var(--muted); }
+    .store-field .value { font-size: 14.5px; }
+    .store-field .value.desc { white-space: pre-line; color: var(--ink); max-width: 62ch; }
+    .store-field .value .shout { font-weight: 700; letter-spacing: 0.08em; font-size: 12.5px; }
+
+    .footnote {
+      margin-top: 40px;
+      font-size: 12.5px;
+      color: var(--muted);
+      text-align: center;
+    }
+    .footnote a { color: var(--navy); }
+
+    @media (max-width: 780px) {
+      .route::before { display: none; }
+      .stop, .stop.flip { grid-template-columns: 1fr; gap: 28px; padding: 44px 0; }
+      .stop .marker { display: none; }
+      .stop.flip .copy { order: 1; }
+      .stop.flip .device { order: 2; }
+      .strip { grid-template-columns: 1fr; }
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .phone { transition: transform 0.25s ease; }
+      .phone:hover { transform: translateY(-4px); }
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ============ HERO ============ -->
+  <header class="hero">
+    <div class="logo-row">
+      <div class="logo-tile">
+        <svg width="34" height="34" viewBox="0 0 64 64" role="img" aria-label="AisleFinder logo">
+          <rect x="8" y="14" width="7" height="40" rx="3.5" fill="var(--navy)"/>
+          <rect x="21" y="14" width="7" height="40" rx="3.5" fill="var(--navy)" opacity="0.55"/>
+          <rect x="34" y="14" width="7" height="40" rx="3.5" fill="var(--navy)"/>
+          <rect x="47" y="14" width="7" height="40" rx="3.5" fill="var(--navy)" opacity="0.55"/>
+          <path d="M6 58 C13 46 19 50 24 39 C29 28 35 32 40 21" fill="none" stroke="var(--amber)" stroke-width="2.4" stroke-dasharray="2 5.4" stroke-linecap="round"/>
+          <path d="M44 7 c3.7 0 5.9 2.7 5.9 5.6 C49.9 17.4 44 22.3 44 22.3 S38.1 17.4 38.1 12.6 C38.1 9.7 40.3 7 44 7 Z" fill="var(--amber)"/>
+          <circle cx="44" cy="12.5" r="2" fill="var(--inset)"/>
+        </svg>
+      </div>
+      <div class="wordmark">AisleFinder</div>
+    </div>
+    <h1>Your grocery list, in <span class="route-word">walking&nbsp;order<svg viewBox="0 0 200 14" preserveAspectRatio="none" aria-hidden="true"><path d="M4 10 C40 2 80 12 120 6 C150 2 180 8 196 5" fill="none" stroke="var(--amber)" stroke-width="3.4" stroke-dasharray="3 9" stroke-linecap="round"/></svg></span>.</h1>
+    <p class="sub">Type your list. Pick your store. AisleFinder sorts it by aisle — start at produce, end at frozen, no backtracking.</p>
+    <div class="plats"><span>iPhone</span><span>Android</span><span>Web</span></div>
+  </header>
+
+  <!-- ============ ROUTE ============ -->
+  <div class="route">
+
+    <!-- Stop 1: Build -->
+    <section class="stop">
+      <div class="marker" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber-text)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+      </div>
+      <div class="copy">
+        <p class="eyebrow">Build</p>
+        <h2>Start with a list. Any list.</h2>
+        <ul>
+          <li><strong>Type items in.</strong> Commas add several at once.</li>
+          <li><strong>Snap a photo</strong> of the paper list on your fridge.</li>
+          <li><strong>Frequent items</strong> are one tap away.</li>
+        </ul>
+      </div>
+      <div class="device">
+        <div class="phone"><div class="screen">
+          <div class="p-top">
+            <svg width="16" height="16" viewBox="0 0 64 64" aria-hidden="true"><rect x="8" y="14" width="7" height="40" rx="3.5" fill="var(--navy)"/><rect x="21" y="14" width="7" height="40" rx="3.5" fill="var(--navy)" opacity="0.55"/><rect x="34" y="14" width="7" height="40" rx="3.5" fill="var(--navy)"/><rect x="47" y="14" width="7" height="40" rx="3.5" fill="var(--navy)" opacity="0.55"/><path d="M44 7 c3.7 0 5.9 2.7 5.9 5.6 C49.9 17.4 44 22.3 44 22.3 S38.1 17.4 38.1 12.6 C38.1 9.7 40.3 7 44 7 Z" fill="var(--amber)"/></svg>
+            <span class="p-title">Weekly shop</span>
+            <span class="p-store">
+              <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5Z"/></svg>
+              4500S Smiths
+            </span>
+          </div>
+          <div class="p-body">
+            <div class="p-input">Add an item…
+              <span class="cam"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9 3 7.5 5H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.5L15 3H9Zm3 5.5A4.5 4.5 0 1 1 7.5 13 4.5 4.5 0 0 1 12 8.5Zm0 2A2.5 2.5 0 1 0 14.5 13 2.5 2.5 0 0 0 12 10.5Z"/></svg></span>
+            </div>
+            <div>
+              <div class="p-row"><span class="p-dot"></span>Bananas</div>
+              <div class="p-row"><span class="p-dot"></span>Whole milk</div>
+              <div class="p-row"><span class="p-dot"></span>Sourdough bread</div>
+              <div class="p-row"><span class="p-dot"></span>Chicken thighs</div>
+              <div class="p-row"><span class="p-dot"></span>Frozen peas</div>
+              <div class="p-row"><span class="p-dot"></span>Capers</div>
+            </div>
+            <div class="p-chips"><span>+ eggs</span><span>+ coffee</span><span>+ spinach</span></div>
+            <div class="p-toggle"><span class="on">Aisle</span><span>Category</span></div>
+            <div class="p-cta">Shop</div>
+          </div>
+        </div></div>
+      </div>
+    </section>
+
+    <!-- Stop 2: Shop mode -->
+    <section class="stop flip">
+      <div class="marker" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber-text)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.6"/><circle cx="18" cy="20" r="1.6"/><path d="M2 3h3l2.8 12.5a1.5 1.5 0 0 0 1.5 1.2h8.9a1.5 1.5 0 0 0 1.5-1.2L21.5 8H6"/></svg>
+      </div>
+      <div class="device">
+        <div class="phone"><div class="screen">
+          <div class="p-top"><span class="p-title">Shopping mode</span><span class="p-store">7 of 12</span></div>
+          <div class="p-body">
+            <div class="p-group done">
+              <span class="grip"><i></i><i></i><i></i></span>
+              <span class="p-check"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5 10 18 20 6"/></svg></span>
+              Produce <span class="count">3/3</span>
+            </div>
+            <div class="p-group done">
+              <span class="grip"><i></i><i></i><i></i></span>
+              <span class="p-check"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5 10 18 20 6"/></svg></span>
+              Aisle 2 · Bakery <span class="count">2/2</span>
+            </div>
+            <div class="p-group">
+              <span class="grip"><i></i><i></i><i></i></span>
+              <span class="p-check"></span>
+              Aisle 9 <span class="count">1/3</span>
+            </div>
+            <div>
+              <div class="p-item on"><span class="p-check on"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5 10 18 20 6"/></svg></span>Olive oil</div>
+              <div class="p-item"><span class="p-check"></span>Capers
+                <span class="info"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm0 4.6a1.4 1.4 0 1 1-1.4 1.4A1.4 1.4 0 0 1 12 6.6ZM14 17h-4v-1.6h1.2v-3.8H10V10h3.2v5.4H14Z"/></svg></span>
+              </div>
+              <div class="p-item"><span class="p-check"></span>Pasta sauce</div>
+            </div>
+            <div class="p-group">
+              <span class="grip"><i></i><i></i><i></i></span>
+              <span class="p-check"></span>
+              Aisle 12 · Dairy <span class="count">1/2</span>
+            </div>
+            <div class="p-group">
+              <span class="grip"><i></i><i></i><i></i></span>
+              <span class="p-check"></span>
+              Frozen <span class="count">0/2</span>
+            </div>
+          </div>
+        </div></div>
+      </div>
+      <div class="copy">
+        <p class="eyebrow">Shopping mode</p>
+        <h2>A checklist that walks the store with you.</h2>
+        <ul>
+          <li><strong>Check items off</strong> as you go.</li>
+          <li><strong>Finished aisles collapse.</strong> Only what's left stays open.</li>
+          <li><strong>Drag aisles</strong> to match your own path.</li>
+          <li><strong>Forgot something?</strong> Look up its aisle mid-trip.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Stop 3: Info mode -->
+    <section class="stop">
+      <div class="marker" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill="var(--amber-text)" d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm0 4.2a1.5 1.5 0 1 1-1.5 1.5A1.5 1.5 0 0 1 12 6.2ZM14.2 17.5H9.8v-1.8h1.3v-4h-1.3V9.9h3.5v5.8h1.4Z"/></svg>
+      </div>
+      <div class="copy">
+        <p class="eyebrow">Info mode</p>
+        <h2>Tap any item for the details.</h2>
+        <ul>
+          <li><strong>Exact location</strong> — aisle and section.</li>
+          <li><strong>The matched product</strong> and its price.</li>
+          <li><strong>Label info</strong> at a glance.</li>
+        </ul>
+      </div>
+      <div class="device">
+        <div class="phone"><div class="screen">
+          <div class="p-top"><span class="p-title">Shopping mode</span><span class="p-store">7 of 12</span></div>
+          <div class="p-body">
+            <div class="p-group"><span class="grip"><i></i><i></i><i></i></span><span class="p-check"></span>Aisle 12 · Dairy <span class="count">1/2</span></div>
+            <div>
+              <div class="p-item on"><span class="p-check on"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5 10 18 20 6"/></svg></span>Greek yogurt</div>
+              <div class="p-item"><span class="p-check"></span>Whole milk</div>
+            </div>
+          </div>
+          <div class="p-backdrop"></div>
+          <div class="p-sheet">
+            <div class="handle"></div>
+            <div class="name">Kroger Vitamin D Whole Milk</div>
+            <div class="loc">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5Z"/></svg>
+              Aisle 12 · Dairy case
+            </div>
+            <div class="price">1 gal · $3.49</div>
+            <div class="tags"><span>Vitamin D</span><span>Grade A</span><span>Pasteurized</span></div>
+          </div>
+        </div></div>
+      </div>
+    </section>
+
+    <!-- Stop 4: Summary -->
+    <section class="stop flip">
+      <div class="marker" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber-text)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5 10 18 20 6"/></svg>
+      </div>
+      <div class="device">
+        <div class="phone"><div class="screen">
+          <div class="p-summary">
+            <div class="ring"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5 10 18 20 6"/></svg></div>
+            <div class="big">23 min</div>
+            <div class="cap">Trip time</div>
+            <div class="found">12 of 12 items found</div>
+            <div class="hardest">Hardest to find<strong>Capers · Aisle 9 · 4 min</strong></div>
+          </div>
+        </div></div>
+      </div>
+      <div class="copy">
+        <p class="eyebrow">Done</p>
+        <h2>Finish with a summary.</h2>
+        <ul>
+          <li><strong>Trip time</strong>, front and center.</li>
+          <li><strong>Every item</strong> accounted for.</li>
+          <li><strong>The one that hid from you</strong>, called out.</li>
+        </ul>
+      </div>
+    </section>
+  </div>
+
+  <!-- ============ EVERYWHERE STRIP ============ -->
+  <section class="strip">
+    <div>
+      <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2Z"/><path d="M11 18h2"/></svg>Synced everywhere</h3>
+      <p>Sign in once. Your lists follow you across phone, tablet, and web.</p>
+    </div>
+    <div>
+      <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="12" r="3"/><circle cx="18" cy="5" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.7 10.6 6.6-4.2M8.7 13.4l6.6 4.2"/></svg>Shared with a code</h3>
+      <p>One code shares a list with the whole household. Everyone stays up to date.</p>
+    </div>
+    <div>
+      <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2 4 6v6c0 5 3.4 8.6 8 10 4.6-1.4 8-5 8-10V6Z"/><path d="m9 12 2 2 4-4.5"/></svg>Private by design</h3>
+      <p>No ads. No tracking. Your lists stay yours.</p>
+    </div>
+  </section>
+
+  <!-- ============ APP STORE COPY ============ -->
+  <section class="store-block">
+    <p class="eyebrow">App Store listing</p>
+    <p class="lede">The same copy, cut to App Store fields — ready to paste into App Store Connect and the Play Console.</p>
+    <div class="store-card">
+      <div class="store-field">
+        <div class="label"><b>Name</b><span>30 char limit</span></div>
+        <div class="value">AisleFinder</div>
+      </div>
+      <div class="store-field">
+        <div class="label"><b>Subtitle</b><span>30 char limit</span></div>
+        <div class="value">Grocery lists, in aisle order</div>
+      </div>
+      <div class="store-field">
+        <div class="label"><b>Promotional text</b><span>170 char limit</span></div>
+        <div class="value">Your grocery list, sorted by aisle for your store. Snap a photo of a paper list, tap Shop, and walk the store once — no backtracking.</div>
+      </div>
+      <div class="store-field">
+        <div class="label"><b>Description</b><span>4000 char limit</span></div>
+        <div class="value desc">Your grocery list, in walking order.
+
+Type your items or snap a photo of a paper list. Pick your store. Tap Shop. AisleFinder sorts everything by aisle, so you start at produce, end at frozen, and never backtrack.
+
+<span class="shout">BUILD</span>
+• Type items in — commas add several at once
+• Snap a photo of a handwritten list
+• Frequent items are one tap away
+
+<span class="shout">ORGANIZE</span>
+• Real aisle numbers from your store
+• Or sort by category — fresh first, frozen last
+
+<span class="shout">SHOP</span>
+• Check items off as you go
+• Finished aisles collapse out of the way
+• Drag aisles to match your own path
+• Look up any item's aisle mid-trip
+• Tap an item for its exact location and price
+
+<span class="shout">AFTER</span>
+• A short trip summary: time, items found, and the one that hid from you
+• Lists sync across devices with a free account
+• Share a list with a code — the whole household stays up to date
+
+Aisle locations are available at Kroger-family stores (Kroger, Smith's, Fred Meyer, Ralphs, and more). Everywhere else, category sorting keeps your list in shopping order.
+
+No ads. No tracking. Your lists stay yours.</div>
+      </div>
+      <div class="store-field">
+        <div class="label"><b>Keywords</b><span>100 char limit</span></div>
+        <div class="value">grocery,list,aisle,shopping,checklist,store,supermarket,kroger,organizer,share</div>
+      </div>
+    </div>
+    <p class="footnote"><a href="privacy.html">Privacy policy</a></p>
+  </section>
+
+</div>
+</body>
+</html>

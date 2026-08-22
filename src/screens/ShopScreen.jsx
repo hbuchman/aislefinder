@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import confetti from 'canvas-confetti';
-import { processGroceryList, findItemAisle } from '../api';
+import { processGroceryList, findItemAisle, fetchCategories } from '../api';
 import { newItem } from '../listsStore';
 import ItemInfoSheet from '../components/ItemInfoSheet';
+import AisleSheet from '../components/AisleSheet';
 import FormatToggle from '../components/FormatToggle';
 import ShopSummary from './ShopSummary';
 import {
@@ -11,14 +12,28 @@ import {
   buildMarkdownFromGroups,
   formatGroceryListForCopy,
   applyCustomOrder,
+  applyAisleOverrides,
+  overrideGroupName,
+  placementFromGroupName,
+  itemKey,
   itemsHash,
   resolveOrganizeFormat,
 } from '../listUtils';
 
+// Badge shown next to an item with an aisle/category correction, describing
+// who set it. Returns [label, tooltip] or null if the item has no override.
+const overrideBadge = (ov) => {
+  if (!ov) return null;
+  if (ov.source === 'community') return [ov.agree ? `${ov.agree} shoppers` : 'community', 'Set by other shoppers at this store'];
+  if (ov.source === 'household') return ['shared', 'Set by someone on this list'];
+  return ['edited', 'You set this aisle'];
+};
+
 // One draggable aisle/category group with its collapsible item checklist
-const ShopGroup = ({ group, index, collapsed, checkedItems, onToggleCollapse, onToggleGroup, onToggleItem, onShowItemInfo }) => {
+const ShopGroup = ({ group, index, collapsed, checkedItems, overrides = {}, onToggleCollapse, onToggleGroup, onToggleItem, onShowItemInfo, onSetAisle }) => {
   const complete = group.items.every((item) => checkedItems[`${group.name}::${item}`]);
   const checkedInGroup = group.items.filter((item) => checkedItems[`${group.name}::${item}`]).length;
+  const isNotFound = group.name === 'Not Found';
 
   return (
     <Draggable draggableId={`shop-${group.name}`} index={index}>
@@ -85,53 +100,133 @@ const ShopGroup = ({ group, index, collapsed, checkedItems, onToggleCollapse, on
           </div>
 
           {!collapsed && (
-            <div style={{ paddingLeft: '12px', marginTop: '4px' }}>
-              {group.items.map((item, idx) => {
-                const checked = checkedItems[`${group.name}::${item}`];
-                return (
-                  <div
-                    key={`${group.name}::${item}::${idx}`}
-                    onClick={() => onToggleItem(group.name, item)}
-                    className="af-checklist-item"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      padding: '6px 8px',
-                      cursor: 'pointer',
-                      fontSize: '12px',
-                      color: checked ? 'var(--af-text-faint)' : 'var(--af-text)',
-                      textDecoration: checked ? 'line-through' : 'none',
-                      transition: 'all 0.2s ease',
-                      borderRadius: '4px',
-                    }}
-                  >
-                    <div style={{
-                      width: '18px',
-                      height: '18px',
-                      borderRadius: '4px',
-                      border: `2px solid ${checked ? 'var(--af-green)' : 'var(--af-text-muted)'}`,
-                      backgroundColor: checked ? 'var(--af-green)' : 'var(--af-inset-bg)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                      transition: 'all 0.2s ease',
-                    }}>
-                      {checked && <i className="fa-solid fa-check" style={{ color: 'white', fontSize: '10px' }} />}
-                    </div>
-                    {item}
-                    <button
-                      className="af-iteminfo"
-                      title={`What is ${item}?`}
-                      onClick={(e) => { e.stopPropagation(); onShowItemInfo(item); }}
-                    >
-                      <i className="fa-solid fa-circle-info" />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
+            <Droppable droppableId={`items::${group.name}`} type="ITEM">
+              {(dropProvided) => (
+                <div
+                  ref={dropProvided.innerRef}
+                  {...dropProvided.droppableProps}
+                  style={{ paddingLeft: '12px', marginTop: '4px' }}
+                >
+                  {group.items.map((item, idx) => {
+                    const checked = checkedItems[`${group.name}::${item}`];
+                    const badge = overrideBadge(overrides[itemKey(item)]);
+                    return (
+                      <Draggable
+                        key={`${group.name}::${item}::${idx}`}
+                        draggableId={`item::${group.name}::${idx}::${item}`}
+                        index={idx}
+                      >
+                        {(dragProvided, dragSnapshot) => (
+                          <div
+                            ref={dragProvided.innerRef}
+                            {...dragProvided.draggableProps}
+                            onClick={() => onToggleItem(group.name, item)}
+                            className="af-checklist-item"
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              padding: '6px 8px',
+                              cursor: 'pointer',
+                              fontSize: '12px',
+                              color: checked ? 'var(--af-text-faint)' : 'var(--af-text)',
+                              textDecoration: checked ? 'line-through' : 'none',
+                              borderRadius: '4px',
+                              border: dragSnapshot.isDragging ? '1px dashed var(--af-focus)' : '1px solid transparent',
+                              backgroundColor: dragSnapshot.isDragging ? 'var(--af-highlight-bg)' : undefined,
+                              ...dragProvided.draggableProps.style,
+                            }}
+                          >
+                            <span
+                              {...dragProvided.dragHandleProps}
+                              onClick={(e) => e.stopPropagation()}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                padding: '4px',
+                                margin: '-4px',
+                                cursor: 'grab',
+                                color: 'var(--af-text-muted)',
+                                flexShrink: 0,
+                                // Same touch-drag treatment as the group handle
+                                touchAction: 'none',
+                                userSelect: 'none',
+                                WebkitUserSelect: 'none',
+                                WebkitTouchCallout: 'none',
+                              }}
+                            >
+                              <i className="fa-solid fa-grip-vertical" style={{ fontSize: '12px' }} />
+                            </span>
+                            <div style={{
+                              width: '18px',
+                              height: '18px',
+                              borderRadius: '4px',
+                              border: `2px solid ${checked ? 'var(--af-green)' : 'var(--af-text-muted)'}`,
+                              backgroundColor: checked ? 'var(--af-green)' : 'var(--af-inset-bg)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                              transition: 'all 0.2s ease',
+                            }}>
+                              {checked && <i className="fa-solid fa-check" style={{ color: 'white', fontSize: '10px' }} />}
+                            </div>
+                            {item}
+                            {badge && (
+                              <span
+                                title={badge[1]}
+                                style={{
+                                  fontSize: '10px',
+                                  fontWeight: 700,
+                                  color: 'var(--af-green)',
+                                  background: 'var(--af-highlight-bg)',
+                                  padding: '1px 6px',
+                                  borderRadius: '999px',
+                                  marginLeft: '6px',
+                                  flexShrink: 0,
+                                }}
+                              >
+                                {badge[0]}
+                              </span>
+                            )}
+                            {isNotFound ? (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); onSetAisle(item); }}
+                                style={{
+                                  marginLeft: 'auto',
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  color: 'white',
+                                  background: 'var(--af-green)',
+                                  border: 0,
+                                  borderRadius: '999px',
+                                  padding: '4px 10px',
+                                  cursor: 'pointer',
+                                  flexShrink: 0,
+                                  fontFamily: 'inherit',
+                                }}
+                              >
+                                <i className="fa-solid fa-plus" style={{ marginRight: '5px' }} />
+                                Set aisle
+                              </button>
+                            ) : (
+                              <button
+                                className="af-iteminfo"
+                                title={`What is ${item}?`}
+                                onClick={(e) => { e.stopPropagation(); onShowItemInfo(item); }}
+                              >
+                                <i className="fa-solid fa-circle-info" />
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </Draggable>
+                    );
+                  })}
+                  {dropProvided.placeholder}
+                </div>
+              )}
+            </Droppable>
           )}
         </div>
       )}
@@ -192,7 +287,7 @@ const CopyFormatPopup = ({ outputFormat, setOutputFormat, onClose }) => (
   </>
 );
 
-const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFormat, onExit, onFinished, onShowStore, toast }) => {
+const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFormat, onExit, onFinished, onShowStore, toast, aisleOverrides = {}, setAisleOverride, clearAisleOverride, syncAisleOverrides }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [singleItemQuery, setSingleItemQuery] = useState('');
@@ -200,6 +295,8 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
   const [singleItemLoading, setSingleItemLoading] = useState(false);
   const [showSettingsPopup, setShowSettingsPopup] = useState(false);
   const [infoItem, setInfoItem] = useState(null);
+  const [aisleSheet, setAisleSheet] = useState(null); // { item, currentGroupName }
+  const [catalog, setCatalog] = useState([]);
   const hasFiredConfetti = useRef(false);
   const confettiCanvasRef = useRef(null);
   const confettiInstance = useRef(null);
@@ -210,6 +307,19 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
 
   const listId = list ? list.id : null;
   const itemCount = list ? list.items.length : 0;
+  const storeId = list && list.store ? list.store.id : 'default';
+  const overridesForStore = useMemo(() => aisleOverrides[storeId] || {}, [aisleOverrides, storeId]);
+
+  // The category vocabulary for the aisle sheet's picker (sound, store-agnostic)
+  useEffect(() => { fetchCategories().then(setCatalog).catch(() => {}); }, []);
+
+  // Pull synced overrides for this trip — the caller's own, a shared-list
+  // member's, then community consensus — and merge them over the local cache.
+  const itemsKey = list ? itemsHash(list.items) : '';
+  useEffect(() => {
+    if (!list || !syncAisleOverrides || list.items.length === 0) return;
+    syncAisleOverrides(storeId, list.items.map((it) => it.name), list.id);
+  }, [listId, storeId, itemsKey, syncAisleOverrides]);
 
   // Organize on entry, and again whenever the store or item set changes
   // since the last organize (e.g. picking a new store mid-shop)
@@ -287,8 +397,10 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
 
   const orderedGroups = useMemo(() => {
     if (!list || !list.organized) return [];
-    return applyCustomOrder(parseGroceryListToGroups(list.organized), list.customCategoryOrder);
-  }, [list]);
+    const parsed = parseGroceryListToGroups(list.organized);
+    const corrected = applyAisleOverrides(parsed, overridesForStore);
+    return applyCustomOrder(corrected, list.customCategoryOrder);
+  }, [list, overridesForStore]);
 
   const totalItems = useMemo(
     () => orderedGroups.reduce((sum, g) => sum + g.items.length, 0),
@@ -406,13 +518,67 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
   const isGroupComplete = (group) =>
     group.items.every((item) => checkedItems[`${group.name}::${item}`]);
 
-  const handleDragEnd = (result) => {
-    if (!result.destination) return;
-    if (result.destination.index === result.source.index) return;
+  // Dragging a group changes the shopper's preferred section order — a plain
+  // list-preference reorder, not a placement correction.
+  const handleGroupDragEnd = ({ source, destination }) => {
     const reordered = Array.from(orderedGroups);
-    const [removed] = reordered.splice(result.source.index, 1);
-    reordered.splice(result.destination.index, 0, removed);
+    const [removed] = reordered.splice(source.index, 1);
+    reordered.splice(destination.index, 0, removed);
     updateList(listId, { customCategoryOrder: reordered.map((g) => g.name) });
+  };
+
+  // Dragging an item into a different group is an aisle/category correction:
+  // it moves the item, carries its checked state and timing along, and
+  // records the new placement so it survives the next re-organize. Dropping
+  // into Not Found has no route position, so it sets no aisle.
+  const handleItemDragEnd = ({ source, destination }) => {
+    const sourceName = source.droppableId.slice('items::'.length);
+    const destName = destination.droppableId.slice('items::'.length);
+    const groups = orderedGroups.map((g) => ({ ...g, items: [...g.items] }));
+    const sourceGroup = groups.find((g) => g.name === sourceName);
+    const destGroup = groups.find((g) => g.name === destName);
+    if (!sourceGroup || !destGroup) return;
+    const [moved] = sourceGroup.items.splice(source.index, 1);
+    destGroup.items.splice(destination.index, 0, moved);
+
+    const movedGroups = sourceName !== destName;
+    const oldKey = `${sourceName}::${moved}`;
+    const newKey = `${destName}::${moved}`;
+
+    updateList(listId, (l) => {
+      const updates = {
+        organized: buildMarkdownFromGroups(groups.filter((g) => g.items.length > 0)),
+      };
+      // Checked state is keyed by group, so a cross-group move carries it over
+      if (movedGroups) {
+        const checked = { ...(l.checkedItems || {}) };
+        if (oldKey in checked) {
+          checked[newKey] = checked[oldKey];
+          delete checked[oldKey];
+        }
+        updates.checkedItems = checked;
+      }
+      return updates;
+    });
+
+    if (!movedGroups) return;
+    setCheckTimestamps((prev) => {
+      if (!(oldKey in prev)) return prev;
+      const next = { ...prev, [newKey]: prev[oldKey] };
+      delete next[oldKey];
+      return next;
+    });
+    if (destName !== 'Not Found' && setAisleOverride) {
+      setAisleOverride(storeId, moved, placementFromGroupName(destName));
+    }
+  };
+
+  const handleDragEnd = (result) => {
+    const { source, destination, type } = result;
+    if (!destination) return;
+    if (destination.droppableId === source.droppableId && destination.index === source.index) return;
+    if (type === 'ITEM') handleItemDragEnd(result);
+    else handleGroupDragEnd(result);
   };
 
   // Quick lookup adds the item to both the organized markdown and the list model
@@ -459,6 +625,36 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
     } finally {
       setSingleItemLoading(false);
     }
+  };
+
+  // The group an item currently sits in, so the aisle sheet opens pre-filled
+  const currentGroupOf = (itemName) => {
+    const key = itemKey(itemName);
+    const g = orderedGroups.find((grp) => grp.items.some((it) => itemKey(it) === key));
+    return g ? g.name : null;
+  };
+
+  const openAisleSheet = (itemName) => {
+    setInfoItem(null);
+    setAisleSheet({ item: itemName, currentGroupName: currentGroupOf(itemName) });
+  };
+
+  const saveAisleOverride = (placement) => {
+    if (!aisleSheet || !setAisleOverride) return;
+    const itemName = aisleSheet.item;
+    setAisleOverride(storeId, itemName, placement);
+    hasFiredConfetti.current = false; // a re-placed item may un-complete the list
+    setAisleSheet(null);
+    toast(placement.kind === 'none'
+      ? `Removed ${itemName} from your route`
+      : `${itemName} → ${overrideGroupName(placement)}`);
+  };
+
+  const clearCurrentOverride = () => {
+    if (!aisleSheet || !clearAisleOverride) return;
+    clearAisleOverride(storeId, aisleSheet.item);
+    setAisleSheet(null);
+    toast('Reset to the store’s aisle');
   };
 
   const copyToClipboard = async () => {
@@ -658,7 +854,7 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
 
             {/* Interactive checklist with drag-to-reorder */}
             <DragDropContext onDragEnd={handleDragEnd}>
-              <Droppable droppableId="shop-category-list">
+              <Droppable droppableId="shop-category-list" type="GROUP">
                 {(provided) => (
                   <div ref={provided.innerRef} {...provided.droppableProps}>
                     {orderedGroups.map((group, index) => (
@@ -670,10 +866,12 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
                           ? collapsedGroups[group.name]
                           : isGroupComplete(group)}
                         checkedItems={checkedItems}
+                        overrides={overridesForStore}
                         onToggleCollapse={toggleGroupCollapse}
                         onToggleGroup={toggleGroup}
                         onToggleItem={toggleItem}
                         onShowItemInfo={setInfoItem}
+                        onSetAisle={openAisleSheet}
                       />
                     ))}
                     {provided.placeholder}
@@ -686,7 +884,24 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
       </div>
 
       {/* Item help sheet — photo, description, and in-aisle location */}
-      <ItemInfoSheet item={infoItem} store={list.store} onClose={() => setInfoItem(null)} />
+      <ItemInfoSheet
+        item={infoItem}
+        store={list.store}
+        onClose={() => setInfoItem(null)}
+        onChangeAisle={openAisleSheet}
+      />
+
+      {/* Set or correct an item's aisle / category */}
+      <AisleSheet
+        item={aisleSheet ? aisleSheet.item : null}
+        store={list.store}
+        currentGroupName={aisleSheet ? aisleSheet.currentGroupName : null}
+        override={aisleSheet ? (overridesForStore[itemKey(aisleSheet.item)] || null) : null}
+        catalog={catalog}
+        onSave={saveAisleOverride}
+        onClear={clearCurrentOverride}
+        onClose={() => setAisleSheet(null)}
+      />
 
       {/* Output format popup */}
       {showSettingsPopup && (

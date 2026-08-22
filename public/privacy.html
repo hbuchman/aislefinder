@@ -3,22 +3,40 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="logo.svg" type="image/svg+xml">
   <title>Privacy Policy — AisleFinder</title>
   <style>
+    /* Palette mirrors the app's Ocean Fresh — Amber Nav scheme (AisleFinder.jsx :root) */
+    :root {
+      --bg: #ffffff;
+      --ink: #1c2a3a;
+      --muted: #5f7183;
+      --navy: #1f5fa0;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0d1420;
+        --ink: #e1e7ee;
+        --muted: #8fa0b3;
+        --navy: #3f7fc4;
+      }
+    }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #f4f8f4;
-      color: #1d3320;
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
       margin: 0;
       padding: 24px 16px 48px;
       line-height: 1.6;
     }
     main { max-width: 640px; margin: 0 auto; }
-    h1 { font-size: 1.6rem; color: #1f6b2e; }
-    h2 { font-size: 1.15rem; color: #1f6b2e; margin-top: 28px; }
+    h1 { font-size: 1.6rem; color: var(--navy); }
+    h2 { font-size: 1.15rem; color: var(--navy); margin-top: 28px; }
     p, li { font-size: 15px; }
-    a { color: #1f6b2e; }
-    .updated { color: #5a715c; font-size: 13px; }
+    a { color: var(--navy); }
+    .updated { color: var(--muted); font-size: 13px; }
+    .footnote { margin-top: 40px; font-size: 13px; color: var(--muted); }
   </style>
 </head>
 <body>
@@ -73,6 +91,8 @@
     <h2>Changes</h2>
     <p>If this policy changes, the update will appear on this page with a new
     "last updated" date.</p>
+
+    <p class="footnote"><a href="about.html">About AisleFinder</a></p>
   </main>
 </body>
 </html>

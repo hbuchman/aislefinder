@@ -7,6 +7,7 @@ import threading
 from functools import wraps
 
 from grocery_organizer.src.core.models import FullProduct
+from grocery_organizer.src.output_formatting.output_formatter import _FIRST_SECTIONS, _LAST_SECTIONS
 from grocery_organizer.src.store_api.search_terms import preprocess_search_term
 
 def retry_api_call(max_retries=3, backoff_factor=1):
@@ -226,6 +227,7 @@ class KrogerAPI:
         categories = product_data.get('categories', [])
         category = categories[0] if categories else 'Unknown'
         category = self._normalize_category(category)
+        self._harvest_category(category)
         aisle_locations = product_data.get('aisleLocations', [])
         aisle_number = int(aisle_locations[0]['number']) if aisle_locations else -1
         if aisle_number >= self.MAX_VALID_AISLE:
@@ -264,11 +266,13 @@ class KrogerAPI:
                     'bay': loc.get('bayNumber'),
                     'description': loc.get('description'),
                 }
+            detail_category = self._normalize_category(categories[0]) if categories else None
+            self._harvest_category(detail_category)
             results.append({
                 'name': product_data.get('description'),
                 'brand': product_data.get('brand'),
                 'size': items[0].get('size') if items else None,
-                'category': self._normalize_category(categories[0]) if categories else None,
+                'category': detail_category,
                 'image': self._front_image_url(product_data),
                 'location': location,
             })
@@ -299,6 +303,58 @@ class KrogerAPI:
     def _normalize_category(cls, category):
         """Map API categories to more intuitive names for shoppers."""
         return cls.CATEGORY_MAP.get(category.lower(), category)
+
+    # A verified seed of shopper-facing category names (post-normalization, so
+    # they byte-match the `## <category>` headers OutputFormatter emits). This
+    # guarantees common categories are pickable on a brand-new empty list;
+    # `_harvested_categories` then grows the set toward Kroger's true taxonomy
+    # as real lookups return categories. Serves /api/categories.
+    CATEGORY_CATALOG_SEED = [
+        'Produce', 'Bakery', 'Bread', 'Deli', 'Meat & Seafood',
+        'Breakfast & Cereal', 'Baking', 'Spices & Seasonings', 'Condiments',
+        'Pasta & Sauces', 'Canned & Packaged Foods', 'International Foods',
+        'Snacks', 'Beverages', 'Coffee & Tea', 'Baby', 'Health & Beauty',
+        'Household & Cleaning', 'Dairy', 'Frozen',
+    ]
+
+    # Categories observed in live lookups this process — harvested so the
+    # catalog self-completes without hand-curation. Process-local (resets on
+    # cold start); the seed keeps the endpoint useful before it warms up.
+    _harvested_categories = set()
+
+    @classmethod
+    def _category_rank(cls, name):
+        """Food-safe placement, reusing OutputFormatter's own section bands so
+        this ranking can't drift from where the organizer actually puts a
+        category — fresh departments first, cold sections last, everything
+        else in the middle."""
+        lower = name.lower()
+        if lower in _FIRST_SECTIONS:
+            return _FIRST_SECTIONS[lower]
+        if lower in _LAST_SECTIONS:
+            return 90 + _LAST_SECTIONS[lower]
+        return 50  # other named categories, alphabetical within the band
+
+    @classmethod
+    def _harvest_category(cls, category):
+        """Record a normalized category seen in a lookup for the catalog."""
+        if category and category != 'Not Found':
+            cls._harvested_categories.add(category)
+
+    @classmethod
+    def category_catalog(cls):
+        """The sound category vocabulary as `[{name, rank}]`, seed ∪ harvested,
+        deduped case-insensitively (seed casing wins), sorted food-safe then
+        alphabetically. No network — safe to call without a store."""
+        by_lower = {}
+        for name in cls.CATEGORY_CATALOG_SEED:
+            by_lower[name.lower()] = name
+        for name in cls._harvested_categories:
+            by_lower.setdefault(name.lower(), name)
+        catalog = [{'name': name, 'rank': cls._category_rank(name)}
+                   for name in by_lower.values()]
+        catalog.sort(key=lambda c: (c['rank'], c['name'].lower()))
+        return catalog
 
     # Non-grocery categories that indicate a bad match
     NON_GROCERY_KEYWORDS = [

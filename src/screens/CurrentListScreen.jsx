@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { photoToItems } from '../api';
-import { resolveOrganizeFormat } from '../listUtils';
+import { resolveOrganizeFormat, parseListItems } from '../listUtils';
 import FormatToggle from '../components/FormatToggle';
 
 // The Claude API caps images at 5MB and gains nothing above ~1568px on the
@@ -42,12 +42,25 @@ const CurrentListScreen = ({
   onShowShare,
   onShowStore,
   onShop,
+  onComposingChange,
   toast,
 }) => {
   const [input, setInput] = useState('');
   const [scanning, setScanning] = useState(false);
+  // True while the add-item input is focused (keyboard open on mobile). Hides
+  // the title row, suggestions, and footer so the item list — the thing
+  // you're looking at while typing — isn't squeezed down to a couple of rows.
+  const [composing, setComposing] = useState(false);
   const inputRef = useRef(null);
   const photoInputRef = useRef(null);
+
+  useEffect(() => { onComposingChange?.(composing); }, [composing, onComposingChange]);
+  useEffect(() => () => onComposingChange?.(false), [onComposingChange]);
+
+  // Only collapse chrome on phone-width viewports — desktop has plenty of
+  // vertical space and autofocuses this input on load, so gating on focus
+  // alone would hide the footer for desktop users on every page load.
+  const isNarrowViewport = () => window.matchMedia('(max-width: 640px)').matches;
 
   // The add bar is the whole point of the home screen — focus it on load.
   // Skip on native apps, where autofocus pops the keyboard over half the
@@ -61,13 +74,29 @@ const CurrentListScreen = ({
   const handleAdd = () => {
     const value = input.trim();
     if (!value) return;
-    // Comma-separated entry adds several items at once
-    const names = value.split(',').map((s) => s.trim()).filter(Boolean);
+    // Comma- or newline-separated entry adds several items at once
+    const names = parseListItems(value);
     let added = 0;
     names.forEach((name) => { if (addItem(list.id, name)) added++; });
     if (added === 0 && names.length === 1) toast(`${names[0]} is already on the list`);
     setInput('');
     inputRef.current?.focus();
+  };
+
+  // Pasting a whole grocery list into the box adds every line/comma-separated
+  // item at once instead of dumping unparsed text into the single-line field
+  const handlePaste = (e) => {
+    const text = e.clipboardData.getData('text');
+    if (!/[\n,]/.test(text)) return;
+    const names = parseListItems(text);
+    if (names.length === 0) return;
+    e.preventDefault();
+    let added = 0;
+    names.forEach((name) => { if (addItem(list.id, name)) added++; });
+    toast(added > 0
+      ? `Added ${added} item${added === 1 ? '' : 's'} from your paste`
+      : 'Everything pasted is already on the list');
+    setInput('');
   };
 
   const handlePhoto = async (e) => {
@@ -111,39 +140,44 @@ const CurrentListScreen = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-      {/* List title + share */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '14px 16px 2px' }}>
-        <button
-          onClick={onShowLists}
-          title="Switch list"
-          style={{
-            background: 'none',
-            border: 'none',
-            color: 'var(--af-text)',
-            fontSize: '21px',
-            fontWeight: 700,
-            cursor: 'pointer',
-            padding: 0,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '8px',
-            fontFamily: 'inherit',
-            letterSpacing: '-0.3px',
-          }}
-        >
-          {list.name}
-          <i className="fa-solid fa-chevron-down" style={{ fontSize: '11px', color: 'var(--af-text-faint)' }} />
-        </button>
-        <div style={{ flex: 1 }} />
-        <button className="af-iconbtn" title="Share this list" onClick={onShowShare}>
-          <i className="fa-solid fa-user-group" />
-        </button>
-      </div>
-      {isShared && (
-        <div style={{ fontSize: '12px', color: 'var(--af-text-muted)', padding: '0 16px 4px' }}>
-          <i className="fa-solid fa-user-group" style={{ fontSize: '10px', marginRight: '5px' }} />
-          Shared with {otherMembers.length > 0 ? otherMembers.join(', ') : 'others'}
-        </div>
+      {/* List title + share — hidden while typing so the keyboard doesn't
+          leave only a sliver of the list visible */}
+      {!composing && (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '14px 16px 2px' }}>
+            <button
+              onClick={onShowLists}
+              title="Switch list"
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--af-text)',
+                fontSize: '21px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                padding: 0,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontFamily: 'inherit',
+                letterSpacing: '-0.3px',
+              }}
+            >
+              {list.name}
+              <i className="fa-solid fa-chevron-down" style={{ fontSize: '11px', color: 'var(--af-text-faint)' }} />
+            </button>
+            <div style={{ flex: 1 }} />
+            <button className="af-iconbtn" title="Share this list" onClick={onShowShare}>
+              <i className="fa-solid fa-user-group" />
+            </button>
+          </div>
+          {isShared && (
+            <div style={{ fontSize: '12px', color: 'var(--af-text-muted)', padding: '0 16px 4px' }}>
+              <i className="fa-solid fa-user-group" style={{ fontSize: '10px', marginRight: '5px' }} />
+              Shared with {otherMembers.length > 0 ? otherMembers.join(', ') : 'others'}
+            </div>
+          )}
+        </>
       )}
 
       {/* Quick add */}
@@ -154,6 +188,9 @@ const CurrentListScreen = ({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') handleAdd(); }}
+          onPaste={handlePaste}
+          onFocus={() => { if (isNarrowViewport()) setComposing(true); }}
+          onBlur={() => setComposing(false)}
           placeholder="Add an item…"
           className="af-input"
           style={{
@@ -193,8 +230,8 @@ const CurrentListScreen = ({
         />
       </div>
 
-      {/* Frequent-item suggestions from history */}
-      {frequentItems.length > 0 && (
+      {/* Frequent-item suggestions from history — hidden while typing */}
+      {!composing && frequentItems.length > 0 && (
         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', padding: '8px 16px 4px', alignItems: 'center' }}>
           <span style={{ fontSize: '11px', color: 'var(--af-text-faint)' }}>You often buy:</span>
           {frequentItems.map((name) => (
@@ -248,48 +285,51 @@ const CurrentListScreen = ({
         ))}
       </div>
 
-      {/* Store + shop footer */}
-      <div style={{
-        borderTop: '1px solid var(--af-border)',
-        padding: '12px 16px calc(14px + var(--safe-area-inset-bottom))',
-        background: 'var(--af-bg)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '10px',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--af-text-muted)' }}>
-          <i className="fa-solid fa-location-dot" />
-          {list.store ? list.store.name : 'No store selected'}
+      {/* Store + shop footer — hidden while typing so the keyboard leaves
+          the list itself visible instead of two rows of controls */}
+      {!composing && (
+        <div style={{
+          borderTop: '1px solid var(--af-border)',
+          padding: '12px 16px calc(14px + var(--safe-area-inset-bottom))',
+          background: 'var(--af-bg)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '10px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--af-text-muted)' }}>
+            <i className="fa-solid fa-location-dot" />
+            {list.store ? list.store.name : 'No store selected'}
+            <button
+              onClick={onShowStore}
+              style={{
+                marginLeft: 'auto',
+                background: 'none',
+                border: 'none',
+                color: 'var(--af-focus)',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              {list.store ? 'Change' : 'Choose store'}
+            </button>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '12px', color: 'var(--af-text-muted)' }}>Organize by</span>
+            <FormatToggle format={resolveOrganizeFormat(list)} onChange={setFormat} aisleDisabled={!list.store} />
+          </div>
           <button
-            onClick={onShowStore}
-            style={{
-              marginLeft: 'auto',
-              background: 'none',
-              border: 'none',
-              color: 'var(--af-focus)',
-              fontSize: '12px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-            }}
+            className="af-btn-green"
+            style={{ justifyContent: 'center', padding: '14px 24px', fontSize: '16px', borderRadius: '10px' }}
+            disabled={list.items.length === 0}
+            onClick={onShop}
           >
-            {list.store ? 'Change' : 'Choose store'}
+            <i className="fa-solid fa-basket-shopping" />
+            Shop{list.items.length > 0 ? ` (${list.items.length})` : ''}
           </button>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '12px', color: 'var(--af-text-muted)' }}>Organize by</span>
-          <FormatToggle format={resolveOrganizeFormat(list)} onChange={setFormat} aisleDisabled={!list.store} />
-        </div>
-        <button
-          className="af-btn-green"
-          style={{ justifyContent: 'center', padding: '14px 24px', fontSize: '16px', borderRadius: '10px' }}
-          disabled={list.items.length === 0}
-          onClick={onShop}
-        >
-          <i className="fa-solid fa-basket-shopping" />
-          Shop{list.items.length > 0 ? ` (${list.items.length})` : ''}
-        </button>
-      </div>
+      )}
     </div>
   );
 };

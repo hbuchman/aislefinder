@@ -10,6 +10,7 @@ import pytest
 from flask import Flask
 
 import lists_backend
+import rate_limit
 from lists_backend import lists_bp
 
 
@@ -30,12 +31,13 @@ class FakeTable:
         self.items.pop((Key['pk'], Key['sk']), None)
 
     def query(self, **kwargs):
-        # Supports the membership query: pk = :pk AND begins_with(sk, :sk)
+        # Supports 'pk = :pk' alone, or with 'AND begins_with(sk, :sk)'
         values = kwargs['ExpressionAttributeValues']
-        pk, prefix = values[':pk'], values[':sk']
+        pk = values[':pk']
+        prefix = values.get(':sk')
         return {'Items': [
             item for (ipk, isk), item in list(self.items.items())
-            if ipk == pk and isk.startswith(prefix)
+            if ipk == pk and (prefix is None or isk.startswith(prefix))
         ]}
 
     def update_item(self, Key, UpdateExpression, ExpressionAttributeValues):
@@ -70,6 +72,7 @@ def client():
     app = Flask(__name__)
     app.register_blueprint(lists_bp)
     lists_backend._token_cache.clear()
+    rate_limit._rate_hits.clear()
     with app.test_client() as test_client:
         yield test_client
 
@@ -114,3 +117,138 @@ def test_delete_account_returns_503_when_sync_unconfigured(client):
         response = client.delete('/api/account',
                                  headers={'Authorization': 'Bearer tok'})
     assert response.status_code == 503
+
+
+# ---- Aisle override sync ----
+
+AUTH = {'Authorization': 'Bearer t'}
+
+
+def _as(sub):
+    """Patch the authenticated user for a request."""
+    return patch.object(lists_backend, '_user_from_token',
+                        return_value=(sub, f'{sub}@example.com'))
+
+
+def _configured(table):
+    return patch.object(lists_backend, 'sync_enabled', return_value=True), \
+           patch.object(lists_backend, '_table', return_value=table)
+
+
+def test_put_and_resolve_personal_override(client):
+    table = FakeTable()
+    sync, tbl = _configured(table)
+    with sync, tbl:
+        with _as('alice'):
+            r = client.put('/api/aisle-overrides', headers=AUTH,
+                           json={'storeId': 'S1', 'item': 'Saffron',
+                                 'placement': {'kind': 'aisle', 'value': 14}})
+            assert r.status_code == 200
+        with _as('alice'):
+            r = client.post('/api/aisle-overrides/resolve', headers=AUTH,
+                            json={'storeId': 'S1', 'items': ['saffron', 'milk']})
+    assert r.status_code == 200
+    assert r.get_json()['overrides'] == {
+        'saffron': {'kind': 'aisle', 'value': 14, 'source': 'me'}
+    }
+
+
+def test_resolve_includes_household_member(client):
+    table = FakeTable()
+    seed_list(table, 'trip', owner='alice', members=['alice', 'bob'])
+    sync, tbl = _configured(table)
+    with sync, tbl:
+        with _as('bob'):
+            client.put('/api/aisle-overrides', headers=AUTH,
+                       json={'storeId': 'S1', 'item': 'tahini',
+                             'placement': {'kind': 'category', 'value': 'Condiments'}})
+        with _as('alice'):
+            r = client.post('/api/aisle-overrides/resolve', headers=AUTH,
+                            json={'listId': 'trip', 'storeId': 'S1', 'items': ['tahini']})
+    assert r.get_json()['overrides']['tahini'] == {
+        'kind': 'category', 'value': 'Condiments', 'source': 'household'
+    }
+
+
+def test_personal_override_beats_household(client):
+    table = FakeTable()
+    seed_list(table, 'trip', owner='alice', members=['alice', 'bob'])
+    sync, tbl = _configured(table)
+    with sync, tbl:
+        with _as('bob'):
+            client.put('/api/aisle-overrides', headers=AUTH,
+                       json={'storeId': 'S1', 'item': 'tahini', 'placement': {'kind': 'aisle', 'value': 2}})
+        with _as('alice'):
+            client.put('/api/aisle-overrides', headers=AUTH,
+                       json={'storeId': 'S1', 'item': 'tahini', 'placement': {'kind': 'aisle', 'value': 12}})
+            r = client.post('/api/aisle-overrides/resolve', headers=AUTH,
+                            json={'listId': 'trip', 'storeId': 'S1', 'items': ['tahini']})
+    assert r.get_json()['overrides']['tahini'] == {'kind': 'aisle', 'value': 12, 'source': 'me'}
+
+
+def test_consensus_promotes_after_threshold(client):
+    table = FakeTable()
+    sync, tbl = _configured(table)
+    with sync, tbl:
+        for sub in ['u1', 'u2', 'u3']:
+            with _as(sub):
+                client.put('/api/aisle-overrides', headers=AUTH,
+                           json={'storeId': 'S1', 'item': 'miso', 'placement': {'kind': 'aisle', 'value': 9}})
+        with _as('stranger'):
+            r = client.post('/api/aisle-overrides/resolve', headers=AUTH,
+                            json={'storeId': 'S1', 'items': ['miso']})
+    ov = r.get_json()['overrides']['miso']
+    assert ov == {'kind': 'aisle', 'value': 9, 'source': 'community', 'agree': 3}
+
+
+def test_two_voters_do_not_reach_consensus(client):
+    table = FakeTable()
+    sync, tbl = _configured(table)
+    with sync, tbl:
+        for sub in ['u1', 'u2']:
+            with _as(sub):
+                client.put('/api/aisle-overrides', headers=AUTH,
+                           json={'storeId': 'S1', 'item': 'natto', 'placement': {'kind': 'aisle', 'value': 9}})
+        with _as('stranger'):
+            r = client.post('/api/aisle-overrides/resolve', headers=AUTH,
+                            json={'storeId': 'S1', 'items': ['natto']})
+    assert r.get_json()['overrides'] == {}
+
+
+def test_clearing_removes_override(client):
+    table = FakeTable()
+    sync, tbl = _configured(table)
+    with sync, tbl:
+        with _as('alice'):
+            client.put('/api/aisle-overrides', headers=AUTH,
+                       json={'storeId': 'S1', 'item': 'kombu', 'placement': {'kind': 'aisle', 'value': 3}})
+            client.put('/api/aisle-overrides', headers=AUTH,
+                       json={'storeId': 'S1', 'item': 'kombu', 'placement': None})
+            r = client.post('/api/aisle-overrides/resolve', headers=AUTH,
+                            json={'storeId': 'S1', 'items': ['kombu']})
+    assert r.get_json()['overrides'] == {}
+
+
+def test_put_rejects_invalid_placement(client):
+    table = FakeTable()
+    sync, tbl = _configured(table)
+    with sync, tbl, _as('alice'):
+        r = client.put('/api/aisle-overrides', headers=AUTH,
+                       json={'storeId': 'S1', 'item': 'x', 'placement': {'kind': 'aisle', 'value': 0}})
+    assert r.status_code == 400
+
+
+def test_resolve_non_member_cannot_probe_list(client):
+    table = FakeTable()
+    seed_list(table, 'trip', owner='alice', members=['alice'])
+    sync, tbl = _configured(table)
+    with sync, tbl, _as('mallory'):
+        r = client.post('/api/aisle-overrides/resolve', headers=AUTH,
+                        json={'listId': 'trip', 'storeId': 'S1', 'items': ['x']})
+    assert r.status_code == 403
+
+
+def test_aisle_override_503_when_unconfigured(client):
+    with patch.object(lists_backend, 'sync_enabled', return_value=False):
+        r = client.put('/api/aisle-overrides', headers=AUTH, json={})
+    assert r.status_code == 503

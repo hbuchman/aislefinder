@@ -62,7 +62,15 @@ export const findItemAisle = async ({ item, store }) => {
   return response.json();
 };
 
+// Keyed the same way callers already did locally (store id + lowercased item)
+// so repeat lookups — e.g. the item-info popup and then "Change aisle" opening
+// the aisle-correction sheet for the same item — share one network call
+// instead of each fetching it separately.
+const itemDetailsCache = new Map();
+
 export const fetchItemDetails = async ({ item, store }) => {
+  const key = `${store ? store.id : 'default'}::${item.toLowerCase()}`;
+  if (itemDetailsCache.has(key)) return itemDetailsCache.get(key);
   const response = await fetch(`${API_BASE}/api/item-details`, {
     method: 'POST',
     headers: jsonHeaders(),
@@ -71,10 +79,47 @@ export const fetchItemDetails = async ({ item, store }) => {
       store_id: store ? store.id : '01400943',
     }),
   });
-  if (response.status === 404) return [];
+  if (response.status === 404) { itemDetailsCache.set(key, []); return []; }
   if (!response.ok) throw new Error("Couldn't load item details");
   const data = await response.json();
-  return data.results || [];
+  const results = data.results || [];
+  itemDetailsCache.set(key, results);
+  return results;
+};
+
+// The sound category vocabulary for the aisle-correction picker: normalized,
+// shopper-facing names (matching the organizer's group headers) each with a
+// food-safe `rank`. Store-agnostic and rarely changes, so it's fetched once
+// per session rather than on every Shop-mode entry. Best-effort — an empty
+// list just hides the browse section.
+let categoriesCache = null;
+
+export const fetchCategories = async () => {
+  if (categoriesCache) return categoriesCache;
+  try {
+    const response = await fetch(`${API_BASE}/api/categories`);
+    if (!response.ok) return [];
+    const data = await response.json();
+    categoriesCache = data.categories || [];
+    return categoriesCache;
+  } catch {
+    return [];
+  }
+};
+
+// Ask the shopping assistant a free-form question, grounded in a plain-text
+// summary of the current list/purchase history built by the caller (see
+// listsStore.js's buildChatContext) — the backend has no access to it itself.
+export const sendChatMessage = async ({ message, history, context }) => {
+  const response = await fetch(`${API_BASE}/api/chat`, {
+    method: 'POST',
+    headers: jsonHeaders(),
+    body: JSON.stringify({ message, history, context }),
+  });
+  if (response.status === 503) throw new Error("Chat isn't available right now");
+  if (!response.ok) throw new Error("Couldn't get a reply — try again");
+  const result = await response.json();
+  return result.reply || '';
 };
 
 // ---- List sync/sharing (requires a signed-in user's Cognito access token) ----
@@ -142,4 +187,31 @@ export const joinList = async (token, code) => {
   if (!response.ok) throw new Error("Couldn't join that list — try again");
   const result = await response.json();
   return result.list;
+};
+
+// Record (or clear, with placement=null) the signed-in shopper's aisle/category
+// correction for one item at a store. Best-effort — returns null when sync is
+// off so the device-local override still stands.
+export const putAisleOverride = async (token, { storeId, item, placement, storeAisle }) => {
+  const response = await fetch(`${API_BASE}/api/aisle-overrides`, {
+    method: 'PUT',
+    headers: jsonHeaders(token),
+    body: JSON.stringify({ storeId, item, placement, storeAisle }),
+  });
+  if (response.status === 503) return null;
+  if (!response.ok) throw new Error("Couldn't sync your aisle change");
+  return response.json();
+};
+
+// Resolve the effective override for each item on a trip (mine → household →
+// community). Returns { itemKey: {kind, value, source} }, or null if sync is off.
+export const resolveAisleOverrides = async (token, { listId, storeId, items }) => {
+  const response = await fetch(`${API_BASE}/api/aisle-overrides/resolve`, {
+    method: 'POST',
+    headers: jsonHeaders(token),
+    body: JSON.stringify({ listId, storeId, items }),
+  });
+  if (response.status === 503 || !response.ok) return null;
+  const data = await response.json();
+  return data.overrides || {};
 };

@@ -52,6 +52,15 @@ _CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
 # DynamoDB items cap at 400 KB; leave headroom for the server-owned fields
 MAX_LIST_BYTES = 256 * 1024
 
+# Aisle-override sync (see the aisle-overrides endpoints below):
+#   Vote:      pk=AISLE#<storeId>#<itemKey>, sk=USER#<sub>
+#                { kind, value, store_aisle, item, updated_at }
+#   Consensus: pk=AISLE#<storeId>#<itemKey>, sk=CONSENSUS  (derived, recomputed
+#                inline on every vote — no Streams/Lambda)
+#                { kind, value, agree, voters, updated_at }
+MAX_OVERRIDE_ITEMS = 200        # items a single resolve request may ask about
+CONSENSUS_MIN_AGREE = 3         # distinct users who must agree to promote a placement
+
 
 def sync_enabled():
     return boto3 is not None and TABLE_NAME
@@ -131,6 +140,94 @@ def _record_to_list(record):
     data['members'] = [{'sub': sub, 'name': name} for sub, name in members.items()]
     data['shareCode'] = record.get('share_code')
     return data
+
+
+def _item_key(name):
+    return (name or '').strip().lower()
+
+
+def _vote_pk(store_id, item_key):
+    return f'AISLE#{store_id}#{item_key}'
+
+
+def _validate_placement(placement):
+    """Normalize a client placement, or None if it's malformed.
+
+    { kind: 'aisle', value: <int>=1> } | { kind: 'category', value: <str> } |
+    { kind: 'none' } (marked not sold here — a real opinion, kept as a vote).
+    """
+    if not isinstance(placement, dict):
+        return None
+    kind = placement.get('kind')
+    if kind == 'aisle':
+        value = placement.get('value')
+        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+            return None
+        return {'kind': 'aisle', 'value': value}
+    if kind == 'category':
+        value = placement.get('value')
+        if not isinstance(value, str) or not value.strip():
+            return None
+        return {'kind': 'category', 'value': value.strip()}
+    if kind == 'none':
+        return {'kind': 'none', 'value': None}
+    return None
+
+
+def _placement_signature(item):
+    """A hashable key identifying a placement, for tallying agreement."""
+    return (item.get('kind'), _coerce_value(item.get('kind'), item.get('value')))
+
+
+def _coerce_value(kind, value):
+    """DynamoDB returns numbers as Decimal; aisle values must serialize as int
+    (and compare/tally as int). Category values stay strings, 'none' stays None."""
+    if kind == 'aisle' and value is not None:
+        return int(value)
+    return value
+
+
+def _override_out(item, source, extra=None):
+    out = {'kind': item['kind'], 'value': _coerce_value(item.get('kind'), item.get('value')), 'source': source}
+    if extra:
+        out.update(extra)
+    return out
+
+
+def _recompute_consensus(table, pk):
+    """Re-tally all votes for one (store, item) and write or retire its derived
+    CONSENSUS row. Called inline after every vote — one small partition read."""
+    response = table.query(
+        KeyConditionExpression='pk = :pk AND begins_with(sk, :sk)',
+        ExpressionAttributeValues={':pk': pk, ':sk': 'USER#'},
+    )
+    votes = response.get('Items', [])
+    counts = {}
+    for vote in votes:
+        sig = _placement_signature(vote)
+        counts[sig] = counts.get(sig, 0) + 1
+
+    consensus_key = {'pk': pk, 'sk': 'CONSENSUS'}
+    if counts:
+        # Most-agreed placement; ties break deterministically by the signature
+        (kind, value), agree = max(counts.items(), key=lambda kv: (kv[1], repr(kv[0])))
+    else:
+        agree = 0
+    if agree >= CONSENSUS_MIN_AGREE:
+        table.put_item(Item={
+            **consensus_key,
+            'kind': kind,
+            'value': value,
+            'agree': agree,
+            'voters': len(votes),
+            'updated_at': _now_iso(),
+        })
+    else:
+        table.delete_item(Key=consensus_key)
+
+
+def _now_iso():
+    return time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
 
 
 @lists_bp.route('/api/lists', methods=['GET'])
@@ -347,3 +444,122 @@ def join_list():
     except Exception as e:
         print(f"Error joining list: {e}")
         return jsonify({'error': 'Failed to join list'}), 500
+
+
+# ---- Aisle overrides: a shopper's per-(store, item) corrections ----
+# One vote per user; corrections sync across a signed-in user's devices, are
+# shared with the members of a shared list, and — once enough shoppers agree —
+# promote to a community CONSENSUS served to everyone at that store.
+
+@lists_bp.route('/api/aisle-overrides', methods=['PUT'])
+@rate_limited
+@require_auth
+def put_aisle_override():
+    """Record (or clear) the caller's aisle/category correction for one item at
+    a store, then recompute that item's consensus. Send placement=null to
+    clear (reset to the store's aisle)."""
+    try:
+        body = request.get_json(silent=True) or {}
+        store_id = body.get('storeId')
+        item = body.get('item')
+        if not isinstance(store_id, str) or not store_id.strip():
+            return jsonify({'error': 'storeId is required'}), 400
+        key = _item_key(item)
+        if not key:
+            return jsonify({'error': 'item is required'}), 400
+
+        table = _table()
+        pk = _vote_pk(store_id.strip(), key)
+        sk = f'USER#{request.user_sub}'
+
+        raw = body.get('placement', None)
+        if raw is None:
+            table.delete_item(Key={'pk': pk, 'sk': sk})
+        else:
+            placement = _validate_placement(raw)
+            if placement is None:
+                return jsonify({'error': 'Invalid placement'}), 400
+            store_aisle = body.get('storeAisle')
+            table.put_item(Item={
+                'pk': pk,
+                'sk': sk,
+                'kind': placement['kind'],
+                'value': placement['value'],
+                'store_aisle': store_aisle if isinstance(store_aisle, int) else None,
+                'item': (item or '').strip(),
+                'updated_at': _now_iso(),
+            })
+
+        _recompute_consensus(table, pk)
+        return jsonify({'ok': True}), 200
+    except Exception as e:
+        print(f"Error saving aisle override: {e}")
+        return jsonify({'error': 'Failed to save aisle override'}), 500
+
+
+@lists_bp.route('/api/aisle-overrides/resolve', methods=['POST'])
+@require_auth
+def resolve_aisle_overrides():
+    """Resolve the effective placement for each item on a shopping trip, by
+    precedence: the caller's own correction, then a shared-list member's, then
+    the community consensus. Items with none of these are simply omitted (the
+    client keeps the store's aisle / Not Found). Returns
+    { overrides: { itemKey: { kind, value, source } } }."""
+    try:
+        body = request.get_json(silent=True) or {}
+        store_id = body.get('storeId')
+        items = body.get('items')
+        if not isinstance(store_id, str) or not store_id.strip():
+            return jsonify({'error': 'storeId is required'}), 400
+        if not isinstance(items, list):
+            return jsonify({'error': 'items must be a list'}), 400
+        store_id = store_id.strip()
+
+        table = _table()
+
+        # Household = the members of the list the caller names (if any). The
+        # caller must belong to it, so members can't be probed by outsiders.
+        member_subs = []
+        list_id = body.get('listId')
+        if isinstance(list_id, str) and list_id:
+            record = _get_list_record(list_id)
+            members = (record or {}).get('members') or {}
+            if request.user_sub not in members:
+                return jsonify({'error': 'Not a member of this list'}), 403
+            member_subs = [s for s in members if s != request.user_sub]
+
+        my_sk = f'USER#{request.user_sub}'
+        overrides = {}
+        seen = set()
+        for name in items[:MAX_OVERRIDE_ITEMS]:
+            key = _item_key(name)
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            pk = _vote_pk(store_id, key)
+
+            # Every row this item needs — my vote, each household member's
+            # vote, and the derived consensus — lives under this one partition
+            # key, so one query resolves all three precedence levels instead
+            # of a get_item per candidate.
+            response = table.query(KeyConditionExpression='pk = :pk', ExpressionAttributeValues={':pk': pk})
+            rows = {row['sk']: row for row in response.get('Items', [])}
+
+            mine = rows.get(my_sk)
+            if mine:
+                overrides[key] = _override_out(mine, 'me')
+                continue
+
+            household = next((rows[f'USER#{sub}'] for sub in member_subs if f'USER#{sub}' in rows), None)
+            if household:
+                overrides[key] = _override_out(household, 'household')
+                continue
+
+            consensus = rows.get('CONSENSUS')
+            if consensus:
+                overrides[key] = _override_out(consensus, 'community', {'agree': int(consensus.get('agree', 0))})
+
+        return jsonify({'overrides': overrides}), 200
+    except Exception as e:
+        print(f"Error resolving aisle overrides: {e}")
+        return jsonify({'error': 'Failed to resolve aisle overrides'}), 500

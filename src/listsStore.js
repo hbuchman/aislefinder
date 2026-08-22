@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { fetchLists, pushList, deleteListRemote } from './api';
+import { fetchLists, pushList, deleteListRemote, putAisleOverride, resolveAisleOverrides } from './api';
 import { getAccessToken } from './auth';
-import { itemsHash } from './listUtils';
+import { itemsHash, itemKey } from './listUtils';
 
 import { loadState, saveState } from './storage';
 
@@ -71,16 +71,65 @@ export const completedLabel = (iso) => {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 };
 
+const daysAgoLabel = (iso) => {
+  if (!iso) return 'an unknown time ago';
+  const days = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 86400000));
+  if (days === 0) return 'today';
+  if (days === 1) return 'yesterday';
+  return `${days} days ago`;
+};
+
+// Plain-text grounding for the chat assistant: the current list plus the most
+// recent purchase of each item across completed trips. Built client-side
+// since list/history data lives on-device (localStorage), not queryable from
+// the backend — see lists_backend.py's docstring.
+export const buildChatContext = (currentList, completedLists) => {
+  const parts = [];
+
+  if (currentList && currentList.items.length > 0) {
+    parts.push(`Current list ("${currentList.name}"): ${currentList.items.map((it) => it.name).join(', ')}.`);
+  } else {
+    parts.push('The current list is empty.');
+  }
+
+  // Most recent purchase of each item, newest trip first
+  const lastSeen = new Map();
+  completedLists.forEach((list) => {
+    list.items.forEach((it) => {
+      if (!lastSeen.has(it.name)) {
+        lastSeen.set(it.name, { completedAt: list.completedAt, storeName: list.store ? list.store.name : null });
+      }
+    });
+  });
+
+  if (lastSeen.size > 0) {
+    const lines = [...lastSeen.entries()]
+      .sort((a, b) => (b[1].completedAt || '').localeCompare(a[1].completedAt || ''))
+      .slice(0, 40)
+      .map(([name, info]) => `- ${name} — ${daysAgoLabel(info.completedAt)}${info.storeName ? ` at ${info.storeName}` : ''}`);
+    parts.push(`Recent purchases (most recent first):\n${lines.join('\n')}`);
+  }
+
+  return parts.join('\n\n');
+};
+
 // Main store hook. `user` is the auth user (null in guest mode); when signed
 // in, changes sync to the backend and remote changes are polled in.
 export const useLists = (user) => {
   const [lists, setLists] = useState(initialLists);
   const [currentListId, setCurrentListId] = useState(() => loadState('currentListId', null));
+  // Aisle/category corrections a shopper has set, keyed by store then by
+  // lowercased item name — kept outside the per-list `organized` markdown (the
+  // backend overwrites that on every re-organize) and reused across trips at
+  // the same store. Placement: {kind:'aisle',value} | {kind:'category',value} |
+  // {kind:'none'}. Device-local for now; a signed-in sync path can follow.
+  const [aisleOverrides, setAisleOverridesState] = useState(() => loadState('aisleOverrides', {}));
   const dirtyIds = useRef(new Set(loadState('dirtyListIds', [])));
   const pushTimer = useRef(null);
 
   useEffect(() => { saveState('lists', lists); }, [lists]);
   useEffect(() => { saveState('currentListId', currentListId); }, [currentListId]);
+  useEffect(() => { saveState('aisleOverrides', aisleOverrides); }, [aisleOverrides]);
 
   const activeLists = useMemo(() => lists.filter((l) => l.status === 'active'), [lists]);
   const completedLists = useMemo(
@@ -137,6 +186,60 @@ export const useLists = (user) => {
   const removeItem = useCallback((listId, itemId) => {
     updateList(listId, (l) => ({ items: l.items.filter((it) => it.id !== itemId) }));
   }, [updateList]);
+
+  // Save/clear a shopper's aisle or category correction for an item at a store.
+  // Writes device-local immediately (so it works offline/guest), then pushes a
+  // vote to the backend when signed in — the sync layer resolves the rest.
+  const setAisleOverride = useCallback((storeId, itemName, placement) => {
+    const sid = storeId || 'default';
+    const key = itemKey(itemName);
+    if (!key) return;
+    setAisleOverridesState((prev) => ({
+      ...prev,
+      [sid]: { ...(prev[sid] || {}), [key]: placement },
+    }));
+    if (user && navigator.onLine) {
+      getAccessToken().then((token) => {
+        if (token) {
+          putAisleOverride(token, {
+            storeId: sid,
+            item: itemName,
+            placement,
+            storeAisle: placement && placement.storeAisle,
+          }).catch(() => {});
+        }
+      });
+    }
+  }, [user]);
+
+  const clearAisleOverride = useCallback((storeId, itemName) => {
+    const sid = storeId || 'default';
+    const key = itemKey(itemName);
+    setAisleOverridesState((prev) => {
+      if (!prev[sid] || !(key in prev[sid])) return prev;
+      const forStore = { ...prev[sid] };
+      delete forStore[key];
+      return { ...prev, [sid]: forStore };
+    });
+    if (user && navigator.onLine) {
+      getAccessToken().then((token) => {
+        if (token) putAisleOverride(token, { storeId: sid, item: itemName, placement: null }).catch(() => {});
+      });
+    }
+  }, [user]);
+
+  // Pull the effective overrides for a trip (mine → household → community) and
+  // merge them over the device-local cache. Best-effort; a no-op when signed
+  // out, offline, or sync is unconfigured.
+  const syncAisleOverrides = useCallback(async (storeId, itemNames, listId) => {
+    if (!user || !navigator.onLine || !Array.isArray(itemNames) || itemNames.length === 0) return;
+    const token = await getAccessToken();
+    if (!token) return;
+    const resolved = await resolveAisleOverrides(token, { listId, storeId, items: itemNames });
+    if (!resolved) return;
+    const sid = storeId || 'default';
+    setAisleOverridesState((prev) => ({ ...prev, [sid]: { ...(prev[sid] || {}), ...resolved } }));
+  }, [user]);
 
   const createList = useCallback((name) => {
     const list = newList(name);
@@ -341,5 +444,9 @@ export const useLists = (user) => {
     adoptRemoteList,
     frequentItems,
     pullRemote,
+    aisleOverrides,
+    setAisleOverride,
+    clearAisleOverride,
+    syncAisleOverrides,
   };
 };
