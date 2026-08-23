@@ -140,44 +140,47 @@ const CurrentListScreen = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-      {/* List title + share — hidden while typing so the keyboard doesn't
-          leave only a sliver of the list visible */}
-      {!composing && (
-        <>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '14px 16px 2px' }}>
-            <button
-              onClick={onShowLists}
-              title="Switch list"
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--af-text)',
-                fontSize: '21px',
-                fontWeight: 700,
-                cursor: 'pointer',
-                padding: 0,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                fontFamily: 'inherit',
-                letterSpacing: '-0.3px',
-              }}
-            >
-              {list.name}
-              <i className="fa-solid fa-chevron-down" style={{ fontSize: '11px', color: 'var(--af-text-faint)' }} />
-            </button>
-            <div style={{ flex: 1 }} />
-            <button className="af-iconbtn" title="Share this list" onClick={onShowShare}>
-              <i className="fa-solid fa-user-group" />
-            </button>
-          </div>
-          {isShared && (
-            <div style={{ fontSize: '12px', color: 'var(--af-text-muted)', padding: '0 16px 4px' }}>
-              <i className="fa-solid fa-user-group" style={{ fontSize: '10px', marginRight: '5px' }} />
-              Shared with {otherMembers.length > 0 ? otherMembers.join(', ') : 'others'}
-            </div>
-          )}
-        </>
+      {/* List title stays put while typing so you always know which list
+          you're adding to; only the share button swaps for a Done button
+          that closes the keyboard, since sharing doesn't apply mid-type */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '14px 16px 2px' }}>
+        <button
+          onClick={onShowLists}
+          title="Switch list"
+          style={{
+            background: 'none',
+            border: 'none',
+            color: 'var(--af-text)',
+            fontSize: '21px',
+            fontWeight: 700,
+            cursor: 'pointer',
+            padding: 0,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            fontFamily: 'inherit',
+            letterSpacing: '-0.3px',
+          }}
+        >
+          {list.name}
+          <i className="fa-solid fa-chevron-down" style={{ fontSize: '11px', color: 'var(--af-text-faint)' }} />
+        </button>
+        <div style={{ flex: 1 }} />
+        {composing ? (
+          <button className="af-btn-sm af-btn-sm-green" onClick={() => inputRef.current?.blur()}>
+            Done
+          </button>
+        ) : (
+          <button className="af-iconbtn" title="Share this list" onClick={onShowShare}>
+            <i className="fa-solid fa-user-group" />
+          </button>
+        )}
+      </div>
+      {!composing && isShared && (
+        <div style={{ fontSize: '12px', color: 'var(--af-text-muted)', padding: '0 16px 4px' }}>
+          <i className="fa-solid fa-user-group" style={{ fontSize: '10px', marginRight: '5px' }} />
+          Shared with {otherMembers.length > 0 ? otherMembers.join(', ') : 'others'}
+        </div>
       )}
 
       {/* Quick add */}
