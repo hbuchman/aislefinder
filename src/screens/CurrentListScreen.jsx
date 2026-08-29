@@ -48,8 +48,8 @@ const CurrentListScreen = ({
   const [input, setInput] = useState('');
   const [scanning, setScanning] = useState(false);
   // True while the add-item input is focused (keyboard open on mobile). Hides
-  // the title row, suggestions, and footer so the item list — the thing
-  // you're looking at while typing — isn't squeezed down to a couple of rows.
+  // the title row and footer so the item list — the thing you're looking at
+  // while typing — isn't squeezed down to a couple of rows.
   const [composing, setComposing] = useState(false);
   const inputRef = useRef(null);
   const photoInputRef = useRef(null);
@@ -131,6 +131,19 @@ const CurrentListScreen = ({
     }
     if (format === resolveOrganizeFormat(list)) return;
     updateList(list.id, { formatPreference: format, customCategoryOrder: null });
+  };
+
+  // Suggestions stay up while typing (that's when they're most useful) and
+  // narrow to whatever matches what's been typed so far
+  const query = input.trim().toLowerCase();
+  const suggestions = query
+    ? frequentItems.filter((name) => name.toLowerCase().includes(query))
+    : frequentItems;
+
+  const addSuggestion = (name) => {
+    addItem(list.id, name);
+    setInput('');
+    inputRef.current?.focus();
   };
 
   const isShared = list.members && list.members.length > 1;
@@ -233,12 +246,15 @@ const CurrentListScreen = ({
         />
       </div>
 
-      {/* Frequent-item suggestions from history — hidden while typing */}
-      {!composing && frequentItems.length > 0 && (
+      {/* Frequent-item suggestions from history — stay visible while typing
+          and narrow to matches, since that's the moment they help most */}
+      {suggestions.length > 0 && (
         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', padding: '8px 16px 4px', alignItems: 'center' }}>
-          <span style={{ fontSize: '11px', color: 'var(--af-text-faint)' }}>You often buy:</span>
-          {frequentItems.map((name) => (
-            <button key={name} className="af-freqchip" onClick={() => addItem(list.id, name)}>
+          <span style={{ fontSize: '11px', color: 'var(--af-text-faint)' }}>
+            {query ? 'Matches:' : 'You often buy:'}
+          </span>
+          {suggestions.map((name) => (
+            <button key={name} className="af-freqchip" onClick={() => addSuggestion(name)}>
               <i className="fa-solid fa-plus" style={{ fontSize: '9px', marginRight: '5px' }} />
               {name}
             </button>
