@@ -107,6 +107,21 @@ export const fetchCategories = async () => {
   }
 };
 
+// Ask the shopping assistant a free-form question, grounded in a plain-text
+// summary of the current list/purchase history built by the caller (see
+// listsStore.js's buildChatContext) — the backend has no access to it itself.
+export const sendChatMessage = async ({ message, history, context }) => {
+  const response = await fetch(`${API_BASE}/api/chat`, {
+    method: 'POST',
+    headers: jsonHeaders(),
+    body: JSON.stringify({ message, history, context }),
+  });
+  if (response.status === 503) throw new Error("Chat isn't available right now");
+  if (!response.ok) throw new Error("Couldn't get a reply — try again");
+  const result = await response.json();
+  return result.reply || '';
+};
+
 // ---- List sync/sharing (requires a signed-in user's Cognito access token) ----
 
 export const fetchLists = async (token) => {

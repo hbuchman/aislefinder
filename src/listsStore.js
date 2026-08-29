@@ -79,6 +79,40 @@ const daysAgoLabel = (iso) => {
   return `${days} days ago`;
 };
 
+// Plain-text grounding for the chat assistant: the current list plus the most
+// recent purchase of each item across completed trips. Built client-side
+// since list/history data lives on-device (localStorage), not queryable from
+// the backend — see lists_backend.py's docstring.
+export const buildChatContext = (currentList, completedLists) => {
+  const parts = [];
+
+  if (currentList && currentList.items.length > 0) {
+    parts.push(`Current list ("${currentList.name}"): ${currentList.items.map((it) => it.name).join(', ')}.`);
+  } else {
+    parts.push('The current list is empty.');
+  }
+
+  // Most recent purchase of each item, newest trip first
+  const lastSeen = new Map();
+  completedLists.forEach((list) => {
+    list.items.forEach((it) => {
+      if (!lastSeen.has(it.name)) {
+        lastSeen.set(it.name, { completedAt: list.completedAt, storeName: list.store ? list.store.name : null });
+      }
+    });
+  });
+
+  if (lastSeen.size > 0) {
+    const lines = [...lastSeen.entries()]
+      .sort((a, b) => (b[1].completedAt || '').localeCompare(a[1].completedAt || ''))
+      .slice(0, 40)
+      .map(([name, info]) => `- ${name} — ${daysAgoLabel(info.completedAt)}${info.storeName ? ` at ${info.storeName}` : ''}`);
+    parts.push(`Recent purchases (most recent first):\n${lines.join('\n')}`);
+  }
+
+  return parts.join('\n\n');
+};
+
 // Main store hook. `user` is the auth user (null in guest mode); when signed
 // in, changes sync to the backend and remote changes are polled in.
 export const useLists = (user) => {

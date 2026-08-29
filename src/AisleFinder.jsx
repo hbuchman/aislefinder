@@ -11,12 +11,13 @@ import CurrentListScreen from './screens/CurrentListScreen';
 import MyListsScreen from './screens/MyListsScreen';
 import HistoryScreen from './screens/HistoryScreen';
 import ShopScreen from './screens/ShopScreen';
+import ChatScreen from './screens/ChatScreen';
 
 const AisleFinder = () => {
   const auth = useAuth();
   const store = useLists(auth.user);
 
-  // screen: 'list' (home) | 'lists' | 'history' | 'shop'
+  // screen: 'list' (home) | 'lists' | 'history' | 'shop' | 'chat'
   const [screen, setScreen] = useState('list');
   // sheet: null | 'account' | 'share' | 'store'
   const [sheet, setSheet] = useState(null);
@@ -631,6 +632,7 @@ const AisleFinder = () => {
             user={auth.user}
             onShowHistory={() => setScreen('history')}
             onShowLists={() => setScreen('lists')}
+            onShowChat={() => setScreen('chat')}
             onShowAccount={() => setSheet('account')}
           />
         )}
@@ -673,6 +675,14 @@ const AisleFinder = () => {
             onMerge={handleMerge}
             onReshop={handleReshop}
             onDeleteList={handleDeleteList}
+            onBack={() => setScreen('list')}
+          />
+        )}
+
+        {screen === 'chat' && (
+          <ChatScreen
+            currentList={store.currentList}
+            completedLists={store.completedLists}
             onBack={() => setScreen('list')}
           />
         )}

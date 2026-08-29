@@ -309,6 +309,108 @@ def _extract_items_from_photo(image_bytes, media_type):
     return [item.strip() for item in parsed['items'] if isinstance(item, str) and item.strip()]
 
 
+CHAT_MAX_MESSAGE_CHARS = 2000
+CHAT_MAX_CONTEXT_CHARS = 6000
+CHAT_MAX_HISTORY_TURNS = 20
+CHAT_MAX_TURN_CHARS = 2000
+
+
+class _ChatUnavailable(Exception):
+    """Raised when Claude can't be reached for a reason the caller can't fix
+    (out of API credits, bad/revoked key) — a clean 503, not a 500."""
+
+
+@grocery_bp.route('/api/chat', methods=['POST'])
+@rate_limited(max_requests=8, bucket='chat-burst')
+@rate_limited(
+    max_requests=40, bucket='chat-day', window_seconds=86400,
+    message="You've hit today's chat limit — try again tomorrow",
+)
+def chat():
+    """Answer a free-form shopping question.
+
+    List and purchase-history data live on-device (see lists_backend.py's
+    docstring — the backend only stores opaque list JSON, no per-item
+    index), so the client builds a plain-text `context` summary and sends
+    it along; this route never queries list data itself.
+    """
+    try:
+        if not os.environ.get('ANTHROPIC_API_KEY'):
+            return jsonify({'error': 'Chat is not configured on the server'}), 503
+
+        data = _json_body()
+        message = data.get('message')
+        message = message.strip() if isinstance(message, str) else ''
+        if not message:
+            return jsonify({'error': 'Message is required'}), 400
+        message = message[:CHAT_MAX_MESSAGE_CHARS]
+
+        context = data.get('context')
+        context = context.strip()[:CHAT_MAX_CONTEXT_CHARS] if isinstance(context, str) else ''
+
+        history = data.get('history')
+        turns = []
+        if isinstance(history, list):
+            for turn in history[-CHAT_MAX_HISTORY_TURNS:]:
+                if not isinstance(turn, dict):
+                    continue
+                role = turn.get('role')
+                content = turn.get('content')
+                if role not in ('user', 'assistant') or not isinstance(content, str) or not content.strip():
+                    continue
+                turns.append({'role': role, 'content': content.strip()[:CHAT_MAX_TURN_CHARS]})
+
+        reply = _ask_chat_assistant(message, turns, context)
+        return jsonify({'reply': reply}), 200
+
+    except _ChatUnavailable:
+        return jsonify({'error': 'Chat is not configured on the server'}), 503
+
+    except Exception as e:
+        return _server_error('answering chat message', e)
+
+
+def _ask_chat_assistant(message, history, context):
+    """Claude's reply to one chat turn, grounded in an optional list/history summary."""
+    # Deferred import: servers that never set ANTHROPIC_API_KEY (and the test
+    # suite) don't need the anthropic package installed
+    import anthropic
+    from datetime import date
+
+    system = (
+        "You are the shopping assistant built into AisleFinder, a grocery list app. "
+        "Answer directly and conversationally - your reply renders in a small chat "
+        "bubble, so keep it to a few sentences unless the question genuinely needs "
+        "more. You may be given the shopper's current list and recent purchase "
+        "history below; use it when relevant (e.g. whether something is already on "
+        "the list, or when it was last bought and at which store), but don't force "
+        "it into answers about general shopping, cooking, or produce-picking advice. "
+        "If the history doesn't mention something, say you don't have a record of it "
+        "rather than guessing.\n\n"
+        f"Today's date: {date.today().isoformat()}"
+        + (f"\n\n{context}" if context else "")
+    )
+
+    try:
+        response = anthropic.Anthropic().messages.create(
+            model='claude-haiku-4-5',
+            max_tokens=1024,
+            system=system,
+            messages=history + [{'role': 'user', 'content': message}],
+        )
+    except anthropic.APIStatusError as e:
+        # Credit exhaustion, a revoked/invalid key, etc: nothing the caller
+        # can retry their way out of, so surface it as "unavailable" rather
+        # than a generic 500.
+        if e.type in ('billing_error', 'authentication_error', 'permission_error'):
+            raise _ChatUnavailable(str(e)) from e
+        raise
+
+    if response.stop_reason == 'refusal':
+        return "I can't help with that one — try asking something else about your list or shopping."
+    return ''.join(block.text for block in response.content if block.type == 'text').strip()
+
+
 @grocery_bp.route('/api/health', methods=['GET'])
 def health_check():
     return jsonify({'status': 'healthy'}), 200
