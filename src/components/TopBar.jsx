@@ -1,7 +1,7 @@
 import React from 'react';
 import Logo from './Logo';
 
-const TopBar = ({ user, onShowHistory, onShowLists, onShowChat, onShowAccount }) => (
+const TopBar = ({ user, onShowHistory, onShowLists, onShowAccount }) => (
   <div className="af-topbar" style={{
     display: 'flex',
     alignItems: 'center',
@@ -30,9 +30,6 @@ const TopBar = ({ user, onShowHistory, onShowLists, onShowChat, onShowAccount })
       </span>
     </div>
     <div style={{ flex: 1 }} />
-    <button className="af-iconbtn" title="Ask AisleFinder" onClick={onShowChat}>
-      <i className="fa-solid fa-comment-dots" />
-    </button>
     <button className="af-iconbtn" title="History" onClick={onShowHistory}>
       <i className="fa-solid fa-clock-rotate-left" />
     </button>
