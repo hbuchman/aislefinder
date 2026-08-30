@@ -1,8 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { photoToItems } from '../api';
-import { resolveOrganizeFormat, parseListItems } from '../listUtils';
-import FormatToggle from '../components/FormatToggle';
+import { parseListItems } from '../listUtils';
 
 // The Claude API caps images at 5MB and gains nothing above ~1568px on the
 // long edge, so photos are downscaled and re-encoded as JPEG before upload
@@ -40,8 +39,6 @@ const CurrentListScreen = ({
   updateList,
   onShowLists,
   onShowShare,
-  onShowStore,
-  onShop,
   onComposingChange,
   toast,
 }) => {
@@ -122,15 +119,6 @@ const CurrentListScreen = ({
     } finally {
       setScanning(false);
     }
-  };
-
-  const setFormat = (format) => {
-    if (format === 'aisle' && !list.store) {
-      onShowStore();
-      return;
-    }
-    if (format === resolveOrganizeFormat(list)) return;
-    updateList(list.id, { formatPreference: format, customCategoryOrder: null });
   };
 
   // Suggestions stay up while typing (that's when they're most useful) and
@@ -303,52 +291,6 @@ const CurrentListScreen = ({
           </div>
         ))}
       </div>
-
-      {/* Store + shop footer — hidden while typing so the keyboard leaves
-          the list itself visible instead of two rows of controls */}
-      {!composing && (
-        <div style={{
-          borderTop: '1px solid var(--af-border)',
-          padding: '12px 16px calc(14px + var(--safe-area-inset-bottom))',
-          background: 'var(--af-bg)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '10px',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--af-text-muted)' }}>
-            <i className="fa-solid fa-location-dot" />
-            {list.store ? list.store.name : 'No store selected'}
-            <button
-              onClick={onShowStore}
-              style={{
-                marginLeft: 'auto',
-                background: 'none',
-                border: 'none',
-                color: 'var(--af-focus)',
-                fontSize: '12px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-              }}
-            >
-              {list.store ? 'Change' : 'Choose store'}
-            </button>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '12px', color: 'var(--af-text-muted)' }}>Organize by</span>
-            <FormatToggle format={resolveOrganizeFormat(list)} onChange={setFormat} aisleDisabled={!list.store} />
-          </div>
-          <button
-            className="af-btn-green"
-            style={{ justifyContent: 'center', padding: '14px 24px', fontSize: '16px', borderRadius: '10px' }}
-            disabled={list.items.length === 0}
-            onClick={onShop}
-          >
-            <i className="fa-solid fa-basket-shopping" />
-            Shop{list.items.length > 0 ? ` (${list.items.length})` : ''}
-          </button>
-        </div>
-      )}
     </div>
   );
 };

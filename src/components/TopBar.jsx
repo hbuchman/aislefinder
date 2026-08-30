@@ -1,7 +1,7 @@
 import React from 'react';
 import Logo from './Logo';
 
-const TopBar = ({ user, onShowHistory, onShowLists, onShowChat, onShowAccount }) => (
+const TopBar = ({ user, onShowHistory, onShowLists, onShowChat, onShowAccount, onShowStore, onShop, shopCount, shopDisabled }) => (
   <div className="af-topbar" style={{
     display: 'flex',
     alignItems: 'center',
@@ -39,6 +39,22 @@ const TopBar = ({ user, onShowHistory, onShowLists, onShowChat, onShowAccount })
     <button className="af-iconbtn" title="My Lists" onClick={onShowLists}>
       <i className="fa-solid fa-rectangle-list" />
     </button>
+    {onShowStore && (
+      <button className="af-iconbtn" title="Store & organize" onClick={onShowStore}>
+        <i className="fa-solid fa-location-dot" />
+      </button>
+    )}
+    {onShop && (
+      <button
+        className="af-btn-sm af-btn-sm-green"
+        title="Start shopping"
+        onClick={onShop}
+        disabled={shopDisabled}
+      >
+        <i className="fa-solid fa-basket-shopping" style={{ marginRight: '6px' }} />
+        Shop{shopCount > 0 ? ` (${shopCount})` : ''}
+      </button>
+    )}
     <button className="af-chipbtn" title={user ? user.email : 'Account'} onClick={onShowAccount}>
       <span style={{
         width: '22px',

@@ -1,0 +1,153 @@
+ABOUT PAGE COPY — public/about.html
+Edit any line below. Keep the labels (HEADLINE:, bullets, etc.) so I can map
+your corrections back to the HTML.
+
+================================================================
+HERO
+================================================================
+WORDMARK: AisleFinder
+HEADLINE: Your grocery list, ordered.
+SUBTITLE: Type your list. Pick your store. Start at produce, end at frozen and never backtrack again.
+PLATFORM CHIPS: iPhone | Android | Web
+
+================================================================
+STOP 1 — BUILD
+================================================================
+EYEBROW: Build
+HEADING: Make your list
+BULLETS:
+- Type items in or paste in an existing list
+- Snap a photo of your paper list on the back of an envelope 
+- Frequent items are one tap away
+- Commas add several at once
+- Create as many lists as you need
+
+PHONE MOCKUP TEXT:
+  List title: Weekly shop
+  Store chip: 4500S Smiths
+  Input placeholder: Add an item…
+  Items: Eggs / Whole milk / Sourdough bread / Chicken thighs / Frozen peas / Capers
+  Frequent chips: + eggs | + coffee | + spinach
+  Toggle: Aisle | Category
+  Button: Shop
+
+================================================================
+STOP 2 — SHOPPING MODE
+================================================================
+EYEBROW: Shopping mode
+HEADING: A checklist that walks the store with you.
+BULLETS:
+- Check items off as you go
+- Finished aisles collapse
+- Drag aisles to match your own path
+- Drag items into an aisle to correct the aisle
+- Forgot something? Look up its aisle mid-trip
+
+PHONE MOCKUP TEXT:
+  Title: Shopping mode
+  Progress chip: 7 of 12
+  Groups: Produce (3/3) / Aisle 2 · Bakery (2/2) / Aisle 9 (1/3) / Aisle 12 · Dairy (1/2) / Frozen (0/2)
+  Aisle 9 items: Olive oil (checked) / Capers / Pasta sauce
+
+================================================================
+STOP 3 — INFO MODE
+================================================================
+EYEBROW: Info mode
+HEADING: Tap any item for the details.
+BULLETS:
+- Exact location — aisle and section
+- The matched product and its price
+- Label info at a glance
+- Details about how to pick the right thing
+
+PHONE MOCKUP TEXT:
+  Title: Shopping mode
+  Progress chip: 7 of 12
+  Group: Aisle 12 · Dairy (1/2)
+  Items: Greek yogurt (checked) / Whole milk
+  Sheet product name: Kroger Vitamin D Whole Milk
+  Sheet location: Aisle 12 · Dairy case
+  Sheet price: 1 gal · $3.49
+  Sheet tags: Vitamin D | Grade A | Pasteurized
+
+================================================================
+STOP 4 — DONE
+================================================================
+EYEBROW: Done
+HEADING: Finish with a summary.
+BULLETS:
+- There's even confetti!
+
+PHONE MOCKUP TEXT:
+  Hero number: 23 min
+  Caption: Trip time
+  Line: 12 of 12 items found
+  Callout: Hardest to find — Capers · Aisle 9 · 4 min
+
+================================================================
+FEATURE STRIP
+================================================================
+1. Synced everywhere: create an account and your lists follow you across phone, tablet, and web
+2. Shareable: You and your family can list and divide and conquer the store with live list updates
+3. Private by design: No ads. No tracking. Your lists stay yours.
+
+================================================================
+APP STORE LISTING
+================================================================
+SECTION EYEBROW: App Store listing
+SECTION LEDE: The same copy, cut to App Store fields — ready to paste into App Store Connect and the Play Console.
+
+NAME (30 char limit): AisleFinder
+
+SUBTITLE (30 char limit): Grocery lists, in aisle order
+
+PROMOTIONAL TEXT (170 char limit):
+
+Convert that envelope you wrote a scattered grocery list on into a digital map. Items are grouped by aisle or category so you never have to backtrack again. You'll see the exact location on the shelf for that mystery spice your wife sent you to buy.  
+
+DESCRIPTION (4000 char limit):
+Your grocery list, ordered
+
+AisleFinder looks up each of your grocery items and shows their exact aisle and aisle position in the store. Enter `Shop Mode` to check off items as you go and collapse aisles when you're done. 
+
+Create a list for each store you visit or organize in any way you like.
+
+<to do: what do accounts get you that guest mode doesn't>
+
+
+
+BUILD
+• Type items in or paste an entire existing list
+• Snap a photo of a handwritten list
+• Frequent items are one tap away
+
+ORGANIZE
+• Get aisle numbers from any Kroger store (including Smith's <etc. todo>)
+• Or sort by category — fresh first, frozen last
+
+SHOP
+• Check items off as you go
+• Finished aisles collapse out of the way
+• Drag aisles to match your own path
+• Look up any item's aisle mid-trip
+• Tap an item for its exact location and price
+
+<todo add section about info mode>
+
+AFTER
+- Enjoy the congratulations you deserve for making it through shopping
+
+Aisle locations are available at Kroger-family stores (Kroger, Smith's, Fred Meyer, Ralphs, and more). Everywhere else, category sorting keeps your list in shopping order.
+
+No ads. No tracking. Your lists stay yours.
+(END DESCRIPTION)
+
+KEYWORDS (100 char limit): grocery,list,aisle,shopping,checklist,store,supermarket,kroger,organizer,share
+
+FOOTER LINK: Privacy policy
+
+================================================================
+PAGE METADATA
+================================================================
+BROWSER TAB TITLE: About — AisleFinder
+META DESCRIPTION: AisleFinder sorts your grocery list by store aisle — start at produce, end at frozen, no backtracking.

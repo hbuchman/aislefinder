@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import Sheet from './Sheet';
+import FormatToggle from './FormatToggle';
 import { findStores } from '../api';
 import { loadState, saveState } from '../storage';
+import { resolveOrganizeFormat } from '../listUtils';
 
 const isValidZipCode = (zip) => /^\d{5}(-\d{4})?$/.test(zip.trim());
 
@@ -11,6 +13,11 @@ const StoreSheet = ({ open, onClose, list, updateList, toast }) => {
   const [searching, setSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [error, setError] = useState('');
+
+  const setFormat = (format) => {
+    if (!list || format === resolveOrganizeFormat(list)) return;
+    updateList(list.id, { formatPreference: format, customCategoryOrder: null });
+  };
 
   const search = async () => {
     if (!isValidZipCode(zipCode)) {
@@ -51,6 +58,26 @@ const StoreSheet = ({ open, onClose, list, updateList, toast }) => {
       <p style={{ fontSize: '12px', color: 'var(--af-text-muted)', margin: '0 0 14px' }}>
         Kroger family stores: Pick 'N Save, Ralphs, King Soopers, Smith's, Fry's, QFC, and more
       </p>
+
+      {list && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '10px 12px',
+          marginBottom: '14px',
+          border: '1px solid var(--af-border)',
+          borderRadius: '10px',
+          backgroundColor: 'var(--af-inset-bg)',
+        }}>
+          <i className="fa-solid fa-location-dot" style={{ color: 'var(--af-text-muted)', fontSize: '12px' }} />
+          <span style={{ fontSize: '13px', color: 'var(--af-text)', flex: 1 }}>
+            {list.store ? list.store.name : 'No store selected'}
+          </span>
+          <span style={{ fontSize: '12px', color: 'var(--af-text-muted)' }}>Organize by</span>
+          <FormatToggle format={resolveOrganizeFormat(list)} onChange={setFormat} aisleDisabled={!list.store} />
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
         <input

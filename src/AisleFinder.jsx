@@ -341,15 +341,19 @@ const AisleFinder = () => {
           align-items: center;
           transition: all 0.2s ease;
         }
-        .af-btn-sm:hover {
+        .af-btn-sm:hover:not(:disabled) {
           border-color: var(--af-focus);
           color: var(--af-focus);
+        }
+        .af-btn-sm:disabled {
+          color: var(--af-disabled-text);
+          cursor: not-allowed;
         }
         .af-btn-sm-green {
           border-color: var(--af-green);
           color: var(--af-green);
         }
-        .af-btn-sm-green:hover {
+        .af-btn-sm-green:hover:not(:disabled) {
           background: var(--af-green);
           border-color: var(--af-green);
           color: white;
@@ -634,6 +638,10 @@ const AisleFinder = () => {
             onShowLists={() => setScreen('lists')}
             onShowChat={() => setScreen('chat')}
             onShowAccount={() => setSheet('account')}
+            onShowStore={screen === 'list' ? () => setSheet('store') : undefined}
+            onShop={screen === 'list' ? () => setScreen('shop') : undefined}
+            shopCount={store.currentList ? store.currentList.items.length : 0}
+            shopDisabled={!store.currentList || store.currentList.items.length === 0}
           />
         )}
 
@@ -647,8 +655,6 @@ const AisleFinder = () => {
             updateList={store.updateList}
             onShowLists={() => setScreen('lists')}
             onShowShare={() => setSheet('share')}
-            onShowStore={() => setSheet('store')}
-            onShop={() => setScreen('shop')}
             onComposingChange={setListComposing}
             toast={toast}
           />
