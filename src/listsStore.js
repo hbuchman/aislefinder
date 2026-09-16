@@ -71,7 +71,7 @@ export const completedLabel = (iso) => {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 };
 
-const daysAgoLabel = (iso) => {
+export const daysAgoLabel = (iso) => {
   if (!iso) return 'an unknown time ago';
   const days = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 86400000));
   if (days === 0) return 'today';
@@ -111,6 +111,46 @@ export const buildChatContext = (currentList, completedLists) => {
   }
 
   return parts.join('\n\n');
+};
+
+// History, grouped by list name instead of by individual trip: every item
+// ever bought under a recurring list (e.g. every trip ever run as "Costco
+// Run"), deduped with a purchase count and most-recent date. "Bought" means
+// "was on a trip this shopper completed" — the same assumption
+// buildChatContext makes above, since there's no signed-in Kroger order
+// history behind this, only what shoppers themselves checked off.
+export const groupPurchaseHistory = (completedLists) => {
+  const groups = new Map(); // list name -> { name, trips, lastAt, itemsByKey }
+  completedLists.forEach((list) => {
+    let group = groups.get(list.name);
+    if (!group) {
+      group = { name: list.name, trips: 0, lastAt: null, itemsByKey: new Map() };
+      groups.set(list.name, group);
+    }
+    group.trips += 1;
+    if (!group.lastAt || (list.completedAt || '') > group.lastAt) group.lastAt = list.completedAt;
+    list.items.forEach((it) => {
+      const key = itemKey(it.name);
+      const existing = group.itemsByKey.get(key);
+      if (!existing) {
+        group.itemsByKey.set(key, {
+          name: it.name,
+          count: 1,
+          lastAt: list.completedAt,
+          lastStore: list.store ? list.store.name : null,
+        });
+      } else {
+        existing.count += 1;
+        if ((list.completedAt || '') > (existing.lastAt || '')) {
+          existing.lastAt = list.completedAt;
+          existing.lastStore = list.store ? list.store.name : null;
+        }
+      }
+    });
+  });
+  return [...groups.values()]
+    .map((g) => ({ name: g.name, trips: g.trips, lastAt: g.lastAt, items: [...g.itemsByKey.values()] }))
+    .sort((a, b) => (b.lastAt || '').localeCompare(a.lastAt || ''));
 };
 
 // Main store hook. `user` is the auth user (null in guest mode); when signed
@@ -181,6 +221,29 @@ export const useLists = (user) => {
     }));
     markDirty(listId);
     return added;
+  }, [user, markDirty]);
+
+  // Bulk add, for restoring several items from purchase history in one go —
+  // a single list write instead of one per item (each own write would reset
+  // the push-debounce timer and re-render for every row selected).
+  const addItems = useCallback((listId, names) => {
+    let addedCount = 0;
+    setLists((prev) => prev.map((l) => {
+      if (l.id !== listId) return l;
+      const existing = new Set(l.items.map((it) => it.name));
+      const fresh = [];
+      names.forEach((raw) => {
+        const trimmed = raw.trim().toLowerCase();
+        if (!trimmed || existing.has(trimmed)) return;
+        existing.add(trimmed);
+        fresh.push(newItem(trimmed, user ? user.displayName : null));
+      });
+      addedCount = fresh.length;
+      if (fresh.length === 0) return l;
+      return { ...l, items: [...fresh, ...l.items], updatedAt: new Date().toISOString() };
+    }));
+    if (addedCount > 0) markDirty(listId);
+    return addedCount;
   }, [user, markDirty]);
 
   const removeItem = useCallback((listId, itemId) => {
@@ -344,6 +407,8 @@ export const useLists = (user) => {
       .map(([name]) => name);
   }, [completedLists, currentList]);
 
+  const purchaseHistory = useMemo(() => groupPurchaseHistory(completedLists), [completedLists]);
+
   // ---- server sync (signed-in only) ----
 
   const pushDirty = useCallback(async () => {
@@ -435,6 +500,7 @@ export const useLists = (user) => {
     setCurrentListId,
     updateList,
     addItem,
+    addItems,
     removeItem,
     createList,
     deleteList,
@@ -443,6 +509,7 @@ export const useLists = (user) => {
     mergeIntoCurrent,
     adoptRemoteList,
     frequentItems,
+    purchaseHistory,
     pullRemote,
     aisleOverrides,
     setAisleOverride,

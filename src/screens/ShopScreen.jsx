@@ -483,6 +483,23 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
     return best;
   }, [checkTimestamps]);
 
+  // Auto-collapse a group once every item in it is checked, and drop any
+  // stale manual override once it's no longer complete — otherwise a single
+  // manual chevron-tap on a group (via toggleGroupCollapse) permanently pins
+  // its collapsed state and it stops reacting to completion.
+  const syncGroupCollapse = (collapsedGroups, groupName, nextChecked) => {
+    const group = orderedGroups.find((g) => g.name === groupName);
+    if (!group) return collapsedGroups;
+    const isComplete = group.items.every((item) => nextChecked[`${groupName}::${item}`]);
+    const next = { ...collapsedGroups };
+    if (isComplete) {
+      next[groupName] = true;
+    } else {
+      delete next[groupName];
+    }
+    return next;
+  };
+
   const toggleItem = (groupName, itemName) => {
     const key = `${groupName}::${itemName}`;
     const isChecking = !checkedItems[key];
@@ -495,9 +512,13 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
       return next;
     });
 
-    updateList(listId, (l) => ({
-      checkedItems: { ...(l.checkedItems || {}), [key]: !(l.checkedItems || {})[key] },
-    }));
+    updateList(listId, (l) => {
+      const nextChecked = { ...(l.checkedItems || {}), [key]: !(l.checkedItems || {})[key] };
+      return {
+        checkedItems: nextChecked,
+        collapsedGroups: syncGroupCollapse(l.collapsedGroups || {}, groupName, nextChecked),
+      };
+    });
   };
 
   const toggleGroup = (group) => {
@@ -505,7 +526,11 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
     updateList(listId, (l) => {
       const updates = {};
       group.items.forEach((item) => { updates[`${group.name}::${item}`] = !allChecked; });
-      return { checkedItems: { ...(l.checkedItems || {}), ...updates } };
+      const nextChecked = { ...(l.checkedItems || {}), ...updates };
+      return {
+        checkedItems: nextChecked,
+        collapsedGroups: syncGroupCollapse(l.collapsedGroups || {}, group.name, nextChecked),
+      };
     });
   };
 

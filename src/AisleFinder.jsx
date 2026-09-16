@@ -88,6 +88,13 @@ const AisleFinder = () => {
     }
   };
 
+  const handleDeleteHistoryGroup = (name) => {
+    if (window.confirm(`Delete all shopping history for "${name}"? This can't be undone.`)) {
+      store.completedLists.filter((l) => l.name === name).forEach((l) => store.deleteList(l.id));
+      toast('Deleted');
+    }
+  };
+
   return (
     <div className="af-shell" style={{
       display: 'flex',
@@ -676,11 +683,12 @@ const AisleFinder = () => {
 
         {screen === 'history' && (
           <HistoryScreen
-            completedLists={store.completedLists}
+            purchaseHistory={store.purchaseHistory}
+            currentList={store.currentList}
+            addItems={store.addItems}
+            onDeleteGroup={handleDeleteHistoryGroup}
             user={auth.user}
-            onMerge={handleMerge}
-            onReshop={handleReshop}
-            onDeleteList={handleDeleteList}
+            toast={toast}
             onBack={() => setScreen('list')}
           />
         )}
