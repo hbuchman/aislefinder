@@ -9,7 +9,6 @@ import ShareSheet from './components/ShareSheet';
 import StoreSheet from './components/StoreSheet';
 import CurrentListScreen from './screens/CurrentListScreen';
 import MyListsScreen from './screens/MyListsScreen';
-import HistoryScreen from './screens/HistoryScreen';
 import ShopScreen from './screens/ShopScreen';
 import ChatScreen from './screens/ChatScreen';
 
@@ -17,7 +16,7 @@ const AisleFinder = () => {
   const auth = useAuth();
   const store = useLists(auth.user);
 
-  // screen: 'list' (home) | 'lists' | 'history' | 'shop' | 'chat'
+  // screen: 'list' (home) | 'lists' | 'shop' | 'chat'
   const [screen, setScreen] = useState('list');
   // sheet: null | 'account' | 'share' | 'store'
   const [sheet, setSheet] = useState(null);
@@ -66,15 +65,13 @@ const AisleFinder = () => {
     setScreen('list');
   };
 
-  const handleMerge = (sourceId) => {
-    const added = store.mergeIntoCurrent(sourceId);
-    toast(added > 0 ? `Added ${added} item${added === 1 ? '' : 's'} to ${store.currentList?.name || 'your list'}` : 'Everything is already on your list');
+  const handleStartFromHistory = (name) => {
+    const group = store.purchaseHistory.find((g) => g.name === name);
+    if (!group) return;
+    const list = store.createList(name);
+    store.addItems(list.id, group.items.map((it) => it.name));
     setScreen('list');
-  };
-
-  const handleReshop = (sourceId) => {
-    const copy = store.reshopList(sourceId);
-    if (copy) setScreen('shop');
+    toast(`Started a new "${name}" list from your history`);
   };
 
   const handleDeleteList = (list) => {
@@ -670,7 +667,6 @@ const AisleFinder = () => {
         {screen !== 'shop' && (
           <TopBar
             user={auth.user}
-            onShowHistory={() => setScreen('history')}
             onShowLists={() => setScreen('lists')}
             onShowChat={() => setScreen('chat')}
             onShowAccount={() => setSheet('account')}
@@ -699,24 +695,15 @@ const AisleFinder = () => {
           <MyListsScreen
             activeLists={store.activeLists}
             completedLists={store.completedLists}
-            currentListId={store.currentList ? store.currentList.id : null}
+            currentList={store.currentList}
             onOpenList={openList}
             onCreateList={(name) => { store.createList(name); setScreen('list'); }}
             onDeleteList={handleDeleteList}
-            onMerge={handleMerge}
-            onReshop={handleReshop}
-            onBack={() => setScreen('list')}
-          />
-        )}
-
-        {screen === 'history' && (
-          <HistoryScreen
-            purchaseHistory={store.purchaseHistory}
-            currentList={store.currentList}
+            onDeleteHistory={handleDeleteHistoryGroup}
+            onStartFromHistory={handleStartFromHistory}
             addItems={store.addItems}
-            onDeleteGroup={handleDeleteHistoryGroup}
-            user={auth.user}
             toast={toast}
+            user={auth.user}
             onBack={() => setScreen('list')}
           />
         )}
@@ -737,7 +724,7 @@ const AisleFinder = () => {
             outputFormat={outputFormat}
             setOutputFormat={setOutputFormat}
             onExit={() => setScreen('list')}
-            onFinished={() => { setScreen('history'); toast('Trip saved to History'); }}
+            onFinished={() => { setScreen('list'); toast('Trip saved — see it in My Lists'); }}
             onShowStore={() => setSheet('store')}
             toast={toast}
             aisleOverrides={store.aisleOverrides}

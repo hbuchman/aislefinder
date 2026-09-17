@@ -347,43 +347,6 @@ export const useLists = (user) => {
     }
   }, [markDirty]);
 
-  // "Shop again": copy a completed list into a new active list, keeping its
-  // organized output so shop mode can start instantly.
-  const reshopList = useCallback((sourceId) => {
-    const source = lists.find((l) => l.id === sourceId);
-    if (!source) return null;
-    const copy = newList(source.name);
-    copy.items = source.items.map((it) => newItem(it.name, null, completedLabel(source.completedAt)));
-    copy.store = source.store;
-    copy.organized = source.organized;
-    // Item names match the source, so its organized output is still valid
-    copy.organizedForHash = source.organized ? itemsHash(copy.items) : null;
-    copy.organizedBy = source.organizedBy;
-    copy.formatPreference = source.formatPreference;
-    copy.customCategoryOrder = source.customCategoryOrder;
-    setLists((prev) => [copy, ...prev]);
-    setCurrentListId(copy.id);
-    markDirty(copy.id);
-    return copy;
-  }, [lists, markDirty]);
-
-  // "Add to current list": merge a past list's items into the current one.
-  const mergeIntoCurrent = useCallback((sourceId) => {
-    const source = lists.find((l) => l.id === sourceId);
-    if (!source || !currentList) return 0;
-    const existing = new Set(currentList.items.map((it) => it.name));
-    const fresh = source.items.filter((it) => !existing.has(it.name));
-    if (fresh.length > 0) {
-      updateList(currentList.id, (l) => ({
-        items: [
-          ...fresh.map((it) => newItem(it.name, user ? user.displayName : null, completedLabel(source.completedAt))),
-          ...l.items,
-        ],
-      }));
-    }
-    return fresh.length;
-  }, [lists, currentList, updateList, user]);
-
   const adoptRemoteList = useCallback((remote) => {
     setLists((prev) => {
       const without = prev.filter((l) => l.id !== remote.id);
@@ -505,8 +468,6 @@ export const useLists = (user) => {
     createList,
     deleteList,
     completeList,
-    reshopList,
-    mergeIntoCurrent,
     adoptRemoteList,
     frequentItems,
     purchaseHistory,
