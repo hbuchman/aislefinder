@@ -223,29 +223,6 @@ export const useLists = (user) => {
     return added;
   }, [user, markDirty]);
 
-  // Bulk add, for restoring several items from purchase history in one go —
-  // a single list write instead of one per item (each own write would reset
-  // the push-debounce timer and re-render for every row selected).
-  const addItems = useCallback((listId, names) => {
-    let addedCount = 0;
-    setLists((prev) => prev.map((l) => {
-      if (l.id !== listId) return l;
-      const existing = new Set(l.items.map((it) => it.name));
-      const fresh = [];
-      names.forEach((raw) => {
-        const trimmed = raw.trim().toLowerCase();
-        if (!trimmed || existing.has(trimmed)) return;
-        existing.add(trimmed);
-        fresh.push(newItem(trimmed, user ? user.displayName : null));
-      });
-      addedCount = fresh.length;
-      if (fresh.length === 0) return l;
-      return { ...l, items: [...fresh, ...l.items], updatedAt: new Date().toISOString() };
-    }));
-    if (addedCount > 0) markDirty(listId);
-    return addedCount;
-  }, [user, markDirty]);
-
   const removeItem = useCallback((listId, itemId) => {
     updateList(listId, (l) => ({ items: l.items.filter((it) => it.id !== itemId) }));
   }, [updateList]);
@@ -481,7 +458,6 @@ export const useLists = (user) => {
     setCurrentListId,
     updateList,
     addItem,
-    addItems,
     removeItem,
     editItem,
     createList,

@@ -69,7 +69,6 @@ const TopBar = ({ user, onShowLists, onShowChat, onShowAccount, onShowStore, onS
         }}>
           {user ? user.displayName.charAt(0).toUpperCase() : <i className="fa-solid fa-user" style={{ fontSize: '10px' }} />}
         </span>
-        {user ? user.displayName : 'Guest'}
       </button>
     </div>
   </div>

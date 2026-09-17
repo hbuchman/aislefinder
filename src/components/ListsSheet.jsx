@@ -1,11 +1,9 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import Sheet from './Sheet';
-import { daysAgoLabel } from '../listsStore';
 
-// Switch between active lists, create a new one, delete one, or start a
-// fresh list from a past one that isn't active anymore. This is the only
-// place list-level management happens now — the per-list purchase history
-// itself lives inline on the current list screen.
+// Switch between lists, or create a new one. Every list you've ever used
+// shows up here the same way, whether it's currently active or not — a past
+// list just starts out with no items when you tap back into it.
 const ListsSheet = ({
   open,
   onClose,
@@ -15,11 +13,15 @@ const ListsSheet = ({
   onSelectList,
   onCreateList,
   onDeleteList,
-  onStartFromHistory,
   onDeleteHistory,
 }) => {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
+
+  const rows = useMemo(() => [
+    ...activeLists.map((list) => ({ isActive: true, id: list.id, name: list.name, items: list.items, store: list.store, members: list.members })),
+    ...historyOnlyGroups.map((group) => ({ isActive: false, id: null, name: group.name, items: [], store: null, members: [] })),
+  ], [activeLists, historyOnlyGroups]);
 
   const handleCreate = () => {
     const name = newName.trim();
@@ -36,37 +38,45 @@ const ListsSheet = ({
         Your Lists
       </h3>
 
-      {activeLists.map((list) => (
-        <div key={list.id} className="af-card" onClick={() => onSelectList(list.id)}>
+      {rows.map((row) => (
+        <div
+          key={row.isActive ? row.id : `history-${row.name}`}
+          className="af-card"
+          onClick={() => (row.isActive ? onSelectList(row.id) : onCreateList(row.name))}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ fontSize: '15px', fontWeight: 600, flex: 1 }}>
-              {list.name}
-              {list.id === currentListId && (
+              {row.name}
+              {row.id === currentListId && (
                 <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--af-focus)', marginLeft: '8px' }}>
                   CURRENT
                 </span>
               )}
             </span>
-            {list.members && list.members.length > 1 && (
+            {row.members && row.members.length > 1 && (
               <span className="af-badge">
                 <i className="fa-solid fa-user-group" style={{ fontSize: '9px', marginRight: '4px' }} />
                 Shared
               </span>
             )}
-            {activeLists.length > 1 && (
+            {(row.isActive ? activeLists.length > 1 : true) && (
               <button
                 className="af-itemremove"
                 style={{ opacity: 1 }}
                 title="Delete list"
-                onClick={(e) => { e.stopPropagation(); onDeleteList(list); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (row.isActive) onDeleteList({ id: row.id, name: row.name, status: 'active' });
+                  else onDeleteHistory(row.name);
+                }}
               >
                 <i className="fa-solid fa-trash-can" style={{ fontSize: '12px' }} />
               </button>
             )}
           </div>
           <div style={{ fontSize: '12px', color: 'var(--af-text-muted)', marginTop: '4px' }}>
-            {list.items.length} item{list.items.length === 1 ? '' : 's'}
-            {list.store ? ` · ${list.store.name}` : ''}
+            {row.items.length} item{row.items.length === 1 ? '' : 's'}
+            {row.store ? ` · ${row.store.name}` : ''}
           </div>
         </div>
       ))}
@@ -102,38 +112,6 @@ const ListsSheet = ({
           <i className="fa-solid fa-plus" style={{ marginRight: '8px' }} />
           New List
         </button>
-      )}
-
-      {historyOnlyGroups.length > 0 && (
-        <>
-          <div className="af-sectionlabel">Past lists</div>
-          {historyOnlyGroups.map((group) => (
-            <div key={group.name} className="af-card" style={{ cursor: 'default' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '15px', fontWeight: 600, flex: 1 }}>{group.name}</span>
-                <button
-                  className="af-itemremove"
-                  style={{ opacity: 1 }}
-                  title="Delete this list's history"
-                  onClick={() => onDeleteHistory(group.name)}
-                >
-                  <i className="fa-solid fa-trash-can" style={{ fontSize: '12px' }} />
-                </button>
-              </div>
-              <div style={{ fontSize: '12px', color: 'var(--af-text-muted)', marginTop: '5px' }}>
-                {group.items.length} item{group.items.length === 1 ? '' : 's'} &middot; {group.trips} trip{group.trips === 1 ? '' : 's'} &middot; last {daysAgoLabel(group.lastAt)}
-              </div>
-              <button
-                className="af-btn-sm af-btn-sm-green"
-                style={{ marginTop: '10px' }}
-                onClick={() => onStartFromHistory(group.name)}
-              >
-                <i className="fa-solid fa-basket-shopping" style={{ marginRight: '6px' }} />
-                Shop again
-              </button>
-            </div>
-          ))}
-        </>
       )}
     </Sheet>
   );

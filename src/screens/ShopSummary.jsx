@@ -39,7 +39,7 @@ const ShopSummary = ({ totalItems, checkedCount, shopStartTime, hardestToFind, l
         </div>
 
         <h2 style={{ margin: '0 0 10px', fontSize: 22, fontWeight: 700, color: 'var(--af-text)' }}>
-          Shopping Complete!
+          {allDone ? 'Shopping Complete!' : 'Trip Finished!'}
         </h2>
 
         {list.store && (
@@ -60,7 +60,7 @@ const ShopSummary = ({ totalItems, checkedCount, shopStartTime, hardestToFind, l
           </div>
         )}
 
-        <p style={{ margin: 0, fontSize: 13, color: 'var(--af-text-muted)' }}>
+        <p style={{ margin: 0, fontSize: 11, color: 'var(--af-text-muted)' }}>
           {allDone ? `All ${totalItems} items checked off` : `${checkedCount} of ${totalItems} items checked off`}
         </p>
 

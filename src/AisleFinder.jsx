@@ -66,14 +66,10 @@ const AisleFinder = () => {
     setSheet(null);
   };
 
-  const handleStartFromHistory = (name) => {
-    const group = store.purchaseHistory.find((g) => g.name === name);
-    if (!group) return;
-    const list = store.createList(name);
-    store.addItems(list.id, group.items.map((it) => it.name));
+  const handleCreateList = (name) => {
+    store.createList(name);
     setScreen('list');
     setSheet(null);
-    toast(`Started a new "${name}" list from your history`);
   };
 
   const handleDeleteList = (list) => {
@@ -687,10 +683,6 @@ const AisleFinder = () => {
             removeItem={store.removeItem}
             editItem={store.editItem}
             frequentItems={store.frequentItems}
-            historyGroup={store.currentList
-              ? store.purchaseHistory.find((g) => g.name === store.currentList.name) || null
-              : null}
-            onDeleteHistory={handleDeleteHistoryGroup}
             updateList={store.updateList}
             onShowLists={() => setSheet('lists')}
             onShowShare={() => setSheet('share')}
@@ -714,7 +706,7 @@ const AisleFinder = () => {
             outputFormat={outputFormat}
             setOutputFormat={setOutputFormat}
             onExit={() => setScreen('list')}
-            onFinished={() => { setScreen('list'); toast('Trip saved — items you bought will show up as "Bought before"'); }}
+            onFinished={() => { setScreen('list'); toast('Trip saved to your lists'); }}
             onShowStore={() => setSheet('store')}
             toast={toast}
             aisleOverrides={store.aisleOverrides}
@@ -758,9 +750,8 @@ const AisleFinder = () => {
         )}
         currentListId={store.currentList ? store.currentList.id : null}
         onSelectList={openList}
-        onCreateList={(name) => { store.createList(name); setScreen('list'); setSheet(null); }}
+        onCreateList={handleCreateList}
         onDeleteList={handleDeleteList}
-        onStartFromHistory={handleStartFromHistory}
         onDeleteHistory={handleDeleteHistoryGroup}
       />
 

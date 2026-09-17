@@ -818,10 +818,15 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
           <>
             {/* Progress bar */}
             <div style={{ marginBottom: '15px' }}>
-              <div style={{ marginBottom: '5px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
                 <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--af-text)' }}>
                   {checkedCount}/{totalItems} items
                 </span>
+                {totalItems > 0 && checkedCount < totalItems && (
+                  <button className="af-btn-sm af-btn-sm-green" onClick={() => setShowSummary(true)}>
+                    Finish
+                  </button>
+                )}
               </div>
               <div style={{ height: '8px', backgroundColor: 'var(--af-border)', borderRadius: '4px', overflow: 'hidden' }}>
                 <div style={{

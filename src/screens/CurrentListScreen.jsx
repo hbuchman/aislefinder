@@ -1,8 +1,7 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { photoToItems } from '../api';
-import { parseListItems, itemKey } from '../listUtils';
-import { daysAgoLabel } from '../listsStore';
+import { parseListItems } from '../listUtils';
 
 // The Claude API caps images at 5MB and gains nothing above ~1568px on the
 // long edge, so photos are downscaled and re-encoded as JPEG before upload
@@ -38,8 +37,6 @@ const CurrentListScreen = ({
   removeItem,
   editItem,
   frequentItems,
-  historyGroup,
-  onDeleteHistory,
   updateList,
   onShowLists,
   onShowShare,
@@ -64,26 +61,7 @@ const CurrentListScreen = ({
     if (editingId) editInputRef.current?.focus();
   }, [editingId]);
 
-  const onListNames = useMemo(
-    () => new Set(list ? list.items.map((it) => it.name) : []),
-    [list]
-  );
-
-  const pastItems = useMemo(() => {
-    if (!historyGroup) return [];
-    return [...historyGroup.items].sort((a, b) => b.count - a.count);
-  }, [historyGroup]);
-
   if (!list) return null;
-
-  const togglePastItem = (it) => {
-    if (onListNames.has(it.name)) {
-      const onList = list.items.find((li) => li.name === it.name);
-      if (onList) removeItem(list.id, onList.id);
-    } else {
-      addItem(list.id, it.name);
-    }
-  };
 
   const startEdit = (item) => {
     setEditingId(item.id);
@@ -363,64 +341,6 @@ const CurrentListScreen = ({
             </button>
           </div>
         ))}
-
-        {pastItems.length > 0 && (
-          <>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '18px 6px 8px' }}>
-              <span className="af-sectionlabel" style={{ margin: 0, flex: 1 }}>
-                Bought before
-              </span>
-              {onDeleteHistory && (
-                <button
-                  className="af-itemremove"
-                  style={{ opacity: 1 }}
-                  title="Clear this list's history"
-                  onClick={() => onDeleteHistory(list.name)}
-                >
-                  <i className="fa-solid fa-trash-can" style={{ fontSize: '12px' }} />
-                </button>
-              )}
-            </div>
-            {pastItems.map((it) => {
-              const onList = onListNames.has(it.name);
-              return (
-                <div
-                  key={itemKey(it.name)}
-                  className="af-checklist-item"
-                  onClick={() => togglePastItem(it)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    padding: '9px 6px',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <div style={{
-                    width: '19px',
-                    height: '19px',
-                    borderRadius: '5px',
-                    flexShrink: 0,
-                    border: `2px solid ${onList ? 'var(--af-green)' : 'var(--af-text-muted)'}`,
-                    backgroundColor: onList ? 'var(--af-green)' : 'var(--af-inset-bg)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}>
-                    {onList && <i className="fa-solid fa-check" style={{ color: 'white', fontSize: '10px' }} />}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '14.5px' }}>{it.name}</div>
-                    <div style={{ fontSize: '11.5px', color: 'var(--af-text-muted)', marginTop: '2px' }}>
-                      Bought {it.count}&times; &middot; {daysAgoLabel(it.lastAt)}{it.lastStore ? ` at ${it.lastStore}` : ''}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </>
-        )}
       </div>
     </div>
   );
