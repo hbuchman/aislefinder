@@ -250,6 +250,24 @@ export const useLists = (user) => {
     updateList(listId, (l) => ({ items: l.items.filter((it) => it.id !== itemId) }));
   }, [updateList]);
 
+  const editItem = useCallback((listId, itemId, name) => {
+    const trimmed = name.trim().toLowerCase();
+    if (!trimmed) return false;
+    let edited = false;
+    setLists((prev) => prev.map((l) => {
+      if (l.id !== listId) return l;
+      if (l.items.some((it) => it.id !== itemId && it.name === trimmed)) return l;
+      edited = true;
+      return {
+        ...l,
+        items: l.items.map((it) => (it.id === itemId ? { ...it, name: trimmed } : it)),
+        updatedAt: new Date().toISOString(),
+      };
+    }));
+    if (edited) markDirty(listId);
+    return edited;
+  }, [markDirty]);
+
   // Save/clear a shopper's aisle or category correction for an item at a store.
   // Writes device-local immediately (so it works offline/guest), then pushes a
   // vote to the backend when signed in — the sync layer resolves the rest.
@@ -465,6 +483,7 @@ export const useLists = (user) => {
     addItem,
     addItems,
     removeItem,
+    editItem,
     createList,
     deleteList,
     completeList,

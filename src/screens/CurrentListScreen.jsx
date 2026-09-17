@@ -1,7 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { photoToItems } from '../api';
-import { parseListItems } from '../listUtils';
+import { parseListItems, itemKey } from '../listUtils';
+import { daysAgoLabel } from '../listsStore';
 
 // The Claude API caps images at 5MB and gains nothing above ~1568px on the
 // long edge, so photos are downscaled and re-encoded as JPEG before upload
@@ -35,7 +36,10 @@ const CurrentListScreen = ({
   user,
   addItem,
   removeItem,
+  editItem,
   frequentItems,
+  historyGroup,
+  onDeleteHistory,
   updateList,
   onShowLists,
   onShowShare,
@@ -43,8 +47,11 @@ const CurrentListScreen = ({
 }) => {
   const [input, setInput] = useState('');
   const [scanning, setScanning] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [editValue, setEditValue] = useState('');
   const inputRef = useRef(null);
   const photoInputRef = useRef(null);
+  const editInputRef = useRef(null);
 
   // The add bar is the whole point of the home screen — focus it on load.
   // Skip on native apps, where autofocus pops the keyboard over half the
@@ -53,7 +60,52 @@ const CurrentListScreen = ({
     if (!Capacitor.isNativePlatform()) inputRef.current?.focus();
   }, []);
 
+  useEffect(() => {
+    if (editingId) editInputRef.current?.focus();
+  }, [editingId]);
+
+  const onListNames = useMemo(
+    () => new Set(list ? list.items.map((it) => it.name) : []),
+    [list]
+  );
+
+  const pastItems = useMemo(() => {
+    if (!historyGroup) return [];
+    return [...historyGroup.items].sort((a, b) => b.count - a.count);
+  }, [historyGroup]);
+
   if (!list) return null;
+
+  const togglePastItem = (it) => {
+    if (onListNames.has(it.name)) {
+      const onList = list.items.find((li) => li.name === it.name);
+      if (onList) removeItem(list.id, onList.id);
+    } else {
+      addItem(list.id, it.name);
+    }
+  };
+
+  const startEdit = (item) => {
+    setEditingId(item.id);
+    setEditValue(item.name);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditValue('');
+  };
+
+  const commitEdit = () => {
+    const item = list.items.find((it) => it.id === editingId);
+    const trimmed = editValue.trim();
+    if (!item || !trimmed || trimmed === item.name) {
+      cancelEdit();
+      return;
+    }
+    const ok = editItem(list.id, item.id, trimmed);
+    if (!ok) toast(`${trimmed} is already on the list`);
+    cancelEdit();
+  };
 
   const handleAdd = () => {
     const value = input.trim();
@@ -257,7 +309,38 @@ const CurrentListScreen = ({
               title="Remove item"
               onClick={() => removeItem(list.id, item.id)}
             />
-            <span style={{ flex: 1, fontSize: '15px' }}>{item.name}</span>
+            {editingId === item.id ? (
+              <input
+                ref={editInputRef}
+                type="text"
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onBlur={commitEdit}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitEdit();
+                  else if (e.key === 'Escape') cancelEdit();
+                }}
+                className="af-input"
+                style={{
+                  flex: 1,
+                  fontSize: '15px',
+                  padding: '3px 6px',
+                  border: '2px solid var(--af-input-border)',
+                  borderRadius: '6px',
+                  backgroundColor: 'var(--af-inset-bg)',
+                  color: 'var(--af-text)',
+                  outline: 'none',
+                  fontFamily: 'inherit',
+                }}
+              />
+            ) : (
+              <span
+                style={{ flex: 1, fontSize: '15px', cursor: 'text' }}
+                onClick={() => startEdit(item)}
+              >
+                {item.name}
+              </span>
+            )}
             <span style={{ fontSize: '11px', color: 'var(--af-text-faint)', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
               {item.addedBy && (!user || item.addedBy !== user.displayName) && (
                 <span style={{
@@ -280,6 +363,64 @@ const CurrentListScreen = ({
             </button>
           </div>
         ))}
+
+        {pastItems.length > 0 && (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '18px 6px 8px' }}>
+              <span className="af-sectionlabel" style={{ margin: 0, flex: 1 }}>
+                Bought before
+              </span>
+              {onDeleteHistory && (
+                <button
+                  className="af-itemremove"
+                  style={{ opacity: 1 }}
+                  title="Clear this list's history"
+                  onClick={() => onDeleteHistory(list.name)}
+                >
+                  <i className="fa-solid fa-trash-can" style={{ fontSize: '12px' }} />
+                </button>
+              )}
+            </div>
+            {pastItems.map((it) => {
+              const onList = onListNames.has(it.name);
+              return (
+                <div
+                  key={itemKey(it.name)}
+                  className="af-checklist-item"
+                  onClick={() => togglePastItem(it)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '9px 6px',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <div style={{
+                    width: '19px',
+                    height: '19px',
+                    borderRadius: '5px',
+                    flexShrink: 0,
+                    border: `2px solid ${onList ? 'var(--af-green)' : 'var(--af-text-muted)'}`,
+                    backgroundColor: onList ? 'var(--af-green)' : 'var(--af-inset-bg)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                    {onList && <i className="fa-solid fa-check" style={{ color: 'white', fontSize: '10px' }} />}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '14.5px' }}>{it.name}</div>
+                    <div style={{ fontSize: '11.5px', color: 'var(--af-text-muted)', marginTop: '2px' }}>
+                      Bought {it.count}&times; &middot; {daysAgoLabel(it.lastAt)}{it.lastStore ? ` at ${it.lastStore}` : ''}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </>
+        )}
       </div>
     </div>
   );

@@ -14,21 +14,16 @@ const TopBar = ({ user, onShowLists, onShowChat, onShowAccount, onShowStore, onS
     zIndex: 100,
     paddingTop: 'calc(12px + var(--safe-area-inset-top))',
   }}>
-    <div style={{ fontSize: '17px', display: 'flex', alignItems: 'center', gap: '8px', letterSpacing: '-0.2px' }}>
-      {/* tile background from CSS var: white in light mode, near-transparent in dark so brighter wall colors carry the logo */}
-      <span style={{
-        display: 'inline-flex',
-        padding: '3px',
-        borderRadius: '7px',
-        background: 'var(--af-logo-tile)',
-      }}>
-        <Logo size={20} />
-      </span>
-      <span>
-        <span style={{ fontWeight: 700, color: 'var(--af-green-dark)' }}>Aisle</span>
-        <span style={{ fontWeight: 400, color: 'var(--af-text-muted)' }}>Finder</span>
-      </span>
-    </div>
+    {/* tile background from CSS var: white in light mode, near-transparent in dark so brighter wall colors carry the logo */}
+    <span title="AisleFinder" style={{
+      display: 'inline-flex',
+      padding: '3px',
+      borderRadius: '7px',
+      background: 'var(--af-logo-tile)',
+      flexShrink: 0,
+    }}>
+      <Logo size={20} />
+    </span>
     <div style={{ flex: 1, minWidth: '8px' }} />
     {/* Scrolls internally instead of overflowing af-shell's clipped edge
         when these don't all fit a narrow phone width */}

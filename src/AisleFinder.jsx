@@ -7,8 +7,8 @@ import TopBar from './components/TopBar';
 import AccountSheet from './components/AccountSheet';
 import ShareSheet from './components/ShareSheet';
 import StoreSheet from './components/StoreSheet';
+import ListsSheet from './components/ListsSheet';
 import CurrentListScreen from './screens/CurrentListScreen';
-import MyListsScreen from './screens/MyListsScreen';
 import ShopScreen from './screens/ShopScreen';
 import ChatScreen from './screens/ChatScreen';
 
@@ -16,9 +16,9 @@ const AisleFinder = () => {
   const auth = useAuth();
   const store = useLists(auth.user);
 
-  // screen: 'list' (home) | 'lists' | 'shop' | 'chat'
+  // screen: 'list' (home) | 'shop' | 'chat'
   const [screen, setScreen] = useState('list');
-  // sheet: null | 'account' | 'share' | 'store'
+  // sheet: null | 'account' | 'share' | 'store' | 'lists'
   const [sheet, setSheet] = useState(null);
   const [outputFormat, setOutputFormat] = useState(() => loadState('outputFormat', 'numbered'));
   const [toastMsg, setToastMsg] = useState('');
@@ -63,6 +63,7 @@ const AisleFinder = () => {
   const openList = (id) => {
     store.setCurrentListId(id);
     setScreen('list');
+    setSheet(null);
   };
 
   const handleStartFromHistory = (name) => {
@@ -71,6 +72,7 @@ const AisleFinder = () => {
     const list = store.createList(name);
     store.addItems(list.id, group.items.map((it) => it.name));
     setScreen('list');
+    setSheet(null);
     toast(`Started a new "${name}" list from your history`);
   };
 
@@ -667,7 +669,7 @@ const AisleFinder = () => {
         {screen !== 'shop' && (
           <TopBar
             user={auth.user}
-            onShowLists={() => setScreen('lists')}
+            onShowLists={() => setSheet('lists')}
             onShowChat={() => setScreen('chat')}
             onShowAccount={() => setSheet('account')}
             onShowStore={screen === 'list' ? () => setSheet('store') : undefined}
@@ -683,28 +685,16 @@ const AisleFinder = () => {
             user={auth.user}
             addItem={store.addItem}
             removeItem={store.removeItem}
+            editItem={store.editItem}
             frequentItems={store.frequentItems}
+            historyGroup={store.currentList
+              ? store.purchaseHistory.find((g) => g.name === store.currentList.name) || null
+              : null}
+            onDeleteHistory={handleDeleteHistoryGroup}
             updateList={store.updateList}
-            onShowLists={() => setScreen('lists')}
+            onShowLists={() => setSheet('lists')}
             onShowShare={() => setSheet('share')}
             toast={toast}
-          />
-        )}
-
-        {screen === 'lists' && (
-          <MyListsScreen
-            activeLists={store.activeLists}
-            completedLists={store.completedLists}
-            currentList={store.currentList}
-            onOpenList={openList}
-            onCreateList={(name) => { store.createList(name); setScreen('list'); }}
-            onDeleteList={handleDeleteList}
-            onDeleteHistory={handleDeleteHistoryGroup}
-            onStartFromHistory={handleStartFromHistory}
-            addItems={store.addItems}
-            toast={toast}
-            user={auth.user}
-            onBack={() => setScreen('list')}
           />
         )}
 
@@ -724,7 +714,7 @@ const AisleFinder = () => {
             outputFormat={outputFormat}
             setOutputFormat={setOutputFormat}
             onExit={() => setScreen('list')}
-            onFinished={() => { setScreen('list'); toast('Trip saved — see it in My Lists'); }}
+            onFinished={() => { setScreen('list'); toast('Trip saved — items you bought will show up as "Bought before"'); }}
             onShowStore={() => setSheet('store')}
             toast={toast}
             aisleOverrides={store.aisleOverrides}
@@ -758,6 +748,20 @@ const AisleFinder = () => {
         list={store.currentList}
         updateList={store.updateList}
         toast={toast}
+      />
+      <ListsSheet
+        open={sheet === 'lists'}
+        onClose={() => setSheet(null)}
+        activeLists={store.activeLists}
+        historyOnlyGroups={store.purchaseHistory.filter(
+          (g) => !store.activeLists.some((l) => l.name === g.name)
+        )}
+        currentListId={store.currentList ? store.currentList.id : null}
+        onSelectList={openList}
+        onCreateList={(name) => { store.createList(name); setScreen('list'); setSheet(null); }}
+        onDeleteList={handleDeleteList}
+        onStartFromHistory={handleStartFromHistory}
+        onDeleteHistory={handleDeleteHistoryGroup}
       />
 
       {toastMsg && <div className="af-toast">{toastMsg}</div>}

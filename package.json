@@ -42,6 +42,7 @@
     ]
   },
   "devDependencies": {
+    "marked": "^18.0.13",
     "puppeteer-core": "^25.3.0"
   }
 }

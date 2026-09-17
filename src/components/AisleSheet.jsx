@@ -50,7 +50,7 @@ const AisleSheet = ({ item, store, currentGroupName, override, catalog = [], onS
 
   if (!item) return null;
 
-  const catalogNames = catalog.map((c) => c.name);
+  const catalogNames = catalog.map((c) => c.name).sort((a, b) => a.localeCompare(b));
   const suggestionSet = new Set(suggestions);
   const q = search.trim().toLowerCase();
   const browseList = catalogNames
