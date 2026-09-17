@@ -386,27 +386,116 @@ DynamoDB's partition key.
 
 ---
 
-## 10.7 What lands in DynamoDB
+## 10.7 Database schema: what's stored in DynamoDB
 
-One table, two item shapes (a common "single-table design" pattern):
+Everything lives in **one table** (`aislefinder-lists`) using "single-table
+design" — instead of one table per entity type (the relational instinct),
+different kinds of items share a table and are told apart by the shape of
+their partition key (`pk`) and sort key (`sk`). This is the standard DynamoDB
+pattern: it keeps related items in the same partition so they can be fetched
+together, and it means one table to provision, back up, and pay for.
+
+### Table definition
+
+| Setting | Value |
+|---------|-------|
+| Partition key (`pk`) | String |
+| Sort key (`sk`) | String |
+| Billing mode | On-demand (pay per request, no reserved capacity) |
+| Global secondary index | `byShareCode`, partition key `share_code` (String), projects all attributes |
+| Item size limit | 400 KB (DynamoDB's hard cap). The app enforces a tighter 256 KB (`MAX_LIST_BYTES` in `lists_backend.py`) on incoming list bodies, leaving headroom for the server-owned fields added on top. |
+
+There are no other tables. Everything — lists, memberships, sharing, and the
+aisle-correction feature described below — lives in these rows,
+distinguished only by `pk`/`sk` prefix.
+
+### Item shapes
+
+Four kinds of item share the table:
 
 | pk | sk | What it is |
 |----|----|------------|
 | `LIST#{id}` | `META` | The full list JSON, plus members map and `share_code` |
 | `USER#{sub}` | `LIST#{id}` | Membership marker: "this user can see this list" |
+| `AISLE#{storeId}#{itemKey}` | `USER#{sub}` | One user's aisle/category correction for one item at one store |
+| `AISLE#{storeId}#{itemKey}` | `CONSENSUS` | Derived: the community-agreed placement for that item, once enough shoppers agree |
 
-**How loading works:** `GET /api/lists` queries all `USER#{sub}` items to find
-which lists you're a member of, then fetches each list's `META` item. Two
-DynamoDB calls total, regardless of list count.
+#### List record — `pk=LIST#{id}`, `sk=META`
 
-**How sharing works:** Sharing generates a 6-character code (skipping
-ambiguous characters like 0/O and 1/I/L) stored on the list's `META` item.
+| Attribute | Type | Meaning |
+|-----------|------|---------|
+| `data` | String | The list itself, JSON-encoded (client payload with `members`/`shareCode` stripped — see Security below) |
+| `owner_sub` | String | Cognito `sub` of whoever created the list; only the owner can delete it for everyone |
+| `members` | Map (`sub` → String) | Every member's `sub` mapped to a display name (the part of their email before `@`) |
+| `share_code` | String, optional | The 6-character join code, once one has been generated; absent until `POST /api/lists/:id/share` is called |
+| `updated_at` | String | Client-supplied timestamp from the list's `updatedAt` field |
+
+#### Membership marker — `pk=USER#{sub}`, `sk=LIST#{id}`
+
+No attributes beyond the key itself — its only job is to answer "which lists
+can this user see," via a `Query` on `pk = USER#{sub}`. One item exists per
+(user, list) pair; leaving a list or deleting a list removes it.
+
+#### Aisle-override vote — `pk=AISLE#{storeId}#{itemKey}`, `sk=USER#{sub}`
+
+One user's correction to where an item lives at a specific store — e.g. "this
+store actually shelves oat milk in aisle 4, not dairy." `itemKey` is the
+grocery item name, lowercased and trimmed, so votes for "Milk" and "milk"
+land on the same partition.
+
+| Attribute | Type | Meaning |
+|-----------|------|---------|
+| `kind` | String | `'aisle'`, `'category'`, or `'none'` (an opinion that the store doesn't carry the item) |
+| `value` | Number, String, or null | Aisle number for `kind='aisle'`, category name for `kind='category'`, `null` for `kind='none'` |
+| `store_aisle` | Number or null | The store's own (uncorrected) aisle number at the time of voting, for context |
+| `item` | String | The item name as originally typed (display casing, unlike `itemKey`) |
+| `updated_at` | String | ISO-ish timestamp (`_now_iso()`) of the last time this user voted |
+
+Sending `placement: null` to `PUT /api/aisle-overrides` deletes this item
+instead of writing one — that's how a user clears their own correction.
+
+#### Aisle-override consensus — `pk=AISLE#{storeId}#{itemKey}`, `sk=CONSENSUS`
+
+A derived row, not written directly by any client — recomputed inline by
+`_recompute_consensus()` every time a vote in that partition changes, by
+querying all `USER#` sibling rows and tallying agreement. No DynamoDB
+Streams or Lambda involved; it's just a second write in the same request.
+
+| Attribute | Type | Meaning |
+|-----------|------|---------|
+| `kind` / `value` | same as vote rows | The most-agreed-on placement |
+| `agree` | Number | How many distinct users voted for that exact placement |
+| `voters` | Number | Total distinct users who have voted on this item at this store (any placement) |
+| `updated_at` | String | Timestamp of the last recompute |
+
+The row only exists once `agree >= CONSENSUS_MIN_AGREE` (currently 3) — below
+that threshold it's deleted rather than left stale, so "no consensus row"
+always means "not enough agreement yet."
+
+### Access patterns
+
+**Loading your lists:** `GET /api/lists` queries all `USER#{sub}` items to
+find which lists you're a member of, then fetches each list's `META` item.
+Two DynamoDB calls total, regardless of list count.
+
+**Sharing:** Sharing generates a 6-character code (skipping ambiguous
+characters like 0/O and 1/I/L) stored on the list's `META` item.
 `POST /api/lists/join` looks up that code via the `byShareCode` GSI and adds
 the joiner as a member by writing a `USER#{sub}` item.
 
-**Security:** The members map and share code are server-owned. `PUT /api/lists`
-strips them from client payloads, so a client can't grant itself access to
-other lists by crafting a request.
+**Resolving aisle overrides:** `POST /api/aisle-overrides/resolve` looks up,
+per item, everything under one `AISLE#{storeId}#{itemKey}` partition in a
+single `Query` — the caller's own vote, any household (shared-list member)
+votes, and the `CONSENSUS` row — then picks the highest-precedence one: mine,
+then household, then community. This is why votes and consensus share a
+partition key instead of living in separate lookups.
+
+**Security:** The members map and share code on list records are
+server-owned. `PUT /api/lists` strips them from client payloads, so a client
+can't grant itself access to other lists by crafting a request. Likewise,
+`resolve_aisle_overrides` only returns a household member's vote if the
+caller is already a verified member of the list naming that household — you
+can't probe another user's corrections by guessing a `listId`.
 
 ---
 

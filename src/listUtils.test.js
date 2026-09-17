@@ -7,7 +7,10 @@ import {
   parseListItems,
   applyAisleOverrides,
   overrideGroupName,
+  placementFromGroupName,
   sectionSortKey,
+  buildOfflineOrganizedGroups,
+  remapCheckedItems,
 } from './listUtils';
 
 const MARKDOWN = '## Produce\n- bananas\n- apples\n\n## Aisle 5\n- rice';
@@ -143,15 +146,27 @@ describe('overrideGroupName', () => {
 });
 
 describe('sectionSortKey', () => {
-  it('orders fresh depts, named categories, aisles, cold, then Not Found', () => {
-    const order = ['Produce', 'Snacks', 'Aisle 3', 'Aisle 12', 'Dairy', 'Frozen', 'Not Found'];
-    const shuffled = ['Frozen', 'Aisle 12', 'Not Found', 'Produce', 'Aisle 3', 'Dairy', 'Snacks'];
+  it('orders Unsorted first, then fresh depts, named categories, aisles, cold, then Not Found', () => {
+    const order = ['Unsorted', 'Produce', 'Snacks', 'Aisle 3', 'Aisle 12', 'Dairy', 'Frozen', 'Not Found'];
+    const shuffled = ['Frozen', 'Aisle 12', 'Not Found', 'Produce', 'Unsorted', 'Aisle 3', 'Dairy', 'Snacks'];
     const sorted = [...shuffled].sort((a, b) => {
       const ka = sectionSortKey(a); const kb = sectionSortKey(b);
       for (let i = 0; i < 3; i += 1) { if (ka[i] < kb[i]) return -1; if (ka[i] > kb[i]) return 1; }
       return 0;
     });
     expect(sorted).toEqual(order);
+  });
+});
+
+describe('placementFromGroupName', () => {
+  it('treats Unsorted the same as Not Found — no real placement', () => {
+    expect(placementFromGroupName('Unsorted')).toBeNull();
+    expect(placementFromGroupName('Not Found')).toBeNull();
+  });
+
+  it('parses aisle and category headers', () => {
+    expect(placementFromGroupName('Aisle 9')).toEqual({ kind: 'aisle', value: 9 });
+    expect(placementFromGroupName('Dairy')).toEqual({ kind: 'category', value: 'Dairy' });
   });
 });
 
@@ -194,5 +209,59 @@ describe('applyAisleOverrides', () => {
   it('ignores overrides for items not on the list', () => {
     const result = applyAisleOverrides(groups(), { cardamom: { kind: 'aisle', value: 9 } });
     expect(result).toEqual(groups());
+  });
+});
+
+describe('buildOfflineOrganizedGroups', () => {
+  const history = {
+    milk: { aisle: { group: 'Aisle 9', updatedAt: '2026-01-01' }, category: { group: 'Dairy', updatedAt: '2026-01-01' } },
+    eggs: { aisle: { group: 'Aisle 9', updatedAt: '2026-01-01' } },
+  };
+
+  it('places items under their remembered group for the given format', () => {
+    const items = [{ name: 'milk' }, { name: 'eggs' }];
+    expect(buildOfflineOrganizedGroups(items, 'aisle', history)).toEqual([
+      { name: 'Aisle 9', items: ['milk', 'eggs'] },
+    ]);
+  });
+
+  it('uses the format-specific placement, not just any placement', () => {
+    const items = [{ name: 'milk' }];
+    expect(buildOfflineOrganizedGroups(items, 'category', history)).toEqual([
+      { name: 'Dairy', items: ['milk'] },
+    ]);
+  });
+
+  it('drops never-seen items and items without a placement for this format into Unsorted, at the front', () => {
+    const items = [{ name: 'milk' }, { name: 'bread' }, { name: 'eggs' }];
+    const result = buildOfflineOrganizedGroups(items, 'category', history);
+    expect(result[0]).toEqual({ name: 'Unsorted', items: ['bread', 'eggs'] });
+    expect(result[1]).toEqual({ name: 'Dairy', items: ['milk'] });
+  });
+
+  it('returns everything Unsorted with no history', () => {
+    const items = [{ name: 'milk' }, { name: 'bread' }];
+    expect(buildOfflineOrganizedGroups(items, 'aisle', {})).toEqual([
+      { name: 'Unsorted', items: ['milk', 'bread'] },
+    ]);
+  });
+});
+
+describe('remapCheckedItems', () => {
+  it('re-keys checked items onto their new group by item name', () => {
+    const checked = { 'Unsorted::milk': true, 'Unsorted::bread': false };
+    const groups = [{ name: 'Dairy', items: ['milk'] }, { name: 'Bakery', items: ['bread'] }];
+    expect(remapCheckedItems(checked, groups)).toEqual({ 'Dairy::milk': true });
+  });
+
+  it('drops checked items that no longer appear in any group', () => {
+    const checked = { 'Unsorted::saffron': true };
+    const groups = [{ name: 'Dairy', items: ['milk'] }];
+    expect(remapCheckedItems(checked, groups)).toEqual({});
+  });
+
+  it('returns an empty map for empty input', () => {
+    expect(remapCheckedItems({}, [{ name: 'Dairy', items: ['milk'] }])).toEqual({});
+    expect(remapCheckedItems(null, [])).toEqual({});
   });
 });

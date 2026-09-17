@@ -2,10 +2,25 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { fetchLists, pushList, deleteListRemote, putAisleOverride, resolveAisleOverrides } from './api';
 import { getAccessToken } from './auth';
 import { itemsHash, itemKey } from './listUtils';
+import { isOnline, onNetworkChange } from './network';
 
 import { loadState, saveState } from './storage';
 
 const uid = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+
+// Exponential backoff for the dirty-queue flushers below, so a persistently
+// failing push (server error, not just being offline — the caller already
+// skips the attempt entirely while offline, so this never counts that as a
+// failure) doesn't retry on every debounce tick or reconnect. Caps at 5min.
+const BACKOFF_BASE_MS = 5000;
+const BACKOFF_MAX_MS = 5 * 60 * 1000;
+const makeBackoff = () => ({ failures: 0, nextAttemptAt: 0 });
+const backoffReady = (state) => Date.now() >= state.nextAttemptAt;
+const backoffRecordFailure = (state) => {
+  state.failures += 1;
+  state.nextAttemptAt = Date.now() + Math.min(BACKOFF_MAX_MS, BACKOFF_BASE_MS * 2 ** (state.failures - 1));
+};
+const backoffRecordSuccess = (state) => { state.failures = 0; state.nextAttemptAt = 0; };
 
 export const newList = (name = 'My Groceries') => {
   const now = new Date().toISOString();
@@ -66,11 +81,6 @@ const initialLists = () => {
   return [migrated || newList()];
 };
 
-export const completedLabel = (iso) => {
-  if (!iso) return '';
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-};
-
 export const daysAgoLabel = (iso) => {
   if (!iso) return 'an unknown time ago';
   const days = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 86400000));
@@ -113,43 +123,17 @@ export const buildChatContext = (currentList, completedLists) => {
   return parts.join('\n\n');
 };
 
-// History, grouped by list name instead of by individual trip: every item
-// ever bought under a recurring list (e.g. every trip ever run as "Costco
-// Run"), deduped with a purchase count and most-recent date. "Bought" means
-// "was on a trip this shopper completed" — the same assumption
-// buildChatContext makes above, since there's no signed-in Kroger order
-// history behind this, only what shoppers themselves checked off.
+// Distinct list names from history, each with its most-recently-completed
+// date. Used to find past lists that aren't currently active (see
+// historyOnlyGroups in AisleFinder.jsx) and to order them by recency.
 export const groupPurchaseHistory = (completedLists) => {
-  const groups = new Map(); // list name -> { name, trips, lastAt, itemsByKey }
+  const lastAtByName = new Map();
   completedLists.forEach((list) => {
-    let group = groups.get(list.name);
-    if (!group) {
-      group = { name: list.name, trips: 0, lastAt: null, itemsByKey: new Map() };
-      groups.set(list.name, group);
-    }
-    group.trips += 1;
-    if (!group.lastAt || (list.completedAt || '') > group.lastAt) group.lastAt = list.completedAt;
-    list.items.forEach((it) => {
-      const key = itemKey(it.name);
-      const existing = group.itemsByKey.get(key);
-      if (!existing) {
-        group.itemsByKey.set(key, {
-          name: it.name,
-          count: 1,
-          lastAt: list.completedAt,
-          lastStore: list.store ? list.store.name : null,
-        });
-      } else {
-        existing.count += 1;
-        if ((list.completedAt || '') > (existing.lastAt || '')) {
-          existing.lastAt = list.completedAt;
-          existing.lastStore = list.store ? list.store.name : null;
-        }
-      }
-    });
+    const current = lastAtByName.get(list.name);
+    if (!current || (list.completedAt || '') > current) lastAtByName.set(list.name, list.completedAt);
   });
-  return [...groups.values()]
-    .map((g) => ({ name: g.name, trips: g.trips, lastAt: g.lastAt, items: [...g.itemsByKey.values()] }))
+  return [...lastAtByName.entries()]
+    .map(([name, lastAt]) => ({ name, lastAt }))
     .sort((a, b) => (b.lastAt || '').localeCompare(a.lastAt || ''));
 };
 
@@ -164,12 +148,33 @@ export const useLists = (user) => {
   // the same store. Placement: {kind:'aisle',value} | {kind:'category',value} |
   // {kind:'none'}. Device-local for now; a signed-in sync path can follow.
   const [aisleOverrides, setAisleOverridesState] = useState(() => loadState('aisleOverrides', {}));
+  // Item -> remembered aisle/category placement, per store and format, built
+  // from organize results and single-item lookups as they happen. Lets Shop
+  // mode reconstruct a previously-seen item's group offline without a network
+  // call. Shape: { [storeId]: { [itemKey]: { aisle: {group,updatedAt},
+  // category: {group,updatedAt} } } }.
+  const [itemHistory, setItemHistory] = useState(() => loadState('itemAisleHistory', {}));
+  // Items a shopper has dismissed from the "You often buy" suggestions —
+  // still counted in history, just never surfaced again. Device-local.
+  const [hiddenFrequentItems, setHiddenFrequentItems] = useState(() => loadState('hiddenFrequentItems', []));
   const dirtyIds = useRef(new Set(loadState('dirtyListIds', [])));
+  // Aisle/category overrides set while offline (or whose push failed) — keys
+  // are `${storeId}::${itemKey}`, flushed the same way dirty lists are.
+  const dirtyOverrideKeys = useRef(new Set(loadState('dirtyOverrideKeys', [])));
+  // List deletes made offline (or whose push failed) — the list itself is
+  // already gone from `lists`/localStorage, so this is the only record that
+  // the server still needs to hear about it.
+  const dirtyDeleteIds = useRef(new Set(loadState('dirtyDeleteIds', [])));
+  const pushBackoff = useRef(makeBackoff());
+  const overridePushBackoff = useRef(makeBackoff());
+  const deletePushBackoff = useRef(makeBackoff());
   const pushTimer = useRef(null);
 
   useEffect(() => { saveState('lists', lists); }, [lists]);
   useEffect(() => { saveState('currentListId', currentListId); }, [currentListId]);
   useEffect(() => { saveState('aisleOverrides', aisleOverrides); }, [aisleOverrides]);
+  useEffect(() => { saveState('itemAisleHistory', itemHistory); }, [itemHistory]);
+  useEffect(() => { saveState('hiddenFrequentItems', hiddenFrequentItems); }, [hiddenFrequentItems]);
 
   const activeLists = useMemo(() => lists.filter((l) => l.status === 'active'), [lists]);
   const completedLists = useMemo(
@@ -248,6 +253,11 @@ export const useLists = (user) => {
   // Save/clear a shopper's aisle or category correction for an item at a store.
   // Writes device-local immediately (so it works offline/guest), then pushes a
   // vote to the backend when signed in — the sync layer resolves the rest.
+  const markOverrideDirty = useCallback((sid, key) => {
+    dirtyOverrideKeys.current.add(`${sid}::${key}`);
+    saveState('dirtyOverrideKeys', [...dirtyOverrideKeys.current]);
+  }, []);
+
   const setAisleOverride = useCallback((storeId, itemName, placement) => {
     const sid = storeId || 'default';
     const key = itemKey(itemName);
@@ -256,19 +266,22 @@ export const useLists = (user) => {
       ...prev,
       [sid]: { ...(prev[sid] || {}), [key]: placement },
     }));
-    if (user && navigator.onLine) {
+    markOverrideDirty(sid, key);
+    if (user && isOnline()) {
       getAccessToken().then((token) => {
-        if (token) {
-          putAisleOverride(token, {
-            storeId: sid,
-            item: itemName,
-            placement,
-            storeAisle: placement && placement.storeAisle,
-          }).catch(() => {});
-        }
+        if (!token) return;
+        putAisleOverride(token, {
+          storeId: sid,
+          item: itemName,
+          placement,
+          storeAisle: placement && placement.storeAisle,
+        }).then(() => {
+          dirtyOverrideKeys.current.delete(`${sid}::${key}`);
+          saveState('dirtyOverrideKeys', [...dirtyOverrideKeys.current]);
+        }).catch(() => {});
       });
     }
-  }, [user]);
+  }, [user, markOverrideDirty]);
 
   const clearAisleOverride = useCallback((storeId, itemName) => {
     const sid = storeId || 'default';
@@ -279,18 +292,42 @@ export const useLists = (user) => {
       delete forStore[key];
       return { ...prev, [sid]: forStore };
     });
-    if (user && navigator.onLine) {
+    markOverrideDirty(sid, key);
+    if (user && isOnline()) {
       getAccessToken().then((token) => {
-        if (token) putAisleOverride(token, { storeId: sid, item: itemName, placement: null }).catch(() => {});
+        if (!token) return;
+        putAisleOverride(token, { storeId: sid, item: itemName, placement: null }).then(() => {
+          dirtyOverrideKeys.current.delete(`${sid}::${key}`);
+          saveState('dirtyOverrideKeys', [...dirtyOverrideKeys.current]);
+        }).catch(() => {});
       });
     }
-  }, [user]);
+  }, [user, markOverrideDirty]);
+
+  // Remember where items were found so Shop mode can reconstruct a list's
+  // groups offline. `entries` is [{name, group}]; called after a successful
+  // organize or single-item lookup — device-local, never synced (it's just a
+  // cache of network results, not a correction).
+  const recordItemHistory = useCallback((storeId, format, entries) => {
+    if (!entries || entries.length === 0) return;
+    const sid = storeId || 'default';
+    const now = new Date().toISOString();
+    setItemHistory((prev) => {
+      const forStore = { ...(prev[sid] || {}) };
+      entries.forEach(({ name, group }) => {
+        const key = itemKey(name);
+        if (!key || !group) return;
+        forStore[key] = { ...(forStore[key] || {}), [format]: { group, updatedAt: now } };
+      });
+      return { ...prev, [sid]: forStore };
+    });
+  }, []);
 
   // Pull the effective overrides for a trip (mine → household → community) and
   // merge them over the device-local cache. Best-effort; a no-op when signed
   // out, offline, or sync is unconfigured.
   const syncAisleOverrides = useCallback(async (storeId, itemNames, listId) => {
-    if (!user || !navigator.onLine || !Array.isArray(itemNames) || itemNames.length === 0) return;
+    if (!user || !isOnline() || !Array.isArray(itemNames) || itemNames.length === 0) return;
     const token = await getAccessToken();
     if (!token) return;
     const resolved = await resolveAisleOverrides(token, { listId, storeId, items: itemNames });
@@ -311,9 +348,16 @@ export const useLists = (user) => {
     setLists((prev) => prev.filter((l) => l.id !== id));
     dirtyIds.current.delete(id);
     saveState('dirtyListIds', [...dirtyIds.current]);
-    if (user) {
+    dirtyDeleteIds.current.add(id);
+    saveState('dirtyDeleteIds', [...dirtyDeleteIds.current]);
+    if (user && isOnline()) {
       const token = await getAccessToken();
-      if (token) deleteListRemote(token, id).catch(() => {});
+      if (token) {
+        deleteListRemote(token, id).then(() => {
+          dirtyDeleteIds.current.delete(id);
+          saveState('dirtyDeleteIds', [...dirtyDeleteIds.current]);
+        }).catch(() => {});
+      }
     }
   }, [user]);
 
@@ -351,6 +395,7 @@ export const useLists = (user) => {
   }, []);
 
   // Suggestions drawn from shopping history, excluding what's already listed
+  // or what the shopper has dismissed from suggestions
   const frequentItems = useMemo(() => {
     if (!currentList) return [];
     const counts = {};
@@ -358,22 +403,30 @@ export const useLists = (user) => {
       counts[it.name] = (counts[it.name] || 0) + 1;
     }));
     const onList = new Set(currentList.items.map((it) => it.name));
+    const hidden = new Set(hiddenFrequentItems);
     return Object.entries(counts)
-      .filter(([name]) => !onList.has(name))
+      .filter(([name]) => !onList.has(name) && !hidden.has(name))
       .sort((a, b) => b[1] - a[1])
       .slice(0, 3)
       .map(([name]) => name);
-  }, [completedLists, currentList]);
+  }, [completedLists, currentList, hiddenFrequentItems]);
+
+  // Dismiss an item from "You often buy" suggestions going forward.
+  const hideFrequentItem = useCallback((name) => {
+    const key = name.trim().toLowerCase();
+    setHiddenFrequentItems((prev) => (prev.includes(key) ? prev : [...prev, key]));
+  }, []);
 
   const purchaseHistory = useMemo(() => groupPurchaseHistory(completedLists), [completedLists]);
 
   // ---- server sync (signed-in only) ----
 
   const pushDirty = useCallback(async () => {
-    if (!user || dirtyIds.current.size === 0 || !navigator.onLine) return;
+    if (!user || dirtyIds.current.size === 0 || !isOnline() || !backoffReady(pushBackoff.current)) return;
     const token = await getAccessToken();
     if (!token) return;
     const current = loadState('lists', []);
+    let failed = false;
     for (const id of [...dirtyIds.current]) {
       const list = current.find((l) => l.id === id);
       if (!list) { dirtyIds.current.delete(id); continue; }
@@ -385,13 +438,59 @@ export const useLists = (user) => {
             l.id === id ? { ...l, members: saved.members, shareCode: saved.shareCode ?? l.shareCode } : l
           )));
         }
-      } catch { /* stays dirty; retried next cycle */ }
+      } catch { failed = true; /* stays dirty; retried next cycle */ }
     }
     saveState('dirtyListIds', [...dirtyIds.current]);
+    if (failed) backoffRecordFailure(pushBackoff.current); else backoffRecordSuccess(pushBackoff.current);
+  }, [user]);
+
+  // Flush aisle/category overrides set while offline (or whose push failed).
+  // Mirrors pushDirty's shape: only drop a key from the queue once the push
+  // actually succeeds, so it's retried on the next debounce/online cycle.
+  const pushDirtyOverrides = useCallback(async () => {
+    if (!user || dirtyOverrideKeys.current.size === 0 || !isOnline() || !backoffReady(overridePushBackoff.current)) return;
+    const token = await getAccessToken();
+    if (!token) return;
+    const current = loadState('aisleOverrides', {});
+    let failed = false;
+    for (const entry of [...dirtyOverrideKeys.current]) {
+      const sep = entry.indexOf('::');
+      const sid = entry.slice(0, sep);
+      const key = entry.slice(sep + 2);
+      const placement = (current[sid] && current[sid][key]) || null;
+      try {
+        await putAisleOverride(token, {
+          storeId: sid,
+          item: key,
+          placement,
+          storeAisle: placement && placement.storeAisle,
+        });
+        dirtyOverrideKeys.current.delete(entry);
+      } catch { failed = true; /* stays dirty; retried next cycle */ }
+    }
+    saveState('dirtyOverrideKeys', [...dirtyOverrideKeys.current]);
+    if (failed) backoffRecordFailure(overridePushBackoff.current); else backoffRecordSuccess(overridePushBackoff.current);
+  }, [user]);
+
+  // Flush list deletes made offline (or whose push failed) — same shape as
+  // pushDirty/pushDirtyOverrides.
+  const pushDirtyDeletes = useCallback(async () => {
+    if (!user || dirtyDeleteIds.current.size === 0 || !isOnline() || !backoffReady(deletePushBackoff.current)) return;
+    const token = await getAccessToken();
+    if (!token) return;
+    let failed = false;
+    for (const id of [...dirtyDeleteIds.current]) {
+      try {
+        await deleteListRemote(token, id);
+        dirtyDeleteIds.current.delete(id);
+      } catch { failed = true; /* stays dirty; retried next cycle */ }
+    }
+    saveState('dirtyDeleteIds', [...dirtyDeleteIds.current]);
+    if (failed) backoffRecordFailure(deletePushBackoff.current); else backoffRecordSuccess(deletePushBackoff.current);
   }, [user]);
 
   const pullRemote = useCallback(async () => {
-    if (!user || !navigator.onLine) return;
+    if (!user || !isOnline()) return;
     const token = await getAccessToken();
     if (!token) return;
     let remote;
@@ -423,17 +522,17 @@ export const useLists = (user) => {
   useEffect(() => {
     if (!user) return;
     clearTimeout(pushTimer.current);
-    pushTimer.current = setTimeout(pushDirty, 1500);
+    pushTimer.current = setTimeout(() => { pushDirty(); pushDirtyOverrides(); pushDirtyDeletes(); }, 1500);
     return () => clearTimeout(pushTimer.current);
-  }, [lists, user, pushDirty]);
+  }, [lists, aisleOverrides, user, pushDirty, pushDirtyOverrides, pushDirtyDeletes]);
 
   // When connectivity returns, flush edits queued while offline, then pull
   useEffect(() => {
     if (!user) return;
-    const onOnline = () => { pushDirty().then(pullRemote); };
-    window.addEventListener('online', onOnline);
-    return () => window.removeEventListener('online', onOnline);
-  }, [user, pushDirty, pullRemote]);
+    return onNetworkChange((connected) => {
+      if (connected) Promise.all([pushDirty(), pushDirtyOverrides(), pushDirtyDeletes()]).then(pullRemote);
+    });
+  }, [user, pushDirty, pushDirtyOverrides, pushDirtyDeletes, pullRemote]);
 
   // Pull on sign-in and every 15s while the tab is visible
   useEffect(() => {
@@ -465,11 +564,14 @@ export const useLists = (user) => {
     completeList,
     adoptRemoteList,
     frequentItems,
+    hideFrequentItem,
     purchaseHistory,
     pullRemote,
     aisleOverrides,
     setAisleOverride,
     clearAisleOverride,
     syncAisleOverrides,
+    itemHistory,
+    recordItemHistory,
   };
 };

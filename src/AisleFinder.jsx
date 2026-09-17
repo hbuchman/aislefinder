@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './auth';
 import { useLists } from './listsStore';
 import { loadState, saveState } from './storage';
+import { onNetworkChange } from './network';
 import { applySystemBars } from './systemBars';
 import TopBar from './components/TopBar';
 import AccountSheet from './components/AccountSheet';
@@ -49,16 +50,9 @@ const AisleFinder = () => {
 
   // Lists are cached on-device, so offline mode keeps working; let the user
   // know their edits are safe and will sync when they reconnect.
-  useEffect(() => {
-    const onOffline = () => toast('Offline — changes saved on this device');
-    const onOnline = () => toast('Back online — syncing');
-    window.addEventListener('offline', onOffline);
-    window.addEventListener('online', onOnline);
-    return () => {
-      window.removeEventListener('offline', onOffline);
-      window.removeEventListener('online', onOnline);
-    };
-  }, [toast]);
+  useEffect(() => onNetworkChange((connected) => {
+    toast(connected ? 'Back online — syncing' : 'Offline — changes saved on this device');
+  }), [toast]);
 
   const openList = (id) => {
     store.setCurrentListId(id);
@@ -485,19 +479,40 @@ const AisleFinder = () => {
           color: var(--af-focus);
         }
         .af-freqchip {
+          display: inline-flex;
+          align-items: center;
           border: 1px dashed var(--af-input-border);
-          background: none;
-          color: var(--af-text-muted);
           border-radius: 999px;
-          padding: 4px 12px;
           font-size: 12px;
-          cursor: pointer;
-          font-family: inherit;
           transition: all 0.2s ease;
+          overflow: hidden;
         }
         .af-freqchip:hover {
           border-color: var(--af-focus);
+        }
+        .af-freqchip-add {
+          border: 0;
+          background: none;
+          color: var(--af-text-muted);
+          padding: 4px 4px 4px 12px;
+          font-size: 12px;
+          cursor: pointer;
+          font-family: inherit;
+        }
+        .af-freqchip:hover .af-freqchip-add {
           color: var(--af-focus);
+        }
+        .af-freqchip-remove {
+          border: 0;
+          background: none;
+          color: var(--af-text-faint);
+          padding: 4px 10px 4px 4px;
+          font-size: 11px;
+          cursor: pointer;
+          font-family: inherit;
+        }
+        .af-freqchip-remove:hover {
+          color: var(--af-error-text);
         }
         .af-listitem {
           display: flex;
@@ -683,6 +698,7 @@ const AisleFinder = () => {
             removeItem={store.removeItem}
             editItem={store.editItem}
             frequentItems={store.frequentItems}
+            hideFrequentItem={store.hideFrequentItem}
             updateList={store.updateList}
             onShowLists={() => setSheet('lists')}
             onShowShare={() => setSheet('share')}
@@ -713,6 +729,8 @@ const AisleFinder = () => {
             setAisleOverride={store.setAisleOverride}
             clearAisleOverride={store.clearAisleOverride}
             syncAisleOverrides={store.syncAisleOverrides}
+            itemHistory={store.itemHistory}
+            recordItemHistory={store.recordItemHistory}
           />
         )}
       </div>

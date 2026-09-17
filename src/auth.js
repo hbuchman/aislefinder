@@ -5,6 +5,7 @@ import {
   AuthenticationDetails,
 } from 'amazon-cognito-identity-js';
 import { deleteAccountRemote } from './api';
+import { mirrorToNative, mirrorRemoveFromNative } from './storage';
 
 // AWS Cognito configuration. When these env vars are absent (e.g. local dev
 // before running infra/setup-aws.sh) the app stays in guest-only mode and the
@@ -14,8 +15,33 @@ const CLIENT_ID = process.env.REACT_APP_COGNITO_CLIENT_ID;
 
 export const authConfigured = Boolean(USER_POOL_ID && CLIENT_ID);
 
+// The prefix the Cognito SDK uses for every key it writes (session/refresh
+// tokens, last-signed-in-user) — see hydrateStorage() in storage.js, called
+// with this prefix at boot so index.js can restore it before auth.js's pool
+// reads localStorage.
+export const COGNITO_STORAGE_PREFIX = 'CognitoIdentityServiceProvider.';
+
+// Cognito's SDK persists its tokens straight into localStorage, bypassing
+// storage.js's af_-prefixed wrapper entirely. On iOS, WKWebView localStorage
+// can be evicted independently of Capacitor Preferences — mirror these keys
+// the same way af_* keys are mirrored, so a signed-in session survives
+// eviction instead of silently bumping the shopper to guest mode while their
+// lists (which are mirrored) stay intact.
+const cognitoStorage = {
+  getItem: (key) => localStorage.getItem(key),
+  setItem: (key, value) => {
+    localStorage.setItem(key, value);
+    mirrorToNative(key, value);
+  },
+  removeItem: (key) => {
+    localStorage.removeItem(key);
+    mirrorRemoveFromNative(key);
+  },
+  clear: () => localStorage.clear(),
+};
+
 const pool = authConfigured
-  ? new CognitoUserPool({ UserPoolId: USER_POOL_ID, ClientId: CLIENT_ID })
+  ? new CognitoUserPool({ UserPoolId: USER_POOL_ID, ClientId: CLIENT_ID, Storage: cognitoStorage })
   : null;
 
 const displayNameFromEmail = (email) => (email || '').split('@')[0];
@@ -63,7 +89,7 @@ export const signUp = (email, password) =>
 export const confirmSignUp = (email, code) =>
   new Promise((resolve, reject) => {
     if (!pool) return reject(new Error("Sign-in isn't available right now"));
-    const cognitoUser = new CognitoUser({ Username: email, Pool: pool });
+    const cognitoUser = new CognitoUser({ Username: email, Pool: pool, Storage: cognitoStorage });
     cognitoUser.confirmRegistration(code, true, (err, result) => {
       if (err) return reject(err);
       resolve(result);
@@ -73,7 +99,7 @@ export const confirmSignUp = (email, code) =>
 export const signIn = (email, password) =>
   new Promise((resolve, reject) => {
     if (!pool) return reject(new Error("Sign-in isn't available right now"));
-    const cognitoUser = new CognitoUser({ Username: email, Pool: pool });
+    const cognitoUser = new CognitoUser({ Username: email, Pool: pool, Storage: cognitoStorage });
     const details = new AuthenticationDetails({ Username: email, Password: password });
     cognitoUser.authenticateUser(details, {
       onSuccess: (session) => resolve(sessionToUser(cognitoUser, session)),
@@ -88,7 +114,7 @@ export const signIn = (email, password) =>
 export const resendConfirmationCode = (email) =>
   new Promise((resolve, reject) => {
     if (!pool) return reject(new Error("Sign-in isn't available right now"));
-    const cognitoUser = new CognitoUser({ Username: email, Pool: pool });
+    const cognitoUser = new CognitoUser({ Username: email, Pool: pool, Storage: cognitoStorage });
     cognitoUser.resendConfirmationCode((err, result) => {
       if (err) return reject(err);
       resolve(result);
@@ -99,7 +125,7 @@ export const resendConfirmationCode = (email) =>
 export const forgotPassword = (email) =>
   new Promise((resolve, reject) => {
     if (!pool) return reject(new Error("Sign-in isn't available right now"));
-    const cognitoUser = new CognitoUser({ Username: email, Pool: pool });
+    const cognitoUser = new CognitoUser({ Username: email, Pool: pool, Storage: cognitoStorage });
     cognitoUser.forgotPassword({
       onSuccess: () => resolve(),
       onFailure: (err) => reject(err),
@@ -111,7 +137,7 @@ export const forgotPassword = (email) =>
 export const confirmPassword = (email, code, newPassword) =>
   new Promise((resolve, reject) => {
     if (!pool) return reject(new Error("Sign-in isn't available right now"));
-    const cognitoUser = new CognitoUser({ Username: email, Pool: pool });
+    const cognitoUser = new CognitoUser({ Username: email, Pool: pool, Storage: cognitoStorage });
     cognitoUser.confirmPassword(code, newPassword, {
       onSuccess: () => resolve(),
       onFailure: (err) => reject(err),

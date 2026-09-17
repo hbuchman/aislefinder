@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import confetti from 'canvas-confetti';
 import { processGroceryList, findItemAisle, fetchCategories } from '../api';
+import { isOnline, onNetworkChange } from '../network';
 import { newItem } from '../listsStore';
 import ItemInfoSheet from '../components/ItemInfoSheet';
 import AisleSheet from '../components/AisleSheet';
@@ -18,6 +19,8 @@ import {
   itemKey,
   itemsHash,
   resolveOrganizeFormat,
+  buildOfflineOrganizedGroups,
+  remapCheckedItems,
 } from '../listUtils';
 
 // Badge shown next to an item with an aisle/category correction, describing
@@ -34,6 +37,7 @@ const ShopGroup = ({ group, index, collapsed, checkedItems, overrides = {}, onTo
   const complete = group.items.every((item) => checkedItems[`${group.name}::${item}`]);
   const checkedInGroup = group.items.filter((item) => checkedItems[`${group.name}::${item}`]).length;
   const isNotFound = group.name === 'Not Found';
+  const isUnsorted = group.name === 'Unsorted';
 
   return (
     <Draggable draggableId={`shop-${group.name}`} index={index}>
@@ -189,7 +193,7 @@ const ShopGroup = ({ group, index, collapsed, checkedItems, overrides = {}, onTo
                                 {badge[0]}
                               </span>
                             )}
-                            {isNotFound ? (
+                            {(isNotFound || isUnsorted) ? (
                               <button
                                 onClick={(e) => { e.stopPropagation(); onSetAisle(item); }}
                                 style={{
@@ -287,7 +291,7 @@ const CopyFormatPopup = ({ outputFormat, setOutputFormat, onClose }) => (
   </>
 );
 
-const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFormat, onExit, onFinished, onShowStore, toast, aisleOverrides = {}, setAisleOverride, clearAisleOverride, syncAisleOverrides }) => {
+const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFormat, onExit, onFinished, onShowStore, toast, aisleOverrides = {}, setAisleOverride, clearAisleOverride, syncAisleOverrides, itemHistory = {}, recordItemHistory }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [singleItemQuery, setSingleItemQuery] = useState('');
@@ -328,27 +332,62 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
     const hash = itemsHash(list.items);
     const format = resolveOrganizeFormat(list);
     organizedKey.current = `${hash}::${list.store ? list.store.id : ''}::${format}`;
-    setLoading(true);
     setError('');
+    const wasOffline = !!list.organizedOffline;
+    // Build the list from remembered item->group placements (itemHistory)
+    // instead of calling the backend; items never looked up before land in
+    // "Unsorted". Used both when we're known offline and as a fallback if the
+    // network call below throws.
+    const applyOffline = () => {
+      const groups = buildOfflineOrganizedGroups(list.items, format, itemHistory[storeId] || {});
+      updateList(list.id, {
+        organized: buildMarkdownFromGroups(groups),
+        organizedBy: format,
+        organizedForHash: hash,
+        organizedOffline: true,
+        checkedItems: remapCheckedItems(list.checkedItems, groups),
+        collapsedGroups: {},
+      });
+    };
+    if (!isOnline()) {
+      applyOffline();
+      return;
+    }
+    setLoading(true);
     try {
       const markdown = await processGroceryList({
         items: list.items.map((it) => it.name),
         format,
         store: list.store,
       });
+      const groups = parseGroceryListToGroups(markdown);
+      if (recordItemHistory) {
+        const entries = groups
+          .filter((g) => g.name !== 'Not Found')
+          .flatMap((g) => g.items.map((name) => ({ name, group: g.name })));
+        recordItemHistory(storeId, format, entries);
+      }
       updateList(list.id, {
         organized: markdown,
         organizedBy: format,
         organizedForHash: hash,
-        checkedItems: {},
+        organizedOffline: false,
+        // Reconciling an offline-built list with the real result shouldn't
+        // wipe progress; a deliberate reorganize (format switch, etc.) still
+        // resets check state as before.
+        checkedItems: wasOffline ? remapCheckedItems(list.checkedItems, groups) : {},
         collapsedGroups: {},
       });
     } catch (err) {
-      setError(err.message || "Couldn't organize your list — try again");
+      if (!isOnline() || err.name === 'TypeError') {
+        applyOffline();
+      } else {
+        setError(err.message || "Couldn't organize your list — try again");
+      }
     } finally {
       setLoading(false);
     }
-  }, [list, updateList]);
+  }, [list, updateList, storeId, itemHistory, recordItemHistory]);
 
   useEffect(() => {
     if (!list) return;
@@ -362,6 +401,12 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
       organize();
     }
   }, [list, organize]);
+
+  // Reconcile an offline-built list against the real backend as soon as
+  // connectivity returns, without waiting for the item set to change again.
+  useEffect(() => onNetworkChange((connected) => {
+    if (connected && list && list.organizedOffline) organize();
+  }), [list, organize]);
 
   // Explicit aisle/category switch, available mid-shop; overrides the
   // store-driven default and re-triggers the organize effect above
@@ -411,9 +456,9 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
     [checkedItems]
   );
 
-  // Groups that represent actual store locations (skip "Not Found" — no physical position)
+  // Groups that represent actual store locations (skip "Not Found"/"Unsorted" — no physical position)
   const routeGroups = useMemo(
-    () => orderedGroups.filter(g => g.name !== 'Not Found'),
+    () => orderedGroups.filter(g => g.name !== 'Not Found' && g.name !== 'Unsorted'),
     [orderedGroups]
   );
 
@@ -593,7 +638,7 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
       delete next[oldKey];
       return next;
     });
-    if (destName !== 'Not Found' && setAisleOverride) {
+    if (destName !== 'Not Found' && destName !== 'Unsorted' && setAisleOverride) {
       setAisleOverride(storeId, moved, placementFromGroupName(destName));
     }
   };
@@ -612,36 +657,51 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
     if (!query) return;
     setSingleItemLoading(true);
     setSingleItemError(false);
+    const format = resolveOrganizeFormat(list);
+    const applyResult = (item, groupName) => {
+      updateList(listId, (l) => {
+        const groupHeader = `## ${groupName}`;
+        const newLine = `- ${item}`;
+        let organized = l.organized || '';
+        if (organized.includes(groupHeader)) {
+          const lines = organized.split('\n');
+          const headerIdx = lines.findIndex((line) => line === groupHeader);
+          let insertIdx = headerIdx + 1;
+          while (insertIdx < lines.length && lines[insertIdx].startsWith('- ')) insertIdx++;
+          lines.splice(insertIdx, 0, newLine);
+          organized = lines.join('\n');
+        } else {
+          organized = organized.trimEnd() + `\n\n${groupHeader}\n${newLine}`;
+        }
+        const items = l.items.some((it) => it.name === query.toLowerCase())
+          ? l.items
+          : [newItem(query), ...l.items];
+        return { organized, items, organizedForHash: itemsHash(items) };
+      });
+      hasFiredConfetti.current = false;
+      setSingleItemQuery('');
+    };
+    if (!isOnline()) {
+      // Offline: only satisfy the lookup from what we've already seen at
+      // this store/format — no way to guess a never-looked-up item's aisle.
+      const entry = (itemHistory[storeId] || {})[itemKey(query)];
+      const cachedGroup = entry && entry[format] && entry[format].group;
+      if (cachedGroup) applyResult(query, cachedGroup);
+      else setSingleItemError(true);
+      setSingleItemLoading(false);
+      return;
+    }
     try {
       const result = await findItemAisle({ item: query, store: list.store });
       if (result && !result.error) {
         // Match the list's grouping scheme: a category-organized list should
         // never grow an "Aisle N" section (and vice versa the aisle label
         // already falls back to category when the store has no aisle data)
-        const groupName = list.organizedBy === 'category' && result.category !== 'Not Found'
+        const groupName = format === 'category' && result.category !== 'Not Found'
           ? result.category
           : result.aisle;
-        updateList(listId, (l) => {
-          const groupHeader = `## ${groupName}`;
-          const newLine = `- ${result.item}`;
-          let organized = l.organized || '';
-          if (organized.includes(groupHeader)) {
-            const lines = organized.split('\n');
-            const headerIdx = lines.findIndex((line) => line === groupHeader);
-            let insertIdx = headerIdx + 1;
-            while (insertIdx < lines.length && lines[insertIdx].startsWith('- ')) insertIdx++;
-            lines.splice(insertIdx, 0, newLine);
-            organized = lines.join('\n');
-          } else {
-            organized = organized.trimEnd() + `\n\n${groupHeader}\n${newLine}`;
-          }
-          const items = l.items.some((it) => it.name === query.toLowerCase())
-            ? l.items
-            : [newItem(query), ...l.items];
-          return { organized, items, organizedForHash: itemsHash(items) };
-        });
-        hasFiredConfetti.current = false;
-        setSingleItemQuery('');
+        if (recordItemHistory && groupName) recordItemHistory(storeId, format, [{ name: result.item, group: groupName }]);
+        applyResult(result.item, groupName);
       } else {
         setSingleItemError(true);
       }
@@ -743,7 +803,7 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
           </button>
           <h3 style={{
             margin: 0,
-            fontSize: '1.1rem',
+            fontSize: '0.95rem',
             fontWeight: 600,
             color: 'var(--af-text)',
             display: 'flex',

@@ -37,6 +37,7 @@ const CurrentListScreen = ({
   removeItem,
   editItem,
   frequentItems,
+  hideFrequentItem,
   updateList,
   onShowLists,
   onShowShare,
@@ -262,10 +263,20 @@ const CurrentListScreen = ({
             {query ? 'Matches:' : 'You often buy:'}
           </span>
           {suggestions.map((name) => (
-            <button key={name} className="af-freqchip" onClick={() => addSuggestion(name)}>
-              <i className="fa-solid fa-plus" style={{ fontSize: '9px', marginRight: '5px' }} />
-              {name}
-            </button>
+            <span key={name} className="af-freqchip">
+              <button type="button" className="af-freqchip-add" onClick={() => addSuggestion(name)}>
+                <i className="fa-solid fa-plus" style={{ fontSize: '9px', marginRight: '5px' }} />
+                {name}
+              </button>
+              <button
+                type="button"
+                className="af-freqchip-remove"
+                title={`Stop suggesting ${name}`}
+                onClick={() => hideFrequentItem && hideFrequentItem(name)}
+              >
+                <i className="fa-solid fa-xmark" />
+              </button>
+            </span>
           ))}
         </div>
       )}

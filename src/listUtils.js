@@ -64,6 +64,7 @@ const FIRST_SECTIONS = { produce: 0, bakery: 1, deli: 2, 'meat & seafood': 3, 'm
 const LAST_SECTIONS = { dairy: 0, 'dairy products': 0, milk: 0, breakfast: 0, frozen: 1, 'frozen foods': 1, 'frozen section': 1 };
 
 export const sectionSortKey = (name) => {
+  if (name === 'Unsorted') return [-1, 0, name];
   if (name === 'Not Found') return [4, 0, name];
   const placement = placementFromGroupName(name);
   if (placement && placement.kind === 'aisle') return [2, placement.value, ''];
@@ -94,10 +95,11 @@ export const overrideGroupName = (placement) => {
 
 // The inverse of overrideGroupName: parses a group header back into the
 // placement it represents ("Aisle 9" → aisle mode at 9; anything else → that
-// category), or null for "Not Found"/empty. Shared so the "Aisle N" pattern
-// only needs to be recognized in one place.
+// category), or null for "Not Found"/"Unsorted"/empty — neither is a real
+// placement a correction should be recorded against. Shared so the "Aisle N"
+// pattern only needs to be recognized in one place.
 export const placementFromGroupName = (name) => {
-  if (!name || name === 'Not Found') return null;
+  if (!name || name === 'Not Found' || name === 'Unsorted') return null;
   const m = /^Aisle (\d+)$/.exec(name);
   if (m) return { kind: 'aisle', value: parseInt(m[1], 10) };
   return { kind: 'category', value: name };
@@ -142,6 +144,47 @@ export const applyAisleOverrides = (groups, overrides) => {
   return working
     .filter((g) => g.items.length > 0)
     .sort((a, b) => compareSectionKeys(sectionSortKey(a.name), sectionSortKey(b.name)));
+};
+
+// Builds a client-side approximation of the backend's organize step for use
+// when offline: items with a remembered placement (from `itemHistory`, see
+// listsStore.js) go into that group; anything never looked up before at this
+// store/format goes into "Unsorted" rather than blocking the list. Pure —
+// `historyForStore` is `{ [itemKey]: { aisle: {group}, category: {group} } }`.
+export const buildOfflineOrganizedGroups = (items, format, historyForStore) => {
+  const byGroup = new Map();
+  const unsorted = [];
+  items.forEach((it) => {
+    const entry = historyForStore && historyForStore[itemKey(it.name)];
+    const groupName = entry && entry[format] ? entry[format].group : null;
+    if (!groupName) { unsorted.push(it.name); return; }
+    if (!byGroup.has(groupName)) byGroup.set(groupName, []);
+    byGroup.get(groupName).push(it.name);
+  });
+  const groups = [...byGroup.entries()].map(([name, groupItems]) => ({ name, items: groupItems }));
+  if (unsorted.length > 0) groups.push({ name: 'Unsorted', items: unsorted });
+  return groups.sort((a, b) => compareSectionKeys(sectionSortKey(a.name), sectionSortKey(b.name)));
+};
+
+// Re-keys a checkedItems map (keyed `${groupName}::${item}`) onto a new set of
+// groups by item name, so check state survives an item moving to a different
+// group — e.g. reconciling an offline-organized list against the real
+// backend result once back online. Generalizes the single-item remap
+// ShopScreen's drag handler already does ad hoc.
+export const remapCheckedItems = (checkedItems, groups) => {
+  const checkedByItem = new Set();
+  Object.entries(checkedItems || {}).forEach(([key, checked]) => {
+    if (!checked) return;
+    const sep = key.indexOf('::');
+    checkedByItem.add(itemKey(sep >= 0 ? key.slice(sep + 2) : key));
+  });
+  const next = {};
+  groups.forEach((g) => {
+    g.items.forEach((item) => {
+      if (checkedByItem.has(itemKey(item))) next[`${g.name}::${item}`] = true;
+    });
+  });
+  return next;
 };
 
 // Turns typed or pasted list text into individual item names. Supports
