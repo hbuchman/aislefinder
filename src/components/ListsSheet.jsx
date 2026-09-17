@@ -1,14 +1,18 @@
 import React, { useState } from 'react';
 import Sheet from './Sheet';
+import { daysAgoLabel } from '../listsStore';
 
-// Switch between active lists, or create a new one. Past purchase history
-// lives inline on the current list screen ("Bought before"), not here.
+// Switch between active lists, reopen a completed one, or create a new
+// list. Per-item purchase history lives inline on the current list screen
+// ("Bought before"), not here — this is just list-level switching.
 const ListsSheet = ({
   open,
   onClose,
   activeLists,
+  completedLists = [],
   currentListId,
   onSelectList,
+  onReopenList,
   onCreateList,
   onDeleteList,
 }) => {
@@ -54,7 +58,6 @@ const ListsSheet = ({
             {activeLists.length > 1 && (
               <button
                 className="af-itemremove"
-                style={{ opacity: 1 }}
                 title="Delete list"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -103,6 +106,37 @@ const ListsSheet = ({
           <i className="fa-solid fa-plus" style={{ marginRight: '8px' }} />
           New List
         </button>
+      )}
+
+      {completedLists.length > 0 && (
+        <>
+          <div className="af-sectionlabel">Completed</div>
+          {completedLists.map((list) => (
+            <div
+              key={list.id}
+              className="af-card"
+              onClick={() => onReopenList(list.id)}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '15px', fontWeight: 600, flex: 1 }}>{list.name}</span>
+                <button
+                  className="af-itemremove"
+                  title="Delete this trip from history"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeleteList({ id: list.id, name: list.name, status: 'completed' });
+                  }}
+                >
+                  <i className="fa-solid fa-trash-can" style={{ fontSize: '12px' }} />
+                </button>
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--af-text-muted)', marginTop: '4px' }}>
+                {list.items.length} item{list.items.length === 1 ? '' : 's'}
+                {list.store ? ` · ${list.store.name}` : ''} · completed {daysAgoLabel(list.completedAt)}
+              </div>
+            </div>
+          ))}
+        </>
       )}
     </Sheet>
   );

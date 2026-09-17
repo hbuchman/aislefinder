@@ -409,6 +409,13 @@ export const useLists = (user) => {
     }
   }, [markDirty]);
 
+  // Undo a completion — a past trip goes back to being an active list you
+  // can pick up and keep shopping, rather than a frozen history entry.
+  const reopenList = useCallback((id) => {
+    updateList(id, { status: 'active', completedAt: null });
+    setCurrentListId(id);
+  }, [updateList]);
+
   const adoptRemoteList = useCallback((remote) => {
     setLists((prev) => {
       const without = prev.filter((l) => l.id !== remote.id);
@@ -441,6 +448,18 @@ export const useLists = (user) => {
   }, []);
 
   const purchaseHistory = useMemo(() => groupPurchaseHistory(completedLists), [completedLists]);
+
+  // Remove one item from a list's purchase history — strips it out of every
+  // completed trip filed under that list name, rather than the "Clear
+  // history" trash icon's whole-group wipe.
+  const deleteHistoryItem = useCallback((listName, itemName) => {
+    const key = itemKey(itemName);
+    lists.forEach((l) => {
+      if (l.status !== 'completed' || l.name !== listName) return;
+      if (!l.items.some((it) => itemKey(it.name) === key)) return;
+      updateList(l.id, { items: l.items.filter((it) => itemKey(it.name) !== key) });
+    });
+  }, [lists, updateList]);
 
   // ---- server sync (signed-in only) ----
 
@@ -585,10 +604,12 @@ export const useLists = (user) => {
     createList,
     deleteList,
     completeList,
+    reopenList,
     adoptRemoteList,
     frequentItems,
     hideFrequentItem,
     purchaseHistory,
+    deleteHistoryItem,
     pullRemote,
     aisleOverrides,
     setAisleOverride,

@@ -41,6 +41,7 @@ const CurrentListScreen = ({
   hideFrequentItem,
   historyGroup,
   onDeleteHistory,
+  onDeleteHistoryItem,
   updateList,
   onShowLists,
   onShowShare,
@@ -310,11 +311,7 @@ const CurrentListScreen = ({
         )}
         {list.items.map((item) => (
           <div key={item.id} className="af-listitem">
-            <button
-              className="af-itemcircle"
-              title="Remove item"
-              onClick={() => removeItem(list.id, item.id)}
-            />
+            <div className="af-itemlead" />
             {editingId === item.id ? (
               <input
                 ref={editInputRef}
@@ -379,7 +376,6 @@ const CurrentListScreen = ({
               {onDeleteHistory && (
                 <button
                   className="af-itemremove"
-                  style={{ opacity: 1 }}
                   title="Clear this list's history"
                   onClick={() => onDeleteHistory(list.name)}
                 >
@@ -391,30 +387,33 @@ const CurrentListScreen = ({
               <div
                 key={itemKey(it.name)}
                 className="af-checklist-item"
-                onClick={() => addItem(list.id, it.name)}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: '10px',
                   padding: '9px 6px',
                   borderRadius: '6px',
-                  cursor: 'pointer',
                 }}
               >
-                <div style={{
-                  width: '19px',
-                  height: '19px',
-                  borderRadius: '5px',
-                  flexShrink: 0,
-                  border: '2px solid var(--af-text-muted)',
-                  backgroundColor: 'var(--af-inset-bg)',
-                }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="af-itemlead af-itemlead-past" />
+                <div
+                  style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}
+                  onClick={() => addItem(list.id, it.name)}
+                >
                   <div style={{ fontSize: '14.5px' }}>{it.name}</div>
                   <div style={{ fontSize: '11.5px', color: 'var(--af-text-muted)', marginTop: '2px' }}>
                     Bought {it.count}&times; &middot; {daysAgoLabel(it.lastAt)}{it.lastStore ? ` at ${it.lastStore}` : ''}
                   </div>
                 </div>
+                {onDeleteHistoryItem && (
+                  <button
+                    className="af-itemremove"
+                    title="Remove from history"
+                    onClick={() => onDeleteHistoryItem(list.name, it.name)}
+                  >
+                    <i className="fa-solid fa-xmark" />
+                  </button>
+                )}
               </div>
             ))}
           </>

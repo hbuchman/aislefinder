@@ -60,6 +60,13 @@ const AisleFinder = () => {
     setSheet(null);
   };
 
+  const handleReopenList = (id) => {
+    store.reopenList(id);
+    setScreen('list');
+    setSheet(null);
+    toast('Trip reopened');
+  };
+
   const handleCreateList = (name) => {
     store.createList(name);
     setScreen('list');
@@ -237,7 +244,6 @@ const AisleFinder = () => {
         }
         /* Touch screens have no hover: keep per-item controls visible */
         @media (hover: none) {
-          .af-itemremove { opacity: 1; }
           .af-iteminfo { opacity: 0.55; }
         }
         .af-input::placeholder {
@@ -526,20 +532,16 @@ const AisleFinder = () => {
         .af-listitem:hover {
           background: var(--af-surface);
         }
-        .af-itemcircle {
-          width: 20px;
-          height: 20px;
+        .af-itemlead {
+          width: 4px;
+          align-self: stretch;
+          border-radius: 3px;
           flex-shrink: 0;
-          border: 2px solid var(--af-input-border);
-          border-radius: 50%;
-          cursor: pointer;
-          background: none;
-          transition: all 0.15s ease;
-          padding: 0;
+          background: var(--af-green);
+          opacity: 0.5;
         }
-        .af-itemcircle:hover {
-          border-color: var(--af-green);
-          background: var(--af-green-soft);
+        .af-itemlead-past {
+          background: var(--af-amber);
         }
         .af-itemremove {
           background: none;
@@ -549,11 +551,7 @@ const AisleFinder = () => {
           cursor: pointer;
           padding: 2px 6px;
           border-radius: 6px;
-          opacity: 0;
           transition: all 0.15s ease;
-        }
-        .af-listitem:hover .af-itemremove {
-          opacity: 1;
         }
         .af-itemremove:hover {
           color: var(--af-error-text);
@@ -703,6 +701,7 @@ const AisleFinder = () => {
               ? store.purchaseHistory.find((g) => g.name === store.currentList.name) || null
               : null}
             onDeleteHistory={handleDeleteHistoryGroup}
+            onDeleteHistoryItem={store.deleteHistoryItem}
             updateList={store.updateList}
             onShowLists={() => setSheet('lists')}
             onShowShare={() => setSheet('share')}
@@ -767,8 +766,10 @@ const AisleFinder = () => {
         open={sheet === 'lists'}
         onClose={() => setSheet(null)}
         activeLists={store.activeLists}
+        completedLists={store.completedLists}
         currentListId={store.currentList ? store.currentList.id : null}
         onSelectList={openList}
+        onReopenList={handleReopenList}
         onCreateList={handleCreateList}
         onDeleteList={handleDeleteList}
       />
