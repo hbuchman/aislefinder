@@ -16,11 +16,10 @@ const Sheet = ({ open, onClose, children }) => {
         justifyContent: 'center',
       }}
     >
-      <div style={{
+      <div className="af-sheet-panel" style={{
         background: 'var(--af-popup-bg)',
         width: '100%',
         maxWidth: '640px',
-        maxHeight: '85vh',
         overflowY: 'auto',
         borderRadius: '18px 18px 0 0',
         padding: '16px 20px calc(24px + var(--safe-area-inset-bottom))',

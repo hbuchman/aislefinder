@@ -403,7 +403,7 @@ export const useLists = (user) => {
     return Object.entries(counts)
       .filter(([name]) => !onList.has(name))
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 6)
+      .slice(0, 3)
       .map(([name]) => name);
   }, [completedLists, currentList]);
 

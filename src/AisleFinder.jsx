@@ -22,9 +22,6 @@ const AisleFinder = () => {
   // sheet: null | 'account' | 'share' | 'store'
   const [sheet, setSheet] = useState(null);
   const [outputFormat, setOutputFormat] = useState(() => loadState('outputFormat', 'numbered'));
-  // True while the home screen's add-item input is focused; hides the top
-  // bar too so the keyboard doesn't squeeze the list down to a couple of rows
-  const [listComposing, setListComposing] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
   const toastTimer = useRef(null);
 
@@ -221,6 +218,33 @@ const AisleFinder = () => {
         .af-shell {
           height: 100vh;
           height: 100dvh;
+        }
+        /* Same dvh-with-vh-fallback treatment for sheets/popups that cap
+           their height at a viewport fraction: plain vh is measured against
+           the browser's largest viewport (address bar hidden), so with the
+           address bar showing — or the keyboard open, which these sheets'
+           text inputs trigger constantly — the real visible area is
+           smaller and content (often the submit button) renders below the
+           fold. dvh tracks the actual visible viewport instead. */
+        .af-sheet-panel {
+          max-height: 85vh;
+          max-height: 85dvh;
+        }
+        /* The top bar's action buttons (chat/history/lists/store/shop/account)
+           can outgrow narrow phone widths, especially with store+shop shown
+           on the home screen. overflow-x here (rather than visible) makes
+           this flex item's automatic minimum width 0 instead of its content
+           width, so it shrinks first and scrolls internally instead of
+           pushing content past af-shell's clipping edge and off-screen. */
+        .af-topbar-actions {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          overflow-x: auto;
+          scrollbar-width: none;
+        }
+        .af-topbar-actions::-webkit-scrollbar {
+          display: none;
         }
         /* Touch screens have no hover: keep per-item controls visible */
         @media (hover: none) {
@@ -564,7 +588,12 @@ const AisleFinder = () => {
           border-radius: 999px;
           font-size: 13px;
           font-weight: 600;
-          white-space: nowrap;
+          /* Toast text embeds user-given list/category names, which can run
+             long. nowrap with no width limit let those messages render past
+             both edges of a narrow phone with no way to read the rest; wrap
+             instead, capped so the pill never spans past the screen. */
+          max-width: calc(100vw - 32px);
+          text-align: center;
           z-index: 3000;
           box-shadow: var(--af-shadow-lg);
           animation: toastFade 2.5s ease-out forwards;
@@ -638,7 +667,7 @@ const AisleFinder = () => {
         paddingLeft: 'var(--safe-area-inset-left)',
         paddingRight: 'var(--safe-area-inset-right)',
       }}>
-        {screen !== 'shop' && !(screen === 'list' && listComposing) && (
+        {screen !== 'shop' && (
           <TopBar
             user={auth.user}
             onShowHistory={() => setScreen('history')}
@@ -662,7 +691,6 @@ const AisleFinder = () => {
             updateList={store.updateList}
             onShowLists={() => setScreen('lists')}
             onShowShare={() => setSheet('share')}
-            onComposingChange={setListComposing}
             toast={toast}
           />
         )}

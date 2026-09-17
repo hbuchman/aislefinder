@@ -755,14 +755,13 @@ const ItemInfoSheet = ({ item, store, onClose, onChangeAisle }) => {
         padding: '20px',
       }}
     >
-      <div style={{
+      <div className="af-sheet-panel" style={{
         background: 'var(--af-popup-bg)',
         borderRadius: '16px',
         padding: '20px',
         boxShadow: 'var(--af-shadow-lg)',
         width: '100%',
         maxWidth: '340px',
-        maxHeight: '85vh',
         overflowY: 'auto',
         position: 'relative',
         animation: 'popupZoomIn 0.18s ease',

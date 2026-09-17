@@ -39,25 +39,12 @@ const CurrentListScreen = ({
   updateList,
   onShowLists,
   onShowShare,
-  onComposingChange,
   toast,
 }) => {
   const [input, setInput] = useState('');
   const [scanning, setScanning] = useState(false);
-  // True while the add-item input is focused (keyboard open on mobile). Hides
-  // the title row and footer so the item list — the thing you're looking at
-  // while typing — isn't squeezed down to a couple of rows.
-  const [composing, setComposing] = useState(false);
   const inputRef = useRef(null);
   const photoInputRef = useRef(null);
-
-  useEffect(() => { onComposingChange?.(composing); }, [composing, onComposingChange]);
-  useEffect(() => () => onComposingChange?.(false), [onComposingChange]);
-
-  // Only collapse chrome on phone-width viewports — desktop has plenty of
-  // vertical space and autofocuses this input on load, so gating on focus
-  // alone would hide the footer for desktop users on every page load.
-  const isNarrowViewport = () => window.matchMedia('(max-width: 640px)').matches;
 
   // The add bar is the whole point of the home screen — focus it on load.
   // Skip on native apps, where autofocus pops the keyboard over half the
@@ -141,9 +128,8 @@ const CurrentListScreen = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-      {/* List title stays put while typing so you always know which list
-          you're adding to; only the share button swaps for a Done button
-          that closes the keyboard, since sharing doesn't apply mid-type */}
+      {/* List title and share button stay put while typing — adding items
+          should never require exiting to a different mode */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '14px 16px 2px' }}>
         <button
           onClick={onShowLists}
@@ -167,17 +153,11 @@ const CurrentListScreen = ({
           <i className="fa-solid fa-chevron-down" style={{ fontSize: '11px', color: 'var(--af-text-faint)' }} />
         </button>
         <div style={{ flex: 1 }} />
-        {composing ? (
-          <button className="af-btn-sm af-btn-sm-green" onClick={() => inputRef.current?.blur()}>
-            Done
-          </button>
-        ) : (
-          <button className="af-iconbtn" title="Share this list" onClick={onShowShare}>
-            <i className="fa-solid fa-user-group" />
-          </button>
-        )}
+        <button className="af-iconbtn" title="Share this list" onClick={onShowShare}>
+          <i className="fa-solid fa-user-group" />
+        </button>
       </div>
-      {!composing && isShared && (
+      {isShared && (
         <div style={{ fontSize: '12px', color: 'var(--af-text-muted)', padding: '0 16px 4px' }}>
           <i className="fa-solid fa-user-group" style={{ fontSize: '10px', marginRight: '5px' }} />
           Shared with {otherMembers.length > 0 ? otherMembers.join(', ') : 'others'}
@@ -193,8 +173,6 @@ const CurrentListScreen = ({
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') handleAdd(); }}
           onPaste={handlePaste}
-          onFocus={() => { if (isNarrowViewport()) setComposing(true); }}
-          onBlur={() => setComposing(false)}
           placeholder="Add an item…"
           className="af-input"
           style={{
@@ -234,9 +212,21 @@ const CurrentListScreen = ({
         />
       </div>
 
+      {/* Photo parsing can take several seconds (Claude vision call) — the
+          disabled/spinning camera button alone is easy to miss, so call it
+          out here too */}
+      {scanning && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 16px 4px', color: 'var(--af-text-muted)', fontSize: '13px' }}>
+          <div className="loading-icon-0" style={{ fontSize: '16px', color: 'var(--af-green)' }}>
+            <i className="fa-solid fa-camera" />
+          </div>
+          Reading your photo…
+        </div>
+      )}
+
       {/* Frequent-item suggestions from history — stay visible while typing
           and narrow to matches, since that's the moment they help most */}
-      {suggestions.length > 0 && (
+      {!scanning && suggestions.length > 0 && (
         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', padding: '8px 16px 4px', alignItems: 'center' }}>
           <span style={{ fontSize: '11px', color: 'var(--af-text-faint)' }}>
             {query ? 'Matches:' : 'You often buy:'}
