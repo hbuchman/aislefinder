@@ -408,6 +408,15 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
     if (connected && list && list.organizedOffline) organize();
   }), [list, organize]);
 
+  // Catch a list stranded in its degraded offline state (all-"Unsorted") by
+  // a connectivity reading that was wrong at the time — e.g. Capacitor's
+  // Network status can race at cold start the same way navigator.onLine used
+  // to. That never fires the listener above (no real transition happens), so
+  // check again on every render here instead of waiting for one.
+  useEffect(() => {
+    if (list && list.organizedOffline && isOnline()) organize();
+  }, [list, organize]);
+
   // Explicit aisle/category switch, available mid-shop; overrides the
   // store-driven default and re-triggers the organize effect above
   const setFormat = (format) => {

@@ -1,7 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { photoToItems } from '../api';
-import { parseListItems } from '../listUtils';
+import { parseListItems, itemKey } from '../listUtils';
+import { daysAgoLabel } from '../listsStore';
 
 // The Claude API caps images at 5MB and gains nothing above ~1568px on the
 // long edge, so photos are downscaled and re-encoded as JPEG before upload
@@ -38,6 +39,8 @@ const CurrentListScreen = ({
   editItem,
   frequentItems,
   hideFrequentItem,
+  historyGroup,
+  onDeleteHistory,
   updateList,
   onShowLists,
   onShowShare,
@@ -61,6 +64,20 @@ const CurrentListScreen = ({
   useEffect(() => {
     if (editingId) editInputRef.current?.focus();
   }, [editingId]);
+
+  // "Bought before" — past purchases under this list's name, minus whatever's
+  // already on the list (no point suggesting something you're already buying)
+  const onListNames = useMemo(
+    () => new Set(list ? list.items.map((it) => it.name) : []),
+    [list]
+  );
+
+  const pastItems = useMemo(() => {
+    if (!historyGroup) return [];
+    return historyGroup.items
+      .filter((it) => !onListNames.has(it.name))
+      .sort((a, b) => b.count - a.count);
+  }, [historyGroup, onListNames]);
 
   if (!list) return null;
 
@@ -352,6 +369,56 @@ const CurrentListScreen = ({
             </button>
           </div>
         ))}
+
+        {pastItems.length > 0 && (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '18px 6px 8px' }}>
+              <span className="af-sectionlabel" style={{ margin: 0, flex: 1 }}>
+                Bought before
+              </span>
+              {onDeleteHistory && (
+                <button
+                  className="af-itemremove"
+                  style={{ opacity: 1 }}
+                  title="Clear this list's history"
+                  onClick={() => onDeleteHistory(list.name)}
+                >
+                  <i className="fa-solid fa-trash-can" style={{ fontSize: '12px' }} />
+                </button>
+              )}
+            </div>
+            {pastItems.map((it) => (
+              <div
+                key={itemKey(it.name)}
+                className="af-checklist-item"
+                onClick={() => addItem(list.id, it.name)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '9px 6px',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                }}
+              >
+                <div style={{
+                  width: '19px',
+                  height: '19px',
+                  borderRadius: '5px',
+                  flexShrink: 0,
+                  border: '2px solid var(--af-text-muted)',
+                  backgroundColor: 'var(--af-inset-bg)',
+                }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '14.5px' }}>{it.name}</div>
+                  <div style={{ fontSize: '11.5px', color: 'var(--af-text-muted)', marginTop: '2px' }}>
+                    Bought {it.count}&times; &middot; {daysAgoLabel(it.lastAt)}{it.lastStore ? ` at ${it.lastStore}` : ''}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
       </div>
     </div>
   );

@@ -699,6 +699,10 @@ const AisleFinder = () => {
             editItem={store.editItem}
             frequentItems={store.frequentItems}
             hideFrequentItem={store.hideFrequentItem}
+            historyGroup={store.currentList
+              ? store.purchaseHistory.find((g) => g.name === store.currentList.name) || null
+              : null}
+            onDeleteHistory={handleDeleteHistoryGroup}
             updateList={store.updateList}
             onShowLists={() => setSheet('lists')}
             onShowShare={() => setSheet('share')}
@@ -763,14 +767,10 @@ const AisleFinder = () => {
         open={sheet === 'lists'}
         onClose={() => setSheet(null)}
         activeLists={store.activeLists}
-        historyOnlyGroups={store.purchaseHistory.filter(
-          (g) => !store.activeLists.some((l) => l.name === g.name)
-        )}
         currentListId={store.currentList ? store.currentList.id : null}
         onSelectList={openList}
         onCreateList={handleCreateList}
         onDeleteList={handleDeleteList}
-        onDeleteHistory={handleDeleteHistoryGroup}
       />
 
       {toastMsg && <div className="af-toast">{toastMsg}</div>}

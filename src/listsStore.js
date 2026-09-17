@@ -123,17 +123,40 @@ export const buildChatContext = (currentList, completedLists) => {
   return parts.join('\n\n');
 };
 
-// Distinct list names from history, each with its most-recently-completed
-// date. Used to find past lists that aren't currently active (see
-// historyOnlyGroups in AisleFinder.jsx) and to order them by recency.
+// Per-item purchase history, grouped by list name — how many times each item
+// was bought under that name and when it was last seen. Drives the "Bought
+// before" section on the current list screen.
 export const groupPurchaseHistory = (completedLists) => {
-  const lastAtByName = new Map();
+  const groups = new Map(); // list name -> { name, trips, lastAt, itemsByKey }
   completedLists.forEach((list) => {
-    const current = lastAtByName.get(list.name);
-    if (!current || (list.completedAt || '') > current) lastAtByName.set(list.name, list.completedAt);
+    let group = groups.get(list.name);
+    if (!group) {
+      group = { name: list.name, trips: 0, lastAt: null, itemsByKey: new Map() };
+      groups.set(list.name, group);
+    }
+    group.trips += 1;
+    if (!group.lastAt || (list.completedAt || '') > group.lastAt) group.lastAt = list.completedAt;
+    list.items.forEach((it) => {
+      const key = itemKey(it.name);
+      const existing = group.itemsByKey.get(key);
+      if (!existing) {
+        group.itemsByKey.set(key, {
+          name: it.name,
+          count: 1,
+          lastAt: list.completedAt,
+          lastStore: list.store ? list.store.name : null,
+        });
+      } else {
+        existing.count += 1;
+        if ((list.completedAt || '') > (existing.lastAt || '')) {
+          existing.lastAt = list.completedAt;
+          existing.lastStore = list.store ? list.store.name : null;
+        }
+      }
+    });
   });
-  return [...lastAtByName.entries()]
-    .map(([name, lastAt]) => ({ name, lastAt }))
+  return [...groups.values()]
+    .map((g) => ({ name: g.name, trips: g.trips, lastAt: g.lastAt, items: [...g.itemsByKey.values()] }))
     .sort((a, b) => (b.lastAt || '').localeCompare(a.lastAt || ''));
 };
 
