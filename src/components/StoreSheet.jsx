@@ -47,6 +47,20 @@ const StoreSheet = ({ open, onClose, list, updateList, toast }) => {
     onClose();
   };
 
+  // Organize by aisle without binding to a real store — the shopper assigns
+  // their own aisle numbers via the "Set aisle" action instead of Kroger's.
+  const skipStore = () => {
+    updateList(list.id, {
+      store: null,
+      formatPreference: 'aisle',
+      organized: null,
+      organizedBy: null,
+      organizedForHash: null,
+    });
+    toast('Organizing using your own aisles');
+    onClose();
+  };
+
   const currentStoreId = list && list.store ? list.store.id : null;
 
   return (
@@ -75,8 +89,29 @@ const StoreSheet = ({ open, onClose, list, updateList, toast }) => {
             {list.store ? list.store.name : 'No store selected'}
           </span>
           <span style={{ fontSize: '12px', color: 'var(--af-text-muted)' }}>Organize by</span>
-          <FormatToggle format={resolveOrganizeFormat(list)} onChange={setFormat} aisleDisabled={!list.store} />
+          <FormatToggle
+            format={resolveOrganizeFormat(list)}
+            onChange={setFormat}
+            aisleDisabled={!list.store && resolveOrganizeFormat(list) !== 'aisle'}
+          />
         </div>
+      )}
+
+      {list && (
+        <button
+          className="af-btn"
+          onClick={skipStore}
+          style={{
+            width: '100%',
+            marginBottom: '14px',
+            background: 'var(--af-inset-bg)',
+            color: 'var(--af-text)',
+            border: '1px solid var(--af-border)',
+          }}
+        >
+          <i className="fa-solid fa-pen" style={{ marginRight: '8px' }} />
+          Skip — I'll set aisles myself
+        </button>
       )}
 
       <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>

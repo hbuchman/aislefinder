@@ -213,9 +213,8 @@ export const itemsHash = (items) => items.map((it) => it.name).sort().join('|');
 
 // The format shop mode should organize by: the user's explicit choice
 // (`formatPreference`) if they've made one, otherwise aisle when a store is
-// picked and category when it isn't. Aisle numbers are store-specific, so
-// without a store the result always falls back to category.
-export const resolveOrganizeFormat = (list) => {
-  if (!list.store) return 'category';
-  return list.formatPreference || 'aisle';
-};
+// picked and category when it isn't. A shopper can also explicitly choose
+// aisle with no store picked (via StoreSheet's "skip" option) to organize
+// purely by aisles they set themselves — see ShopScreen's `organize()`.
+export const resolveOrganizeFormat = (list) =>
+  list.formatPreference || (list.store ? 'aisle' : 'category');

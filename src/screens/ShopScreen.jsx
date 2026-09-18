@@ -349,6 +349,25 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
         collapsedGroups: {},
       });
     };
+    // Aisle format with no store picked means the shopper skipped store
+    // selection to organize by aisles they set themselves — there's no
+    // Kroger data to look up, so build straight from the shopper's own
+    // overrides instead of calling the backend.
+    if (format === 'aisle' && !list.store) {
+      const groups = applyAisleOverrides(
+        [{ name: 'Unsorted', items: list.items.map((it) => it.name) }],
+        overridesForStore,
+      );
+      updateList(list.id, {
+        organized: buildMarkdownFromGroups(groups),
+        organizedBy: format,
+        organizedForHash: hash,
+        organizedOffline: false,
+        checkedItems: remapCheckedItems(list.checkedItems, groups),
+        collapsedGroups: {},
+      });
+      return;
+    }
     if (!isOnline()) {
       applyOffline();
       return;
@@ -387,7 +406,7 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
     } finally {
       setLoading(false);
     }
-  }, [list, updateList, storeId, itemHistory, recordItemHistory]);
+  }, [list, updateList, storeId, itemHistory, recordItemHistory, overridesForStore]);
 
   useEffect(() => {
     if (!list) return;
@@ -420,11 +439,11 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
   // Explicit aisle/category switch, available mid-shop; overrides the
   // store-driven default and re-triggers the organize effect above
   const setFormat = (format) => {
+    if (format === resolveOrganizeFormat(list)) return;
     if (format === 'aisle' && !list.store) {
       onShowStore();
       return;
     }
-    if (format === resolveOrganizeFormat(list)) return;
     updateList(listId, { formatPreference: format, customCategoryOrder: null });
   };
 
@@ -697,6 +716,15 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
       hasFiredConfetti.current = false;
       setSingleItemQuery('');
     };
+    if (format === 'aisle' && !list.store) {
+      // No store picked means aisles are whatever the shopper has set
+      // themselves — no backend to ask, so fall back to "Unsorted" for
+      // anything without an override yet.
+      const placement = overridesForStore[itemKey(query)];
+      applyResult(query, placement ? overrideGroupName(placement) : 'Unsorted');
+      setSingleItemLoading(false);
+      return;
+    }
     if (!isOnline()) {
       // Offline: only satisfy the lookup from what we've already seen at
       // this store/format — no way to guess a never-looked-up item's aisle.
@@ -845,7 +873,12 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '0 16px 10px' }}>
           <span style={{ fontSize: '11px', color: 'var(--af-text-faint)' }}>Organize by</span>
-          <FormatToggle format={resolveOrganizeFormat(list)} onChange={setFormat} disabled={loading} aisleDisabled={!list.store} />
+          <FormatToggle
+            format={resolveOrganizeFormat(list)}
+            onChange={setFormat}
+            disabled={loading}
+            aisleDisabled={!list.store && resolveOrganizeFormat(list) !== 'aisle'}
+          />
         </div>
       </div>
 
@@ -866,7 +899,9 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
             </div>
             <p style={{ margin: 0, color: 'var(--af-text)', fontSize: '14px', fontWeight: 500 }}>
               Organizing {itemCount} items{
-                resolveOrganizeFormat(list) === 'aisle' ? ` for ${list.store.name}` : ' by category'
+                resolveOrganizeFormat(list) === 'aisle'
+                  ? (list.store ? ` for ${list.store.name}` : '')
+                  : ' by category'
               }…
             </p>
           </div>

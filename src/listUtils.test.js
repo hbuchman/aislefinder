@@ -11,6 +11,7 @@ import {
   sectionSortKey,
   buildOfflineOrganizedGroups,
   remapCheckedItems,
+  resolveOrganizeFormat,
 } from './listUtils';
 
 const MARKDOWN = '## Produce\n- bananas\n- apples\n\n## Aisle 5\n- rice';
@@ -263,5 +264,23 @@ describe('remapCheckedItems', () => {
   it('returns an empty map for empty input', () => {
     expect(remapCheckedItems({}, [{ name: 'Dairy', items: ['milk'] }])).toEqual({});
     expect(remapCheckedItems(null, [])).toEqual({});
+  });
+});
+
+describe('resolveOrganizeFormat', () => {
+  it('defaults to category with no store and no preference', () => {
+    expect(resolveOrganizeFormat({ store: null })).toBe('category');
+  });
+
+  it('honors an explicit aisle preference even with no store (manual aisles)', () => {
+    expect(resolveOrganizeFormat({ store: null, formatPreference: 'aisle' })).toBe('aisle');
+  });
+
+  it('defaults to aisle once a store is picked', () => {
+    expect(resolveOrganizeFormat({ store: { id: '1' } })).toBe('aisle');
+  });
+
+  it('honors an explicit category preference with a store picked', () => {
+    expect(resolveOrganizeFormat({ store: { id: '1' }, formatPreference: 'category' })).toBe('category');
   });
 });
