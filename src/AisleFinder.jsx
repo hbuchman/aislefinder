@@ -357,7 +357,8 @@ const AisleFinder = () => {
           background: none;
           color: var(--af-text-muted);
           border-radius: 8px;
-          padding: 7px 12px;
+          padding: 0 12px;
+          height: 34px;
           font-size: 12px;
           font-weight: 600;
           cursor: pointer;
@@ -405,9 +406,9 @@ const AisleFinder = () => {
           display: inline-flex;
           align-items: center;
           gap: 6px;
-          border: 1px solid var(--af-border);
+          border: none;
           border-radius: 999px;
-          padding: 5px 10px 5px 6px;
+          padding: 0;
           font-size: 12px;
           font-weight: 600;
           color: var(--af-text-muted);
@@ -421,7 +422,6 @@ const AisleFinder = () => {
           text-overflow: ellipsis;
         }
         .af-chipbtn:hover {
-          border-color: var(--af-focus);
           color: var(--af-focus);
         }
         .af-backbtn {
