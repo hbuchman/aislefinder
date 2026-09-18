@@ -724,7 +724,10 @@ const AisleFinder = () => {
             outputFormat={outputFormat}
             setOutputFormat={setOutputFormat}
             onExit={() => setScreen('list')}
-            onFinished={() => { setScreen('list'); toast('Trip saved to your lists'); }}
+            onFinished={(finishedEarly) => {
+              setScreen('list');
+              toast(finishedEarly ? 'Trip saved — unbought items kept on your list' : 'Trip saved to your lists');
+            }}
             onShowStore={() => setSheet('store')}
             toast={toast}
             aisleOverrides={store.aisleOverrides}

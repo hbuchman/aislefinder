@@ -770,7 +770,7 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
 
   const completeShopping = () => {
     completeList(listId);
-    onFinished();
+    onFinished(checkedCount < totalItems);
   };
 
   if (!list) return null;

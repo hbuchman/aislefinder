@@ -408,20 +408,43 @@ export const useLists = (user) => {
   }, [user]);
 
   // Archive a finished shop into history and start a fresh current list.
+  // Items still unchecked when the shopper finishes early (rather than
+  // checking off every item) ride along into a new active list instead of
+  // being archived as "bought" — only checked items become history.
   const completeList = useCallback((id) => {
     const now = new Date().toISOString();
     let replacement = null;
     setLists((prev) => {
-      const updated = prev.map((l) => (
-        l.id === id ? { ...l, status: 'completed', completedAt: now, updatedAt: now } : l
-      ));
-      const stillActive = updated.filter((l) => l.status === 'active');
-      if (stillActive.length === 0) {
-        const done = updated.find((l) => l.id === id);
-        replacement = newList(done ? done.name : 'My Groceries');
-        replacement.store = done ? done.store : null;
-        replacement.formatPreference = done ? done.formatPreference : null;
-        return [replacement, ...updated];
+      const target = prev.find((l) => l.id === id);
+      if (!target) return prev;
+      const checkedNames = new Set(
+        Object.entries(target.checkedItems || {})
+          .filter(([, checked]) => checked)
+          .map(([key]) => key.slice(key.indexOf('::') + 2))
+      );
+      const uncheckedItems = target.items.filter((it) => !checkedNames.has(it.name));
+      const completed = {
+        ...target,
+        items: target.items.filter((it) => checkedNames.has(it.name)),
+        status: 'completed',
+        completedAt: now,
+        updatedAt: now,
+      };
+      let updated = prev.map((l) => (l.id === id ? completed : l));
+      if (uncheckedItems.length > 0) {
+        replacement = newList(target.name);
+        replacement.items = uncheckedItems;
+        replacement.store = target.store;
+        replacement.formatPreference = target.formatPreference;
+        updated = [replacement, ...updated];
+      } else {
+        const stillActive = updated.filter((l) => l.status === 'active');
+        if (stillActive.length === 0) {
+          replacement = newList(target.name);
+          replacement.store = target.store;
+          replacement.formatPreference = target.formatPreference;
+          updated = [replacement, ...updated];
+        }
       }
       return updated;
     });
