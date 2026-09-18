@@ -245,6 +245,12 @@ const AisleFinder = () => {
         @media (hover: none) {
           .af-iteminfo { opacity: 0.55; }
         }
+        /* Font Awesome kills .fa-spin's animation under prefers-reduced-motion,
+           but our two spinners (photo scan, chat reply) are the only feedback
+           that work is in progress, not decoration — keep them spinning. */
+        .fa-spin {
+          animation: fa-spin 2s linear infinite !important;
+        }
         .af-input::placeholder {
           color: var(--af-text-muted);
           opacity: 0.8;
