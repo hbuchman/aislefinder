@@ -73,10 +73,9 @@ const AisleFinder = () => {
     setSheet(null);
   };
 
-  const handleDeleteList = (list) => {
-    const label = list.status === 'completed' ? 'this trip from history' : `"${list.name}"`;
-    if (window.confirm(`Delete ${label}? This can't be undone.`)) {
-      store.deleteList(list.id);
+  const handleDeleteListGroup = (name) => {
+    if (window.confirm(`Delete "${name}"? This can't be undone.`)) {
+      store.lists.filter((l) => l.name === name).forEach((l) => store.deleteList(l.id));
       toast('Deleted');
     }
   };
@@ -765,13 +764,12 @@ const AisleFinder = () => {
       <ListsSheet
         open={sheet === 'lists'}
         onClose={() => setSheet(null)}
-        activeLists={store.activeLists}
-        completedLists={store.completedLists}
+        listGroups={store.listGroups}
         currentListId={store.currentList ? store.currentList.id : null}
         onSelectList={openList}
         onReopenList={handleReopenList}
         onCreateList={handleCreateList}
-        onDeleteList={handleDeleteList}
+        onDeleteList={handleDeleteListGroup}
       />
 
       {toastMsg && <div className="af-toast">{toastMsg}</div>}

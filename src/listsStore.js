@@ -212,6 +212,22 @@ export const useLists = (user) => {
     return found || activeLists[0] || null;
   }, [lists, currentListId, activeLists]);
 
+  // One row per unique list name for the "Your Lists" sheet — an active list
+  // stands in for its name when one exists (tapping it just switches to it),
+  // otherwise the most recently completed trip under that name represents it
+  // (tapping it reopens that trip). No per-trip detail here; that lives in
+  // the "Bought before" section on the current list screen.
+  const listGroups = useMemo(() => {
+    const groups = new Map();
+    activeLists.forEach((list) => {
+      if (!groups.has(list.name)) groups.set(list.name, { name: list.name, list, isActive: true });
+    });
+    completedLists.forEach((list) => {
+      if (!groups.has(list.name)) groups.set(list.name, { name: list.name, list, isActive: false });
+    });
+    return [...groups.values()];
+  }, [activeLists, completedLists]);
+
   // Make sure currentListId always points at a real active list
   useEffect(() => {
     if (currentList && currentList.id !== currentListId) setCurrentListId(currentList.id);
@@ -595,6 +611,7 @@ export const useLists = (user) => {
     lists,
     activeLists,
     completedLists,
+    listGroups,
     currentList,
     setCurrentListId,
     updateList,

@@ -1,15 +1,14 @@
 import React, { useState } from 'react';
 import Sheet from './Sheet';
-import { daysAgoLabel } from '../listsStore';
 
-// Switch between active lists, reopen a completed one, or create a new
-// list. Per-item purchase history lives inline on the current list screen
-// ("Bought before"), not here — this is just list-level switching.
+// Switch between lists, one row per unique name (active or, if none is
+// active under that name, the most recently completed trip), or create a
+// new list. Per-item purchase history lives inline on the current list
+// screen ("Bought before"), not here — this is just list-level switching.
 const ListsSheet = ({
   open,
   onClose,
-  activeLists,
-  completedLists = [],
+  listGroups = [],
   currentListId,
   onSelectList,
   onReopenList,
@@ -34,34 +33,34 @@ const ListsSheet = ({
         Your Lists
       </h3>
 
-      {activeLists.map((list) => (
+      {listGroups.map(({ name, list, isActive }) => (
         <div
-          key={list.id}
+          key={name}
           className="af-card"
-          onClick={() => onSelectList(list.id)}
+          onClick={() => (isActive ? onSelectList(list.id) : onReopenList(list.id))}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ fontSize: '15px', fontWeight: 600, flex: 1 }}>
-              {list.name}
-              {list.id === currentListId && (
+              {name}
+              {isActive && list.id === currentListId && (
                 <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--af-focus)', marginLeft: '8px' }}>
                   CURRENT
                 </span>
               )}
             </span>
-            {list.members && list.members.length > 1 && (
+            {isActive && list.members && list.members.length > 1 && (
               <span className="af-badge">
                 <i className="fa-solid fa-user-group" style={{ fontSize: '9px', marginRight: '4px' }} />
                 Shared
               </span>
             )}
-            {activeLists.length > 1 && (
+            {listGroups.length > 1 && (
               <button
                 className="af-itemremove"
                 title="Delete list"
                 onClick={(e) => {
                   e.stopPropagation();
-                  onDeleteList({ id: list.id, name: list.name, status: 'active' });
+                  onDeleteList(name);
                 }}
               >
                 <i className="fa-solid fa-trash-can" style={{ fontSize: '12px' }} />
@@ -106,37 +105,6 @@ const ListsSheet = ({
           <i className="fa-solid fa-plus" style={{ marginRight: '8px' }} />
           New List
         </button>
-      )}
-
-      {completedLists.length > 0 && (
-        <>
-          <div className="af-sectionlabel">Completed</div>
-          {completedLists.map((list) => (
-            <div
-              key={list.id}
-              className="af-card"
-              onClick={() => onReopenList(list.id)}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '15px', fontWeight: 600, flex: 1 }}>{list.name}</span>
-                <button
-                  className="af-itemremove"
-                  title="Delete this trip from history"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDeleteList({ id: list.id, name: list.name, status: 'completed' });
-                  }}
-                >
-                  <i className="fa-solid fa-trash-can" style={{ fontSize: '12px' }} />
-                </button>
-              </div>
-              <div style={{ fontSize: '12px', color: 'var(--af-text-muted)', marginTop: '4px' }}>
-                {list.items.length} item{list.items.length === 1 ? '' : 's'}
-                {list.store ? ` · ${list.store.name}` : ''} · completed {daysAgoLabel(list.completedAt)}
-              </div>
-            </div>
-          ))}
-        </>
       )}
     </Sheet>
   );
