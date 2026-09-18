@@ -261,18 +261,6 @@ const CurrentListScreen = ({
         />
       </div>
 
-      {/* Photo parsing can take several seconds (Claude vision call) — the
-          disabled/spinning camera button alone is easy to miss, so call it
-          out here too */}
-      {scanning && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 16px 4px', color: 'var(--af-text-muted)', fontSize: '13px' }}>
-          <div className="loading-icon-0" style={{ fontSize: '16px', color: 'var(--af-green)' }}>
-            <i className="fa-solid fa-camera" />
-          </div>
-          Reading your photo…
-        </div>
-      )}
-
       {/* Frequent-item suggestions from history — stay visible while typing
           and narrow to matches, since that's the moment they help most */}
       {!scanning && suggestions.length > 0 && (

@@ -1,7 +1,7 @@
 import React from 'react';
 import Logo from './Logo';
 
-const TopBar = ({ user, onShowLists, onShowChat, onShowAccount, onShowStore, onShop, shopCount, shopDisabled }) => (
+const TopBar = ({ user, onShowChat, onShowAccount, onShowStore, onShop, shopCount, shopDisabled }) => (
   <div className="af-topbar" style={{
     display: 'flex',
     alignItems: 'center',
@@ -30,9 +30,6 @@ const TopBar = ({ user, onShowLists, onShowChat, onShowAccount, onShowStore, onS
     <div className="af-topbar-actions">
       <button className="af-iconbtn" title="Ask AisleFinder" onClick={onShowChat} style={{ flexShrink: 0 }}>
         <i className="fa-solid fa-comment-dots" />
-      </button>
-      <button className="af-iconbtn" title="My Lists" onClick={onShowLists} style={{ flexShrink: 0 }}>
-        <i className="fa-solid fa-rectangle-list" />
       </button>
       {onShowStore && (
         <button className="af-iconbtn" title="Store & organize" onClick={onShowStore} style={{ flexShrink: 0 }}>

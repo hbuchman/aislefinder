@@ -678,7 +678,6 @@ const AisleFinder = () => {
         {screen !== 'shop' && (
           <TopBar
             user={auth.user}
-            onShowLists={() => setSheet('lists')}
             onShowChat={() => setScreen('chat')}
             onShowAccount={() => setSheet('account')}
             onShowStore={screen === 'list' ? () => setSheet('store') : undefined}
