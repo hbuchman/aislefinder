@@ -647,8 +647,15 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
       delete next[oldKey];
       return next;
     });
-    if (destName !== 'Not Found' && destName !== 'Unsorted' && setAisleOverride) {
-      setAisleOverride(storeId, moved, placementFromGroupName(destName));
+    const hadOverride = !!overridesForStore[itemKey(moved)];
+    if (destName !== 'Not Found' && destName !== 'Unsorted') {
+      if (setAisleOverride) setAisleOverride(storeId, moved, placementFromGroupName(destName));
+    } else if (hadOverride) {
+      // Dragging a corrected item back out of its aisle/category is itself a
+      // correction — mirror the "change aisle" sheet's own escape hatches so a
+      // stale override doesn't just pull it right back on the next re-organize.
+      if (destName === 'Not Found' && setAisleOverride) setAisleOverride(storeId, moved, { kind: 'none' });
+      else if (destName === 'Unsorted' && clearAisleOverride) clearAisleOverride(storeId, moved);
     }
   };
 

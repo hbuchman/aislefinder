@@ -372,7 +372,14 @@ export const useLists = (user) => {
     const resolved = await resolveAisleOverrides(token, { listId, storeId, items: itemNames });
     if (!resolved) return;
     const sid = storeId || 'default';
-    setAisleOverridesState((prev) => ({ ...prev, [sid]: { ...(prev[sid] || {}), ...resolved } }));
+    // Don't let a resync clobber a correction that hasn't confirmed as saved yet —
+    // the server's answer may still reflect the pre-correction placement.
+    const pending = dirtyOverrideKeys.current;
+    const filtered = {};
+    Object.entries(resolved).forEach(([key, value]) => {
+      if (!pending.has(`${sid}::${key}`)) filtered[key] = value;
+    });
+    setAisleOverridesState((prev) => ({ ...prev, [sid]: { ...(prev[sid] || {}), ...filtered } }));
   }, [user]);
 
   const createList = useCallback((name) => {
