@@ -533,7 +533,8 @@ const AisleFinder = () => {
         }
         .af-itemlead {
           width: 4px;
-          align-self: stretch;
+          height: 20px;
+          align-self: center;
           border-radius: 3px;
           flex-shrink: 0;
           background: var(--af-green);

@@ -390,8 +390,8 @@ const CurrentListScreen = ({
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '10px',
-                  padding: '9px 6px',
+                  gap: '12px',
+                  padding: '9px 10px',
                   borderRadius: '6px',
                 }}
               >
