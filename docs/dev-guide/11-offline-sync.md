@@ -135,7 +135,31 @@ One more subtlety at the end of `pullRemote()`: any local list the server
 has never heard of gets marked dirty, so lists created before you signed in
 (or while the backend was down) upload themselves on the next cycle.
 
-## 11.6 The complete picture
+## 11.6 Purchase history is derived, not synced
+
+Completed lists (`status: 'completed'`) are just regular list objects that
+flow through the same local-first pipeline above — there's no separate
+history sync path. `groupPurchaseHistory()` in `listsStore.js` folds every
+completed list into per-*list-name* groups, and within each group, into
+per-*item* counts:
+
+```javascript
+// list name -> { name, trips, lastAt, items: [{ name, count, lastAt, lastStore }] }
+```
+
+That's what powers "Bought before" on `CurrentListScreen`: it looks up the
+group matching the current list's name and shows each item's purchase count
+and last-bought store, so re-adding something you buy every trip is one tap.
+The same grouped data feeds `buildChatContext()`, which flattens it to plain
+text so `ChatScreen` can ground answers like "did I already buy eggs?" in
+real purchase history — the chat backend (chapter 13) never touches list
+data itself, only the summary the client sends it.
+
+Because it's derived from local state on every render (not stored or synced
+separately), it costs nothing extra to keep correct: whatever `lists` holds
+locally is automatically what "Bought before" and chat context reflect.
+
+## 11.7 The complete picture
 
 ```
 edit ──► setLists ──► useEffect ──► localStorage (+ native mirror)

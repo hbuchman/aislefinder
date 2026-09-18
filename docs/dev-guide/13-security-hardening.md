@@ -16,7 +16,9 @@ For an app this size, the realistic risks aren't nation-states — they're:
 2. **Quota abuse** — the grocery endpoints are unauthenticated by design
    (guest mode is a feature), and every request spends Kroger API quota:
    10,000 Products calls and 1,600 Locations calls per day. One hostile
-   script can lock every real user out until midnight.
+   script can lock every real user out until midnight. Chat and photo
+   capture spend real money instead of a free quota — Anthropic API
+   usage — so they need their own caps (13.4).
 3. **Data exposure** — synced lists live in DynamoDB behind share codes
    and Cognito accounts; bugs in authorization logic leak other people's
    lists.
@@ -41,7 +43,9 @@ if not client_id or not client_secret:
 
 Locally they sit in `.env` (git-ignored); in production they're typed into
 the Vercel dashboard (chapter 7). The same pattern covers the AWS
-credentials (chapter 10).
+credentials (chapter 10) and `ANTHROPIC_API_KEY` (chat, photo capture — both
+routes check `os.environ.get('ANTHROPIC_API_KEY')` and return a plain 503
+rather than failing loudly when it's absent).
 
 Two hard-won lessons about git and secrets:
 
@@ -82,7 +86,44 @@ run *before* the Kroger calls, so rejected requests cost nothing.
 The caps live in the blueprint, not in `GroceryListProcessor` — the CLI
 (you, locally) stays uncapped while both servers get the protection.
 
-## 13.4 Rate limiting: `rate_limit.py`
+## 13.4 Bounding AI feature cost: chat and photo capture
+
+Chat and photo capture call the Anthropic API directly, so an abused
+endpoint doesn't just fail a request — it bills real money. Each gets its
+own cap, sized to how it's actually used:
+
+- **Photo capture** checks `Content-Length` and rejects anything over 5MB
+  *before* touching the multipart body (an oversized body would otherwise
+  raise deep inside Werkzeug and surface as an opaque 500), then re-checks
+  the actual bytes read. One photo, one Claude call — there's no fan-out
+  to bound the way `/api/process-grocery-list` needs to.
+- **Chat** sits behind two rate-limit buckets at once — a burst cap (8
+  requests/minute) and a separate daily cap (40 requests/day) — via two
+  stacked `@rate_limited` decorators:
+
+  ```python
+  @grocery_bp.route('/api/chat', methods=['POST'])
+  @rate_limited(max_requests=8, bucket='chat-burst')
+  @rate_limited(
+      max_requests=40, bucket='chat-day', window_seconds=86400,
+      message="You've hit today's chat limit — try again tomorrow",
+  )
+  def chat():
+  ```
+
+  The burst bucket stops someone hammering the endpoint in a tight loop; the
+  day bucket is the actual spend cap, since Anthropic bills per-call, not
+  per-minute. Chat also runs on `claude-haiku-4-5` (the cheapest model that's
+  good enough for short conversational answers) and truncates message,
+  context, and history length server-side (`CHAT_MAX_*` constants in
+  `grocery_routes.py`) so a single request can't itself balloon into an
+  expensive one.
+- **Both** treat `anthropic.APIStatusError` with type `billing_error`,
+  `authentication_error`, or `permission_error` as "unavailable" (503)
+  rather than a generic 500 — a revoked key or an exhausted Anthropic
+  balance is an ops problem, not a bug in the request.
+
+## 13.5 Rate limiting: `rate_limit.py`
 
 Per-request caps don't stop someone looping requests, so every
 Kroger-backed endpoint sits behind a per-IP sliding window (30
@@ -130,7 +171,7 @@ instance keeps its own window, so the effective limit is (30 × instances).
 That's documented in the module docstring rather than hidden — a partial
 defense you understand beats a perfect one you assumed.
 
-## 13.5 Shrinking the attack surface
+## 13.6 Shrinking the attack surface
 
 **Debug routes are gated.** `api_server.py` has `/api/debug-kroger` and
 `/debug` — unauthenticated routes that make real Kroger calls and dump raw
@@ -147,7 +188,7 @@ entry point used `CORS(app)` — any website on the internet could call the
 API (and spend the quota) from its visitors' browsers. Same shared-module
 trick as the blueprints: one definition, so the two servers can't drift.
 
-## 13.6 Errors that don't overshare
+## 13.7 Errors that don't overshare
 
 Exception text can contain file paths, library internals, even request
 URLs. Clients get a generic message; the log gets everything:
@@ -166,7 +207,7 @@ with `get_json(silent=True)` and validate field types (`_json_body()` /
 `_clean_item()`), so garbage bodies get clean rejections instead of
 tracebacks.
 
-## 13.7 Multi-user boundaries
+## 13.8 Multi-user boundaries
 
 The list-sync endpoints (chapter 10) enforce three rules worth naming:
 
@@ -187,7 +228,7 @@ Passwords never touch this codebase at all — Cognito owns sign-up,
 verification, and reset (chapter 10). The best password-handling code is
 none.
 
-## 13.8 Privacy and API compliance
+## 13.9 Privacy and API compliance
 
 Security also means keeping promises:
 

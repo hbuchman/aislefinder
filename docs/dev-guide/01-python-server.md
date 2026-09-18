@@ -153,7 +153,15 @@ The endpoints in `grocery_routes.py`:
 | `/api/process-grocery-list` | POST | Upload a list file → aisle-organized markdown |
 | `/api/find-stores` | POST | ZIP code → nearby Kroger stores |
 | `/api/find-item-aisle` | POST | One item → its aisle at a given store |
+| `/api/item-details` | POST | One item → product details (image, price) for the info sheet |
+| `/api/categories` | GET | The Kroger category catalog, for manually setting an item's aisle |
+| `/api/photo-to-list` | POST | A photo of a written list → extracted item names (Claude vision) |
+| `/api/chat` | POST | One shopping-assistant chat turn (Claude) |
 | `/api/health` | GET | Health check |
+
+`/api/photo-to-list` and `/api/chat` need `ANTHROPIC_API_KEY`; unset, they
+return 503 so the frontend can hide photo capture and the chat button rather
+than erroring. Chapter 13 covers how their cost is bounded.
 
 A request flows: route → `GroceryListProcessor` (`grocery_organizer/src/core/processor.py`)
 → `KrogerAPI` product lookups in parallel → `OutputFormatter` renders

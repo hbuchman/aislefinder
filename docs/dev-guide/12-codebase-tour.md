@@ -18,23 +18,28 @@ aislefinder/
 │   ├── AisleFinder.test.js          Jest: app rendering + data migration (ch. 5)
 │   ├── listUtils.test.js            Jest: pure markdown-parsing tests
 │   ├── screens/
-│   │   ├── CurrentListScreen.jsx    Home: quick-add, items, frequent suggestions
-│   │   ├── MyListsScreen.jsx        Switch / create / delete / merge lists
-│   │   ├── HistoryScreen.jsx        Completed trips grouped by month
-│   │   └── ShopScreen.jsx           Aisle groups, drag-drop, check-off, confetti
+│   │   ├── CurrentListScreen.jsx    Home: quick-add, photo capture, items,
+│   │   │                              frequent suggestions, "Bought before"
+│   │   ├── ChatScreen.jsx           "Ask AisleFinder" chat (ch. 13)
+│   │   ├── ShopScreen.jsx           Aisle groups, drag-drop, check-off
+│   │   └── ShopSummary.jsx          Completion screen + confetti (used by ShopScreen)
 │   └── components/
 │       ├── TopBar.jsx               Sticky header + nav buttons
 │       ├── Sheet.jsx                Bottom-sheet modal wrapper
 │       ├── AccountSheet.jsx         Sign in / sign up / confirm code
 │       ├── ShareSheet.jsx           Create + join share codes
 │       ├── StoreSheet.jsx           ZIP search → pick a store
-│       └── Logo.jsx                 The green shelf-"A" monogram (SVG)
+│       ├── ListsSheet.jsx           Switch / create lists, reopen a completed one
+│       ├── AisleSheet.jsx           Set/correct an item's aisle or category
+│       ├── ItemInfoSheet.jsx        Product details + label-buzzword glossary
+│       ├── FormatToggle.jsx         Aisle/category segmented switch
+│       └── Logo.jsx                 The navy shelf-"A" monogram (SVG)
 │
 ├── public/                       ── CRA static assets (index.html shell, logo.svg)
 │
 ├── api_server.py                 ── FLASK ENTRY, local dev (chapter 1)
 ├── api/index.py                  ── FLASK ENTRY, Vercel serverless (chapter 7)
-├── grocery_routes.py             ── Blueprint: product/aisle/store endpoints
+├── grocery_routes.py             ── Blueprint: product/aisle/store/photo-capture/chat endpoints
 ├── lists_backend.py              ── Blueprint: Cognito auth + DynamoDB lists (ch. 10)
 │
 ├── grocery_organizer/            ── PYTHON CORE (framework-free; no Flask imports)
@@ -162,15 +167,17 @@ npm run android:build && npm run android:open
   chain parameter without a real second chain.
 - **The backend speaks markdown** (`## Section\n- item`); the frontend owns
   presentation.
-- **Colors only via `--af-*` CSS variables** (green palette + amber accent,
-  dark mode via `prefers-color-scheme`); **Font Awesome icons, never
-  emojis**; font set once on the shell. Chapter 6 and
+- **Colors only via `--af-*` CSS variables** (navy palette + amber accent,
+  "Ocean Fresh — Amber Nav"; dark mode via `prefers-color-scheme`); **Font
+  Awesome icons, never emojis**; font set once on the shell. Chapter 6 and
   `docs/design-rules.html` are the law here.
 - **Secrets only via environment variables** — nothing sensitive is ever
   committed; every credential in this guide flows through `.env` locally and
   the Vercel dashboard in production.
 - **Guest mode must keep working** — every cloud feature degrades gracefully
-  when its env vars are absent.
+  when its env vars are absent, including `ANTHROPIC_API_KEY`: chat and photo
+  capture return a clean 503 (and the frontend hides them) rather than error
+  when it's unset.
 
 ---
 

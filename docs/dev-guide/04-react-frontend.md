@@ -135,16 +135,27 @@ composes everything else:
 ```
 AisleFinder (shell: theme CSS, toast, online/offline, screen + sheet state)
 ├── TopBar                      — logo, user name, nav buttons
-├── one of four screens:
-│   ├── CurrentListScreen       — quick-add bar, items, frequent suggestions
-│   ├── MyListsScreen           — switch / create / delete lists
-│   ├── HistoryScreen           — completed trips by month
-│   └── ShopScreen              — aisle groups, drag-drop, check-off, confetti
+├── one of three screens:
+│   ├── CurrentListScreen       — quick-add bar (+ photo capture), items,
+│   │                             frequent suggestions, inline "Bought before"
+│   ├── ChatScreen              — "Ask AisleFinder" chat, grounded in the
+│   │                             current list + purchase history
+│   └── ShopScreen              — aisle groups, drag-drop, check-off,
+│                                  confetti (ShopSummary on completion)
 └── sheets (each wrapped in <Sheet>):
     ├── AccountSheet            — sign in / sign up / confirm code
     ├── ShareSheet              — create + join share codes
-    └── StoreSheet              — ZIP search, pick your store
+    ├── StoreSheet              — ZIP search, pick your store
+    ├── ListsSheet              — switch active lists, reopen a completed
+    │                             one, create a new list
+    ├── AisleSheet              — set/correct an item's aisle or category
+    └── ItemInfoSheet           — product details + label-buzzword glossary
 ```
+
+There's no separate "my lists" or "history" screen anymore — switching lists
+lives in the `ListsSheet` (opened from `TopBar`), and past purchases surface
+inline on `CurrentListScreen` as "Bought before" rather than on their own
+screen (chapter 11 covers where that data comes from).
 
 This is React's composition model in miniature: no router library — the
 screen is just a state variable, and rendering is a switch over it. State
@@ -166,8 +177,8 @@ touching any UI code.
 | `api.js` | All `fetch` calls to the Flask backend |
 | `storage.js` | localStorage, mirrored to native storage on mobile (ch. 8–9) |
 | `listUtils.js` | Parse/build the backend's markdown list format |
-| `screens/` | The four full-page views |
-| `components/` | Reusable pieces: `TopBar`, `Sheet`, the three sheets, `Logo` |
+| `screens/` | `CurrentListScreen`, `ChatScreen`, `ShopScreen` (+ its `ShopSummary`) |
+| `components/` | `TopBar`, `Sheet`, the five sheets (`AccountSheet`, `ShareSheet`, `StoreSheet`, `ListsSheet`, `AisleSheet`), `ItemInfoSheet`, `FormatToggle`, `Logo` |
 
 ## TODOs to get this working
 
