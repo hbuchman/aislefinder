@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { flushSync } from 'react-dom';
 import { fetchLists, pushList, deleteListRemote, putAisleOverride, resolveAisleOverrides } from './api';
 import { getAccessToken } from './auth';
 import { itemsHash, itemKey } from './listUtils';
@@ -253,16 +254,22 @@ export const useLists = (user) => {
     const trimmed = name.trim().toLowerCase();
     if (!trimmed) return false;
     let added = false;
-    setLists((prev) => prev.map((l) => {
-      if (l.id !== listId) return l;
-      if (l.items.some((it) => it.name === trimmed)) return l;
-      added = true;
-      return {
-        ...l,
-        items: [newItem(trimmed, user ? user.displayName : null), ...l.items],
-        updatedAt: new Date().toISOString(),
-      };
-    }));
+    // flushSync forces the update through synchronously so `added` reflects
+    // the real outcome by the time we return it below — without it, the
+    // updater runs during React's deferred render phase, after this
+    // function has already returned the stale initial value.
+    flushSync(() => {
+      setLists((prev) => prev.map((l) => {
+        if (l.id !== listId) return l;
+        if (l.items.some((it) => it.name === trimmed)) return l;
+        added = true;
+        return {
+          ...l,
+          items: [newItem(trimmed, user ? user.displayName : null), ...l.items],
+          updatedAt: new Date().toISOString(),
+        };
+      }));
+    });
     markDirty(listId);
     return added;
   }, [user, markDirty]);
@@ -275,16 +282,18 @@ export const useLists = (user) => {
     const trimmed = name.trim().toLowerCase();
     if (!trimmed) return false;
     let edited = false;
-    setLists((prev) => prev.map((l) => {
-      if (l.id !== listId) return l;
-      if (l.items.some((it) => it.id !== itemId && it.name === trimmed)) return l;
-      edited = true;
-      return {
-        ...l,
-        items: l.items.map((it) => (it.id === itemId ? { ...it, name: trimmed } : it)),
-        updatedAt: new Date().toISOString(),
-      };
-    }));
+    flushSync(() => {
+      setLists((prev) => prev.map((l) => {
+        if (l.id !== listId) return l;
+        if (l.items.some((it) => it.id !== itemId && it.name === trimmed)) return l;
+        edited = true;
+        return {
+          ...l,
+          items: l.items.map((it) => (it.id === itemId ? { ...it, name: trimmed } : it)),
+          updatedAt: new Date().toISOString(),
+        };
+      }));
+    });
     if (edited) markDirty(listId);
     return edited;
   }, [markDirty]);
