@@ -1,8 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { App as CapApp } from '@capacitor/app';
 import { useAuth } from './auth';
 import { useLists } from './listsStore';
 import { loadState, saveState } from './storage';
 import { onNetworkChange } from './network';
+import { getPendingSharedText, onShareReceived } from './shareReceiver';
+import { parseListItems } from './listUtils';
 import { applySystemBars } from './systemBars';
 import TopBar from './components/TopBar';
 import AccountSheet from './components/AccountSheet';
@@ -53,6 +56,43 @@ const AisleFinder = () => {
   useEffect(() => onNetworkChange((connected) => {
     toast(connected ? 'Back online — syncing' : 'Offline — changes saved on this device');
   }), [toast]);
+
+  // Text shared in from another app (e.g. Apple Notes, Google Keep) lands
+  // here — appended to the current list the same way pasted text is. A ref
+  // keeps the effect below subscribing to native events exactly once instead
+  // of resubscribing every time the store's returned object identity changes.
+  const storeRef = useRef(store);
+  storeRef.current = store;
+
+  const applySharedText = useCallback((text) => {
+    const names = parseListItems(text);
+    if (names.length === 0) return;
+    const s = storeRef.current;
+    const listId = s.currentList ? s.currentList.id : s.createList().id;
+    let added = 0;
+    names.forEach((name) => { if (s.addItem(listId, name)) added++; });
+    setScreen('list');
+    setSheet(null);
+    toast(added > 0
+      ? `Added ${added} item${added === 1 ? '' : 's'} from your share`
+      : 'Everything shared is already on the list');
+  }, [toast]);
+
+  useEffect(() => {
+    const checkPending = () => {
+      getPendingSharedText().then((text) => { if (text) applySharedText(text); });
+    };
+    checkPending();
+    const offShare = onShareReceived(applySharedText);
+    let removeResumeListener = () => {};
+    CapApp.addListener('appStateChange', ({ isActive }) => {
+      if (isActive) checkPending();
+    }).then((handle) => { removeResumeListener = () => handle.remove(); });
+    return () => {
+      offShare();
+      removeResumeListener();
+    };
+  }, [applySharedText]);
 
   const openList = (id) => {
     store.setCurrentListId(id);
