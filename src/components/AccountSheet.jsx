@@ -372,44 +372,6 @@ const AccountSheet = ({ open, onClose, auth, toast }) => {
           </button>
         </>
       )}
-
-      <div style={{
-        borderTop: '1px solid var(--af-border)',
-        marginTop: '14px',
-        paddingTop: '12px',
-        display: 'flex',
-        justifyContent: 'center',
-        gap: '14px',
-        fontSize: '11px',
-      }}>
-        <a
-          href="https://www.paypal.com/donate/?business=ECTSEQ2MFSE4Y&no_recurring=0&item_name=Thanks+for+supporting+Aisle+Finder%21+Your+donation+pays+for+development+and+hosting+costs.&currency_code=USD"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ color: 'var(--af-text-muted)', textDecoration: 'none' }}
-        >
-          <i className="fa-solid fa-heart" style={{ marginRight: '5px', color: 'var(--af-amber)' }} />
-          Support via PayPal
-        </a>
-        <a
-          href="https://github.com/hbuchman/aislefinder/issues"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ color: 'var(--af-text-muted)', textDecoration: 'none' }}
-        >
-          <i className="fa-solid fa-bug" style={{ marginRight: '5px', color: 'var(--af-error-text)' }} />
-          Report a Bug
-        </a>
-        <a
-          href="https://aislefinder3000.com/privacy.html"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ color: 'var(--af-text-muted)', textDecoration: 'none' }}
-        >
-          <i className="fa-solid fa-shield-halved" style={{ marginRight: '5px', color: 'var(--af-focus)' }} />
-          Privacy
-        </a>
-      </div>
     </Sheet>
   );
 };

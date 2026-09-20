@@ -358,31 +358,6 @@
     .strip h3 svg { width: 15px; height: 15px; color: var(--navy); flex-shrink: 0; }
     .strip p { margin: 0; font-size: 13.5px; color: var(--muted); }
 
-    /* ---------- App Store block ---------- */
-    .store-block { margin-top: 24px; }
-    .store-block > p.lede { color: var(--muted); font-size: 15px; max-width: 60ch; margin: 0 0 28px; }
-    .store-card {
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      overflow: hidden;
-      box-shadow: var(--shadow);
-    }
-    .store-field { padding: 20px 26px; border-bottom: 1px solid var(--border); }
-    .store-field:last-child { border-bottom: none; }
-    .store-field .label {
-      display: flex; align-items: baseline; gap: 10px;
-      margin-bottom: 8px;
-    }
-    .store-field .label b {
-      font-size: 11px; font-weight: 700;
-      letter-spacing: 0.12em; text-transform: uppercase;
-      color: var(--ink);
-    }
-    .store-field .label span { font-size: 11px; color: var(--muted); }
-    .store-field .value { font-size: 14.5px; }
-    .store-field .value.desc { white-space: pre-line; color: var(--ink); max-width: 62ch; }
-    .store-field .value .shout { font-weight: 700; letter-spacing: 0.08em; font-size: 12.5px; }
-
     .footnote {
       margin-top: 40px;
       font-size: 12.5px;
@@ -444,16 +419,16 @@
           <li><strong>Type items in.</strong> Commas add several at once.</li>
           <li><strong>Snap a photo</strong> of the paper list on your fridge.</li>
           <li><strong>Frequent items</strong> are one tap away.</li>
+          <li><strong>Bought it before?</strong> It's suggested automatically.</li>
         </ul>
       </div>
       <div class="device">
         <div class="phone"><div class="screen">
           <div class="p-top">
             <svg width="16" height="16" viewBox="0 0 64 64" aria-hidden="true"><rect x="8" y="14" width="7" height="40" rx="3.5" fill="var(--navy)"/><rect x="21" y="14" width="7" height="40" rx="3.5" fill="var(--navy)" opacity="0.55"/><rect x="34" y="14" width="7" height="40" rx="3.5" fill="var(--navy)"/><rect x="47" y="14" width="7" height="40" rx="3.5" fill="var(--navy)" opacity="0.55"/><path d="M44 7 c3.7 0 5.9 2.7 5.9 5.6 C49.9 17.4 44 22.3 44 22.3 S38.1 17.4 38.1 12.6 C38.1 9.7 40.3 7 44 7 Z" fill="var(--amber)"/></svg>
-            <span class="p-title">Weekly shop</span>
+            <span class="p-title">Weekly shop <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor" style="opacity:.45;margin-left:2px" aria-hidden="true"><path d="M7 10l5 5 5-5z"/></svg></span>
             <span class="p-store">
-              <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5Z"/></svg>
-              4500S Smiths
+              <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17 11c0 3.5-5 9-5 9s-5-5.5-5-9a5 5 0 0 1 10 0Z"/><circle cx="12" cy="11" r="7" fill="none"/></svg>
             </span>
           </div>
           <div class="p-body">
@@ -465,12 +440,15 @@
               <div class="p-row"><span class="p-dot"></span>Whole milk</div>
               <div class="p-row"><span class="p-dot"></span>Sourdough bread</div>
               <div class="p-row"><span class="p-dot"></span>Chicken thighs</div>
-              <div class="p-row"><span class="p-dot"></span>Frozen peas</div>
-              <div class="p-row"><span class="p-dot"></span>Capers</div>
             </div>
             <div class="p-chips"><span>+ eggs</span><span>+ coffee</span><span>+ spinach</span></div>
-            <div class="p-toggle"><span class="on">Aisle</span><span>Category</span></div>
-            <div class="p-cta">Shop</div>
+            <div style="margin-top:auto">
+              <div style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:8px 0 4px;">Bought before</div>
+              <div class="p-row" style="border-bottom:none;">
+                <span class="p-dot" style="opacity:.35"></span>Capers
+                <span style="margin-left:auto;font-size:9px;color:var(--muted);">3&times; &middot; Tue</span>
+              </div>
+            </div>
           </div>
         </div></div>
       </div>
@@ -485,15 +463,15 @@
         <div class="phone"><div class="screen">
           <div class="p-top"><span class="p-title">Shopping mode</span><span class="p-store">7 of 12</span></div>
           <div class="p-body">
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span style="font-size:9px;color:var(--muted);">Organize by</span>
+              <span class="p-toggle"><span class="on">Aisle</span><span>Category</span></span>
+            </div>
+            <div class="p-input">Forgot something? Find its aisle</div>
             <div class="p-group done">
               <span class="grip"><i></i><i></i><i></i></span>
               <span class="p-check"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5 10 18 20 6"/></svg></span>
               Produce <span class="count">3/3</span>
-            </div>
-            <div class="p-group done">
-              <span class="grip"><i></i><i></i><i></i></span>
-              <span class="p-check"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5 10 18 20 6"/></svg></span>
-              Aisle 2 · Bakery <span class="count">2/2</span>
             </div>
             <div class="p-group">
               <span class="grip"><i></i><i></i><i></i></span>
@@ -512,11 +490,6 @@
               <span class="p-check"></span>
               Aisle 12 · Dairy <span class="count">1/2</span>
             </div>
-            <div class="p-group">
-              <span class="grip"><i></i><i></i><i></i></span>
-              <span class="p-check"></span>
-              Frozen <span class="count">0/2</span>
-            </div>
           </div>
         </div></div>
       </div>
@@ -525,9 +498,10 @@
         <h2>A checklist that walks the store with you.</h2>
         <ul>
           <li><strong>Check items off</strong> as you go.</li>
-          <li><strong>Finished aisles collapse.</strong> Only what's left stays open.</li>
-          <li><strong>Drag aisles</strong> to match your own path.</li>
-          <li><strong>Forgot something?</strong> Look up its aisle mid-trip.</li>
+          <li><strong>Drag aisles</strong> to match your own path — finished ones collapse.</li>
+          <li><strong>Drag an item</strong> into another aisle, or tap it, to fix its aisle.</li>
+          <li><strong>No store?</strong> Organize by your own aisle order instead.</li>
+          <li><strong>Forgot something?</strong> Look up its aisle without leaving the list.</li>
         </ul>
       </div>
     </section>
@@ -541,9 +515,9 @@
         <p class="eyebrow">Info mode</p>
         <h2>Tap any item for the details.</h2>
         <ul>
-          <li><strong>Exact location</strong> — aisle and section.</li>
+          <li><strong>Exact spot</strong> — aisle, shelf, and bay.</li>
           <li><strong>The matched product</strong> and its price.</li>
-          <li><strong>Label info</strong> at a glance.</li>
+          <li><strong>Label info</strong> at a glance — organic, size, brand, and more.</li>
         </ul>
       </div>
       <div class="device">
@@ -564,6 +538,7 @@
               <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5Z"/></svg>
               Aisle 12 · Dairy case
             </div>
+            <div style="font-size:9px;color:var(--muted);margin-bottom:10px;">Shelf 3 · Bay 4 · Left side</div>
             <div class="price">1 gal · $3.49</div>
             <div class="tags"><span>Vitamin D</span><span>Grade A</span><span>Pasteurized</span></div>
           </div>
@@ -580,10 +555,11 @@
         <div class="phone"><div class="screen">
           <div class="p-summary">
             <div class="ring"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5 10 18 20 6"/></svg></div>
-            <div class="big">23 min</div>
-            <div class="cap">Trip time</div>
-            <div class="found">12 of 12 items found</div>
-            <div class="hardest">Hardest to find<strong>Capers · Aisle 9 · 4 min</strong></div>
+            <div style="font-size:13px;font-weight:700;margin-bottom:8px;">Shopping Complete!</div>
+            <div class="found" style="margin-bottom:16px;">12 of 12 items checked off</div>
+            <div class="big">23</div>
+            <div class="cap">Minutes shopping</div>
+            <div class="hardest">Hardest to find<strong>It took 4 min to find Capers</strong></div>
           </div>
         </div></div>
       </div>
@@ -594,6 +570,7 @@
           <li><strong>Trip time</strong>, front and center.</li>
           <li><strong>Every item</strong> accounted for.</li>
           <li><strong>The one that hid from you</strong>, called out.</li>
+          <li><strong>Finish early</strong> anytime — whatever's left stays on the list for next time.</li>
         </ul>
       </div>
     </section>
@@ -615,61 +592,7 @@
     </div>
   </section>
 
-  <!-- ============ APP STORE COPY ============ -->
-  <section class="store-block">
-    <p class="eyebrow">App Store listing</p>
-    <p class="lede">The same copy, cut to App Store fields — ready to paste into App Store Connect and the Play Console.</p>
-    <div class="store-card">
-      <div class="store-field">
-        <div class="label"><b>Name</b><span>30 char limit</span></div>
-        <div class="value">AisleFinder</div>
-      </div>
-      <div class="store-field">
-        <div class="label"><b>Subtitle</b><span>30 char limit</span></div>
-        <div class="value">Grocery lists, in aisle order</div>
-      </div>
-      <div class="store-field">
-        <div class="label"><b>Promotional text</b><span>170 char limit</span></div>
-        <div class="value">Your grocery list, sorted by aisle for your store. Snap a photo of a paper list, tap Shop, and walk the store once — no backtracking.</div>
-      </div>
-      <div class="store-field">
-        <div class="label"><b>Description</b><span>4000 char limit</span></div>
-        <div class="value desc">Your grocery list, in walking order.
-
-Type your items or snap a photo of a paper list. Pick your store. Tap Shop. AisleFinder sorts everything by aisle, so you start at produce, end at frozen, and never backtrack.
-
-<span class="shout">BUILD</span>
-• Type items in — commas add several at once
-• Snap a photo of a handwritten list
-• Frequent items are one tap away
-
-<span class="shout">ORGANIZE</span>
-• Real aisle numbers from your store
-• Or sort by category — fresh first, frozen last
-
-<span class="shout">SHOP</span>
-• Check items off as you go
-• Finished aisles collapse out of the way
-• Drag aisles to match your own path
-• Look up any item's aisle mid-trip
-• Tap an item for its exact location and price
-
-<span class="shout">AFTER</span>
-• A short trip summary: time, items found, and the one that hid from you
-• Lists sync across devices with a free account
-• Share a list with a code — the whole household stays up to date
-
-Aisle locations are available at Kroger-family stores (Kroger, Smith's, Fred Meyer, Ralphs, and more). Everywhere else, category sorting keeps your list in shopping order.
-
-No ads. No tracking. Your lists stay yours.</div>
-      </div>
-      <div class="store-field">
-        <div class="label"><b>Keywords</b><span>100 char limit</span></div>
-        <div class="value">grocery,list,aisle,shopping,checklist,store,supermarket,kroger,organizer,share</div>
-      </div>
-    </div>
-    <p class="footnote"><a href="privacy.html">Privacy policy</a></p>
-  </section>
+  <p class="footnote"><a href="privacy.html">Privacy policy</a></p>
 
 </div>
 </body>

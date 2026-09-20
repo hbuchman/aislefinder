@@ -48,6 +48,26 @@ const TopBar = ({ user, onShowChat, onShowAccount, onShowStore, onShop, shopCoun
           Shop{shopCount > 0 ? ` (${shopCount})` : ''}
         </button>
       )}
+      <a
+        className="af-iconbtn"
+        title="Help"
+        href="https://aislefinder3000.com/about.html"
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{ flexShrink: 0, textDecoration: 'none' }}
+      >
+        <i className="fa-solid fa-circle-question" />
+      </a>
+      <a
+        className="af-iconbtn"
+        title="Support via PayPal"
+        href="https://www.paypal.com/donate/?business=ECTSEQ2MFSE4Y&no_recurring=0&item_name=Thanks+for+supporting+Aisle+Finder%21+Your+donation+pays+for+development+and+hosting+costs.&currency_code=USD"
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{ flexShrink: 0, textDecoration: 'none' }}
+      >
+        <i className="fa-solid fa-heart" />
+      </a>
       <button className="af-chipbtn" title={user ? user.email : 'Account'} onClick={onShowAccount} style={{ flexShrink: 0 }}>
         <span style={{
           width: '22px',
