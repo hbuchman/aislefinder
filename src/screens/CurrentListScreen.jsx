@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { photoToItems } from '../api';
-import { parseListItems, itemKey } from '../listUtils';
+import { parseListItems, itemKey, itemsHash, resolveOrganizeFormat } from '../listUtils';
 import { daysAgoLabel } from '../listsStore';
+import { isOnline, onNetworkChange } from '../network';
 
 // The Claude API caps images at 5MB and gains nothing above ~1568px on the
 // long edge, so photos are downscaled and re-encoded as JPEG before upload
@@ -43,6 +44,7 @@ const CurrentListScreen = ({
   onDeleteHistory,
   onDeleteHistoryItem,
   updateList,
+  organizeList,
   onShowLists,
   onShowShare,
   toast,
@@ -65,6 +67,36 @@ const CurrentListScreen = ({
   useEffect(() => {
     if (editingId) editInputRef.current?.focus();
   }, [editingId]);
+
+  // Prefetch aisle/category placements in the background while the shopper
+  // is still editing, so ShopScreen's own organize() finds the list already
+  // fresh (or reuses this same in-flight request via organizeList's dedup)
+  // instead of starting cold when they tap "Shop". Debounced so a burst of
+  // edits doesn't fire one Kroger-backed fetch per item — longer than the
+  // 1500ms sync-push debounce elsewhere in the store, since this triggers a
+  // real backend fan-out rather than a cheap sync call.
+  const prefetchTimer = useRef(null);
+  useEffect(() => {
+    if (!list || !organizeList || list.items.length === 0) return;
+    const hash = itemsHash(list.items);
+    const format = resolveOrganizeFormat(list);
+    const needsOrganize = !list.organized || list.organizedForHash !== hash || list.organizedBy !== format;
+    if (!needsOrganize || !isOnline()) return;
+    clearTimeout(prefetchTimer.current);
+    prefetchTimer.current = setTimeout(() => {
+      organizeList(list.id, { silent: true }).catch(() => {});
+    }, 4000);
+    return () => clearTimeout(prefetchTimer.current);
+  }, [list, organizeList]);
+
+  // Keep the prefetch warm across a reconnect too, so a list organized
+  // offline (via itemHistory) gets reconciled against the real backend even
+  // if the shopper never leaves list mode in between.
+  useEffect(() => onNetworkChange((connected) => {
+    if (connected && list && list.organizedOffline) {
+      organizeList?.(list.id, { silent: true }).catch(() => {});
+    }
+  }), [list, organizeList]);
 
   // "Bought before" — past purchases under this list's name, minus whatever's
   // already on the list (no point suggesting something you're already buying)

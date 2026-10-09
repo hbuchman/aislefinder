@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import confetti from 'canvas-confetti';
-import { processGroceryList, findItemAisle, fetchCategories } from '../api';
+import { findItemAisle, fetchCategories } from '../api';
 import { isOnline, onNetworkChange } from '../network';
 import { newItem } from '../listsStore';
 import ItemInfoSheet from '../components/ItemInfoSheet';
@@ -19,8 +19,6 @@ import {
   itemKey,
   itemsHash,
   resolveOrganizeFormat,
-  buildOfflineOrganizedGroups,
-  remapCheckedItems,
 } from '../listUtils';
 
 // Badge shown next to an item with an aisle/category correction, describing
@@ -291,7 +289,7 @@ const CopyFormatPopup = ({ outputFormat, setOutputFormat, onClose }) => (
   </>
 );
 
-const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFormat, onExit, onFinished, onShowStore, toast, aisleOverrides = {}, setAisleOverride, clearAisleOverride, syncAisleOverrides, itemHistory = {}, recordItemHistory }) => {
+const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFormat, onExit, onFinished, onShowStore, toast, aisleOverrides = {}, setAisleOverride, clearAisleOverride, syncAisleOverrides, itemHistory = {}, recordItemHistory, organizeList, categoryOrders = {}, recordCategoryOrder }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [singleItemQuery, setSingleItemQuery] = useState('');
@@ -302,12 +300,21 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
   const [aisleSheet, setAisleSheet] = useState(null); // { item, currentGroupName }
   const [catalog, setCatalog] = useState([]);
   const hasFiredConfetti = useRef(false);
+  const hasEnteredRef = useRef(false);
   const confettiCanvasRef = useRef(null);
   const confettiInstance = useRef(null);
   const organizedKey = useRef(null);
+  const staleRetryHash = useRef(null);
   const shopStartRef = useRef(null);
   const [checkTimestamps, setCheckTimestamps] = useState({});
   const [showSummary, setShowSummary] = useState(false);
+  // True when the shopper walked into this trip already fully checked off —
+  // e.g. they exited mid-celebration last time without tapping "Done", so the
+  // list never actually completed. The confetti effect below treats that as
+  // "nothing to celebrate yet" rather than auto-firing on mount, so this flag
+  // keeps a manual way to reach the finish screen instead of leaving them
+  // stuck looking at a checklist with no Finish button.
+  const [canManuallyFinish, setCanManuallyFinish] = useState(false);
 
   const listId = list ? list.id : null;
   const itemCount = list ? list.items.length : 0;
@@ -326,87 +333,29 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
   }, [listId, storeId, itemsKey, syncAisleOverrides]);
 
   // Organize on entry, and again whenever the store or item set changes
-  // since the last organize (e.g. picking a new store mid-shop)
+  // since the last organize (e.g. picking a new store mid-shop). The actual
+  // fetch/cache-write logic lives in organizeList (listsStore.js) so it's
+  // shared with list mode's background prefetch — this just owns the
+  // loading/error UI and the guard key the triggering effect below checks.
   const organize = useCallback(async () => {
     if (!list) return;
     const hash = itemsHash(list.items);
     const format = resolveOrganizeFormat(list);
     organizedKey.current = `${hash}::${list.store ? list.store.id : ''}::${format}`;
     setError('');
-    const wasOffline = !!list.organizedOffline;
-    // Build the list from remembered item->group placements (itemHistory)
-    // instead of calling the backend; items never looked up before land in
-    // "Unsorted". Used both when we're known offline and as a fallback if the
-    // network call below throws.
-    const applyOffline = () => {
-      const groups = buildOfflineOrganizedGroups(list.items, format, itemHistory[storeId] || {});
-      updateList(list.id, {
-        organized: buildMarkdownFromGroups(groups),
-        organizedBy: format,
-        organizedForHash: hash,
-        organizedOffline: true,
-        checkedItems: remapCheckedItems(list.checkedItems, groups),
-        collapsedGroups: {},
-      });
-    };
-    // Aisle format with no store picked means the shopper skipped store
-    // selection to organize by aisles they set themselves — there's no
-    // Kroger data to look up, so build straight from the shopper's own
-    // overrides instead of calling the backend.
-    if (format === 'aisle' && !list.store) {
-      const groups = applyAisleOverrides(
-        [{ name: 'Unsorted', items: list.items.map((it) => it.name) }],
-        overridesForStore,
-      );
-      updateList(list.id, {
-        organized: buildMarkdownFromGroups(groups),
-        organizedBy: format,
-        organizedForHash: hash,
-        organizedOffline: false,
-        checkedItems: remapCheckedItems(list.checkedItems, groups),
-        collapsedGroups: {},
-      });
-      return;
-    }
-    if (!isOnline()) {
-      applyOffline();
-      return;
-    }
-    setLoading(true);
+    // The aisle-no-store and offline paths resolve locally/instantly inside
+    // organizeList — only show the spinner when this call will actually hit
+    // the network, to avoid a one-frame flash on those paths.
+    const willFetch = isOnline() && !(format === 'aisle' && !list.store);
+    if (willFetch) setLoading(true);
     try {
-      const markdown = await processGroceryList({
-        items: list.items.map((it) => it.name),
-        format,
-        store: list.store,
-      });
-      const groups = parseGroceryListToGroups(markdown);
-      if (recordItemHistory) {
-        const entries = groups
-          .filter((g) => g.name !== 'Not Found')
-          .flatMap((g) => g.items.map((name) => ({ name, group: g.name })));
-        recordItemHistory(storeId, format, entries);
-      }
-      updateList(list.id, {
-        organized: markdown,
-        organizedBy: format,
-        organizedForHash: hash,
-        organizedOffline: false,
-        // Reconciling an offline-built list with the real result shouldn't
-        // wipe progress; a deliberate reorganize (format switch, etc.) still
-        // resets check state as before.
-        checkedItems: wasOffline ? remapCheckedItems(list.checkedItems, groups) : {},
-        collapsedGroups: {},
-      });
+      await organizeList(list.id);
     } catch (err) {
-      if (!isOnline() || err.name === 'TypeError') {
-        applyOffline();
-      } else {
-        setError(err.message || "Couldn't organize your list — try again");
-      }
+      setError(err.message || "Couldn't organize your list — try again");
     } finally {
-      setLoading(false);
+      if (willFetch) setLoading(false);
     }
-  }, [list, updateList, storeId, itemHistory, recordItemHistory, overridesForStore]);
+  }, [list, organizeList]);
 
   useEffect(() => {
     if (!list) return;
@@ -431,9 +380,19 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
   // a connectivity reading that was wrong at the time — e.g. Capacitor's
   // Network status can race at cold start the same way navigator.onLine used
   // to. That never fires the listener above (no real transition happens), so
-  // check again on every render here instead of waiting for one.
+  // check once per stranded state instead of waiting for one. Retrying more
+  // than once here would loop forever whenever isOnline() is genuinely wrong
+  // for the whole trip (reports connected while requests keep failing): each
+  // retry's applyOffline() re-updates the list, which re-runs this effect,
+  // which retries again — the checklist never gets a stable render and the
+  // shopper can never check off or finish. One retry per stranding episode
+  // (tracked by organizedForHash, so a new item set gets its own attempt)
+  // keeps the cold-start self-heal without that loop.
   useEffect(() => {
-    if (list && list.organizedOffline && isOnline()) organize();
+    if (!list || !list.organizedOffline || !isOnline()) return;
+    if (staleRetryHash.current === list.organizedForHash) return;
+    staleRetryHash.current = list.organizedForHash;
+    organize();
   }, [list, organize]);
 
   // Explicit aisle/category switch, available mid-shop; overrides the
@@ -468,12 +427,21 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
   const checkedItems = useMemo(() => (list ? list.checkedItems || {} : {}), [list]);
   const collapsedGroups = useMemo(() => (list ? list.collapsedGroups || {} : {}), [list]);
 
+  // A list's own drag-to-reorder arrangement wins when it has one; otherwise
+  // fall back to what was last saved for this store and format, so the
+  // shopper's preferred order carries over to a fresh list automatically
+  // instead of resetting every time a trip completes.
+  const savedOrderForStore = useMemo(
+    () => (categoryOrders[storeId] || {})[resolveOrganizeFormat(list || {})] || null,
+    [categoryOrders, storeId, list]
+  );
+
   const orderedGroups = useMemo(() => {
     if (!list || !list.organized) return [];
     const parsed = parseGroceryListToGroups(list.organized);
     const corrected = applyAisleOverrides(parsed, overridesForStore);
-    return applyCustomOrder(corrected, list.customCategoryOrder);
-  }, [list, overridesForStore]);
+    return applyCustomOrder(corrected, list.customCategoryOrder || savedOrderForStore);
+  }, [list, overridesForStore, savedOrderForStore]);
 
   const totalItems = useMemo(
     () => orderedGroups.reduce((sum, g) => sum + g.items.length, 0),
@@ -506,6 +474,20 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
   const isStale = !list || !list.organized || list.organizedForHash !== itemsHash(list.items);
   useEffect(() => {
     if (loading || isStale) return;
+    // The first time this effect sees real (non-loading, non-stale) data for
+    // this mount is "entering" the trip. If it's already fully checked at
+    // that point, the shopper didn't just finish checking something off —
+    // they walked away from a previous session (e.g. tapped Exit during the
+    // confetti animation) without finishing. Treat that as nothing new to
+    // celebrate, but still let them reach the finish screen manually.
+    if (!hasEnteredRef.current) {
+      hasEnteredRef.current = true;
+      if (totalItems > 0 && checkedCount === totalItems) {
+        hasFiredConfetti.current = true;
+        setCanManuallyFinish(true);
+        return;
+      }
+    }
     if (totalItems > 0 && checkedCount === totalItems && !hasFiredConfetti.current) {
       hasFiredConfetti.current = true;
       setTimeout(() => {
@@ -534,6 +516,7 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
     }
     if (totalItems > 0 && checkedCount < totalItems) {
       hasFiredConfetti.current = false;
+      setCanManuallyFinish(false);
     }
   }, [checkedCount, totalItems, loading, isStale]);
 
@@ -622,7 +605,9 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
     const reordered = Array.from(orderedGroups);
     const [removed] = reordered.splice(source.index, 1);
     reordered.splice(destination.index, 0, removed);
-    updateList(listId, { customCategoryOrder: reordered.map((g) => g.name) });
+    const order = reordered.map((g) => g.name);
+    updateList(listId, { customCategoryOrder: order });
+    if (recordCategoryOrder) recordCategoryOrder(storeId, resolveOrganizeFormat(list), order);
   };
 
   // Dragging an item into a different group is an aisle/category correction:
@@ -714,6 +699,7 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
         return { organized, items, organizedForHash: itemsHash(items) };
       });
       hasFiredConfetti.current = false;
+      setCanManuallyFinish(false);
       setSingleItemQuery('');
     };
     if (format === 'aisle' && !list.store) {
@@ -773,6 +759,7 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
     const itemName = aisleSheet.item;
     setAisleOverride(storeId, itemName, placement);
     hasFiredConfetti.current = false; // a re-placed item may un-complete the list
+    setCanManuallyFinish(false);
     setAisleSheet(null);
     toast(placement.kind === 'none'
       ? `Removed ${itemName} from your route`
@@ -933,7 +920,7 @@ const ShopScreen = ({ list, updateList, completeList, outputFormat, setOutputFor
                 <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--af-text)' }}>
                   {checkedCount}/{totalItems} items
                 </span>
-                {totalItems > 0 && checkedCount < totalItems && (
+                {totalItems > 0 && (checkedCount < totalItems || canManuallyFinish) && (
                   <button className="af-btn-sm af-btn-sm-green" onClick={() => setShowSummary(true)}>
                     Finish
                   </button>

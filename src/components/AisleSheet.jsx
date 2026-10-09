@@ -167,7 +167,7 @@ const AisleSheet = ({ item, store, currentGroupName, override, catalog = [], onS
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search all categories…"
               className="af-input"
-              style={{ flex: 1, border: 0, outline: 'none', background: 'transparent', color: 'var(--af-text)', fontFamily: 'inherit', fontSize: '13px' }}
+              style={{ flex: 1, border: 0, outline: 'none', background: 'transparent', color: 'var(--af-text)', fontFamily: 'inherit' }}
             />
           </div>
           {suggestions.length > 0 && !q && (
