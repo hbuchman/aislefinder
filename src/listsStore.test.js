@@ -2,15 +2,41 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { useLists, newItem } from './listsStore';
+import { saveState } from './storage';
 
 jest.mock('./auth', () => ({ getAccessToken: jest.fn() }));
 jest.mock('./api', () => ({
   putAisleOverride: jest.fn(),
   resolveAisleOverrides: jest.fn(),
+  fetchLists: jest.fn(),
+  deleteListRemote: jest.fn(),
+  pushList: jest.fn(),
 }));
 
 const { getAccessToken } = require('./auth');
-const { putAisleOverride, resolveAisleOverrides } = require('./api');
+const { putAisleOverride, resolveAisleOverrides, fetchLists, deleteListRemote, pushList } = require('./api');
+
+// Minimal valid list record for tests that seed storage/remote state directly
+// rather than going through createList.
+const rawList = (overrides) => ({
+  id: 'list-id',
+  name: 'Groceries',
+  status: 'active',
+  items: [],
+  store: null,
+  organized: null,
+  organizedBy: null,
+  formatPreference: null,
+  checkedItems: {},
+  collapsedGroups: {},
+  customCategoryOrder: null,
+  shareCode: null,
+  members: [],
+  createdAt: '2024-01-01T00:00:00.000Z',
+  updatedAt: '2024-01-01T00:00:00.000Z',
+  completedAt: null,
+  ...overrides,
+});
 
 // Minimal harness: renders the hook and exposes its return value on a ref so
 // tests can call mutations and read back state without a UI.
@@ -34,6 +60,9 @@ beforeEach(() => {
   getAccessToken.mockReset().mockResolvedValue('test-token');
   putAisleOverride.mockReset();
   resolveAisleOverrides.mockReset();
+  fetchLists.mockReset().mockResolvedValue([]);
+  deleteListRemote.mockReset().mockResolvedValue({});
+  pushList.mockReset().mockResolvedValue({});
 });
 
 it('finishing a shop early keeps unchecked items on an active list instead of deleting them', () => {
@@ -140,4 +169,80 @@ it('a resync adopts the resolved placement once the local correction has confirm
   rerender();
 
   expect(storeRef.current.aisleOverrides['store-1'].milk).toEqual({ kind: 'aisle', value: 3, source: 'community' });
+});
+
+it('finishing a shop early merges leftovers into an existing active list with the same name instead of duplicating it', () => {
+  const { storeRef, rerender } = setup();
+
+  let listId;
+  let otherId;
+  act(() => {
+    const list = storeRef.current.createList('Groceries');
+    listId = list.id;
+    storeRef.current.addItem(listId, 'milk');
+    storeRef.current.addItem(listId, 'eggs');
+  });
+  rerender();
+  act(() => {
+    const other = storeRef.current.createList('Groceries');
+    otherId = other.id;
+    storeRef.current.addItem(otherId, 'bread');
+  });
+  rerender();
+
+  act(() => {
+    storeRef.current.updateList(listId, () => ({ checkedItems: { 'Dairy::milk': true } }));
+  });
+  rerender();
+
+  act(() => { storeRef.current.completeList(listId); });
+  rerender();
+
+  const activeGroceries = storeRef.current.lists.filter((l) => l.status === 'active' && l.name === 'Groceries');
+  expect(activeGroceries).toHaveLength(1);
+  expect(activeGroceries[0].id).toBe(otherId);
+  expect(activeGroceries[0].items.map((it) => it.name).sort()).toEqual(['bread', 'eggs']);
+});
+
+it('starting up with two active lists sharing a name merges them into one and archives the other into history', () => {
+  const older = rawList({
+    id: 'list-a',
+    items: [newItem('milk')],
+    updatedAt: '2024-01-01T00:00:00.000Z',
+  });
+  const newer = rawList({
+    id: 'list-b',
+    items: [newItem('eggs')],
+    updatedAt: '2024-02-01T00:00:00.000Z',
+  });
+  saveState('lists', [older, newer]);
+
+  const { storeRef } = setup();
+
+  const active = storeRef.current.lists.filter((l) => l.name === 'Groceries' && l.status === 'active');
+  expect(active).toHaveLength(1);
+  expect(active[0].id).toBe('list-b');
+  expect(active[0].items.map((it) => it.name).sort()).toEqual(['eggs', 'milk']);
+
+  const archived = storeRef.current.lists.find((l) => l.id === 'list-a');
+  expect(archived.status).toBe('completed');
+});
+
+it('pullRemote does not resurrect a list whose delete is still unconfirmed', async () => {
+  fetchLists.mockResolvedValue([rawList({ id: 'list-x' })]);
+  deleteListRemote.mockReturnValue(new Promise(() => {})); // never confirms — stays dirty
+
+  const { storeRef, rerender } = setup({ sub: 'user-1' });
+
+  await act(async () => {
+    await storeRef.current.deleteList('list-x');
+  });
+  rerender();
+
+  await act(async () => {
+    await storeRef.current.pullRemote();
+  });
+  rerender();
+
+  expect(storeRef.current.lists.some((l) => l.id === 'list-x')).toBe(false);
 });

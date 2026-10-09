@@ -14,6 +14,7 @@ const ListsSheet = ({
   onReopenList,
   onCreateList,
   onDeleteList,
+  toast,
 }) => {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
@@ -21,6 +22,18 @@ const ListsSheet = ({
   const handleCreate = () => {
     const name = newName.trim();
     if (!name) return;
+    // "Your Lists" only ever shows one active list per name — block a second
+    // one here rather than letting it exist invisibly behind the first.
+    const collision = listGroups.find((g) => g.isActive && g.name.trim().toLowerCase() === name.toLowerCase());
+    if (collision) {
+      toast(`A list named "${collision.name}" already exists`, {
+        actions: [
+          { label: 'Switch to Existing', onClick: () => onSelectList(collision.list.id) },
+          { label: 'Rename', onClick: () => setNewName(`${name} (copy)`) },
+        ],
+      });
+      return;
+    }
     onCreateList(name);
     setNewName('');
     setCreating(false);

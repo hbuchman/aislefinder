@@ -26,6 +26,7 @@ const AisleFinder = () => {
   const [sheet, setSheet] = useState(null);
   const [outputFormat, setOutputFormat] = useState(() => loadState('outputFormat', 'numbered'));
   const [toastMsg, setToastMsg] = useState('');
+  const [toastActions, setToastActions] = useState([]);
   const toastTimer = useRef(null);
 
   useEffect(() => { saveState('outputFormat', outputFormat); }, [outputFormat]);
@@ -45,10 +46,12 @@ const AisleFinder = () => {
     };
   }, [screen]);
 
-  const toast = useCallback((msg) => {
+  const toast = useCallback((msg, { actions = [] } = {}) => {
     setToastMsg(msg);
+    setToastActions(actions);
     clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToastMsg(''), 2500);
+    // Actionable toasts stay up long enough to actually tap a button.
+    toastTimer.current = setTimeout(() => { setToastMsg(''); setToastActions([]); }, actions.length > 0 ? 6000 : 2500);
   }, []);
 
   // Lists are cached on-device, so offline mode keeps working; let the user
@@ -652,6 +655,29 @@ const AisleFinder = () => {
           box-shadow: var(--af-shadow-lg);
           animation: toastFade 2.5s ease-out forwards;
         }
+        .af-toast--actions {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 10px;
+          border-radius: 16px;
+          padding: 14px 18px;
+          animation-duration: 6s;
+        }
+        .af-toast-actions {
+          display: flex;
+          gap: 8px;
+        }
+        .af-toast-action {
+          background: transparent;
+          border: 1px solid var(--af-toast-text);
+          color: var(--af-toast-text);
+          border-radius: 999px;
+          padding: 6px 14px;
+          font-size: 12px;
+          font-weight: 700;
+          cursor: pointer;
+        }
         @keyframes toastFade {
           0% { opacity: 0; transform: translateX(-50%) translateY(8px); }
           10%, 80% { opacity: 1; transform: translateX(-50%) translateY(0); }
@@ -748,6 +774,7 @@ const AisleFinder = () => {
             onDeleteHistory={handleDeleteHistoryGroup}
             onDeleteHistoryItem={store.deleteHistoryItem}
             updateList={store.updateList}
+            organizeList={store.organizeList}
             onShowLists={() => setSheet('lists')}
             onShowShare={() => setSheet('share')}
             toast={toast}
@@ -782,6 +809,9 @@ const AisleFinder = () => {
             syncAisleOverrides={store.syncAisleOverrides}
             itemHistory={store.itemHistory}
             recordItemHistory={store.recordItemHistory}
+            organizeList={store.organizeList}
+            categoryOrders={store.categoryOrders}
+            recordCategoryOrder={store.recordCategoryOrder}
           />
         )}
       </div>
@@ -819,9 +849,32 @@ const AisleFinder = () => {
         onReopenList={handleReopenList}
         onCreateList={handleCreateList}
         onDeleteList={handleDeleteListGroup}
+        toast={toast}
       />
 
-      {toastMsg && <div className="af-toast">{toastMsg}</div>}
+      {toastMsg && (
+        <div className={`af-toast${toastActions.length > 0 ? ' af-toast--actions' : ''}`}>
+          <span>{toastMsg}</span>
+          {toastActions.length > 0 && (
+            <div className="af-toast-actions">
+              {toastActions.map((a) => (
+                <button
+                  key={a.label}
+                  className="af-toast-action"
+                  onClick={() => {
+                    clearTimeout(toastTimer.current);
+                    setToastMsg('');
+                    setToastActions([]);
+                    a.onClick();
+                  }}
+                >
+                  {a.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

@@ -1,8 +1,17 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { flushSync } from 'react-dom';
-import { fetchLists, pushList, deleteListRemote, putAisleOverride, resolveAisleOverrides } from './api';
+import { fetchLists, pushList, deleteListRemote, putAisleOverride, resolveAisleOverrides, processGroceryList } from './api';
 import { getAccessToken } from './auth';
-import { itemsHash, itemKey } from './listUtils';
+import {
+  itemsHash,
+  itemKey,
+  resolveOrganizeFormat,
+  applyAisleOverrides,
+  buildOfflineOrganizedGroups,
+  buildMarkdownFromGroups,
+  remapCheckedItems,
+  parseGroceryListToGroups,
+} from './listUtils';
 import { isOnline, onNetworkChange } from './network';
 
 import { loadState, saveState } from './storage';
@@ -22,6 +31,13 @@ const backoffRecordFailure = (state) => {
   state.nextAttemptAt = Date.now() + Math.min(BACKOFF_MAX_MS, BACKOFF_BASE_MS * 2 ** (state.failures - 1));
 };
 const backoffRecordSuccess = (state) => { state.failures = 0; state.nextAttemptAt = 0; };
+
+// In-flight organize() fetches, keyed by `${listId}::${hash}::${storeId}::${format}`.
+// Module-level (not per-hook-instance) so a background prefetch kicked off from
+// list mode and a foreground organize() from Shop mode for the same list state
+// share one Kroger round trip instead of firing twice — the exact moment that
+// matters is tapping "Shop" while a prefetch is still in flight.
+const inFlightOrganizes = new Map();
 
 export const newList = (name = 'My Groceries') => {
   const now = new Date().toISOString();
@@ -75,9 +91,52 @@ const migrateLegacyState = () => {
   return list;
 };
 
+// Repair pass for lists that predate the one-active-list-per-name invariant
+// (or slipped past it via a sync race): for any name shared by more than one
+// active list, keep the most recently updated as the survivor, fold the
+// others' items into it, and archive the others into history instead of
+// letting them sit invisibly duplicated behind the name in "Your Lists".
+// Idempotent — a no-op once there's nothing to merge.
+const dedupeActiveListsByName = (lists) => {
+  const byName = new Map();
+  lists.forEach((l) => {
+    if (l.status !== 'active') return;
+    const key = l.name.trim().toLowerCase();
+    if (!byName.has(key)) byName.set(key, []);
+    byName.get(key).push(l);
+  });
+
+  const touchedIds = [];
+  let result = lists;
+  byName.forEach((group) => {
+    if (group.length < 2) return;
+    const [keeper, ...dupes] = [...group].sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+    let keeperItems = keeper.items;
+    dupes.forEach((dup) => {
+      const existingNames = new Set(keeperItems.map((it) => it.name));
+      keeperItems = [...keeperItems, ...dup.items.filter((it) => !existingNames.has(it.name))];
+    });
+    const now = new Date().toISOString();
+    const dupIds = new Set(dupes.map((d) => d.id));
+    result = result.map((l) => {
+      if (l.id === keeper.id) return { ...l, items: keeperItems, updatedAt: now };
+      if (dupIds.has(l.id)) return { ...l, status: 'completed', completedAt: l.updatedAt || now };
+      return l;
+    });
+    touchedIds.push(keeper.id, ...dupes.map((d) => d.id));
+  });
+
+  if (touchedIds.length > 0) {
+    const dirty = new Set(loadState('dirtyListIds', []));
+    touchedIds.forEach((id) => dirty.add(id));
+    saveState('dirtyListIds', [...dirty]);
+  }
+  return result;
+};
+
 const initialLists = () => {
   const saved = loadState('lists', null);
-  if (saved && saved.length > 0) return saved;
+  if (saved && saved.length > 0) return dedupeActiveListsByName(saved);
   const migrated = migrateLegacyState();
   return [migrated || newList()];
 };
@@ -178,6 +237,11 @@ export const useLists = (user) => {
   // call. Shape: { [storeId]: { [itemKey]: { aisle: {group,updatedAt},
   // category: {group,updatedAt} } } }.
   const [itemHistory, setItemHistory] = useState(() => loadState('itemAisleHistory', {}));
+  // A shopper's drag-to-reorder section arrangement, remembered per store and
+  // format so it's applied automatically on the next trip there instead of
+  // starting over each time a list completes and a fresh one takes its place.
+  // Shape: { [storeId]: { [format]: [groupName, ...] } }. Device-local.
+  const [categoryOrders, setCategoryOrders] = useState(() => loadState('categoryOrders', {}));
   // Items a shopper has dismissed from the "You often buy" suggestions —
   // still counted in history, just never surfaced again. Device-local.
   const [hiddenFrequentItems, setHiddenFrequentItems] = useState(() => loadState('hiddenFrequentItems', []));
@@ -198,6 +262,7 @@ export const useLists = (user) => {
   useEffect(() => { saveState('currentListId', currentListId); }, [currentListId]);
   useEffect(() => { saveState('aisleOverrides', aisleOverrides); }, [aisleOverrides]);
   useEffect(() => { saveState('itemAisleHistory', itemHistory); }, [itemHistory]);
+  useEffect(() => { saveState('categoryOrders', categoryOrders); }, [categoryOrders]);
   useEffect(() => { saveState('hiddenFrequentItems', hiddenFrequentItems); }, [hiddenFrequentItems]);
 
   const activeLists = useMemo(() => lists.filter((l) => l.status === 'active'), [lists]);
@@ -371,6 +436,108 @@ export const useLists = (user) => {
     });
   }, []);
 
+  // Turns a list's current item set into aisle/category groups: builds
+  // locally from overrides when there's no store to look up, replays the
+  // itemHistory cache when offline, or hits the backend and records the
+  // results into itemHistory otherwise. Shared by ShopScreen's foreground
+  // organize() (which layers its own loading spinner + error UI on top) and
+  // CurrentListScreen's silent background prefetch — `silent: true` swallows
+  // failures instead of throwing, since a failed prefetch just means Shop
+  // mode falls back to organizing on entry like it does today. Dedupes
+  // concurrent callers hitting the network for the same list/item-set/store/
+  // format via `inFlightOrganizes`. Reads list state via `loadState` rather
+  // than the closed-over `lists` so a debounced background caller never acts
+  // on a stale snapshot.
+  const organizeList = useCallback(async (listId, { silent = false } = {}) => {
+    const current = loadState('lists', []);
+    const list = current.find((l) => l.id === listId);
+    if (!list) return null;
+    const hash = itemsHash(list.items);
+    const format = resolveOrganizeFormat(list);
+    const sid = list.store ? list.store.id : 'default';
+    const wasOffline = !!list.organizedOffline;
+
+    if (format === 'aisle' && !list.store) {
+      const groups = applyAisleOverrides(
+        [{ name: 'Unsorted', items: list.items.map((it) => it.name) }],
+        aisleOverrides[sid] || {},
+      );
+      updateList(listId, {
+        organized: buildMarkdownFromGroups(groups),
+        organizedBy: format,
+        organizedForHash: hash,
+        organizedOffline: false,
+        checkedItems: remapCheckedItems(list.checkedItems, groups),
+        collapsedGroups: {},
+      });
+      return groups;
+    }
+
+    const applyOffline = () => {
+      const groups = buildOfflineOrganizedGroups(list.items, format, itemHistory[sid] || {});
+      updateList(listId, {
+        organized: buildMarkdownFromGroups(groups),
+        organizedBy: format,
+        organizedForHash: hash,
+        organizedOffline: true,
+        checkedItems: remapCheckedItems(list.checkedItems, groups),
+        collapsedGroups: {},
+      });
+      return groups;
+    };
+
+    if (!isOnline()) {
+      if (silent) return null;
+      return applyOffline();
+    }
+
+    const key = `${listId}::${hash}::${sid}::${format}`;
+    let inFlight = inFlightOrganizes.get(key);
+    if (!inFlight) {
+      inFlight = (async () => {
+        const markdown = await processGroceryList({
+          items: list.items.map((it) => it.name),
+          format,
+          store: list.store,
+        });
+        const groups = parseGroceryListToGroups(markdown);
+        const entries = groups
+          .filter((g) => g.name !== 'Not Found')
+          .flatMap((g) => g.items.map((name) => ({ name, group: g.name })));
+        recordItemHistory(sid, format, entries);
+        updateList(listId, {
+          organized: markdown,
+          organizedBy: format,
+          organizedForHash: hash,
+          organizedOffline: false,
+          checkedItems: wasOffline ? remapCheckedItems(list.checkedItems, groups) : {},
+          collapsedGroups: {},
+        });
+        return groups;
+      })();
+      inFlightOrganizes.set(key, inFlight);
+      inFlight.finally(() => { if (inFlightOrganizes.get(key) === inFlight) inFlightOrganizes.delete(key); });
+    }
+    try {
+      return await inFlight;
+    } catch (err) {
+      if (silent) return null;
+      if (!isOnline() || err.name === 'TypeError') return applyOffline();
+      throw err;
+    }
+  }, [aisleOverrides, itemHistory, recordItemHistory, updateList]);
+
+  // Remember a shopper's drag-to-reorder section arrangement for a store and
+  // format, so it's applied by default the next time they shop there — even
+  // once the list that was dragged has been completed and replaced.
+  const recordCategoryOrder = useCallback((storeId, format, order) => {
+    const sid = storeId || 'default';
+    setCategoryOrders((prev) => ({
+      ...prev,
+      [sid]: { ...(prev[sid] || {}), [format]: order },
+    }));
+  }, []);
+
   // Pull the effective overrides for a trip (mine → household → community) and
   // merge them over the device-local cache. Best-effort; a no-op when signed
   // out, offline, or sync is unconfigured.
@@ -441,11 +608,19 @@ export const useLists = (user) => {
       };
       let updated = prev.map((l) => (l.id === id ? completed : l));
       if (uncheckedItems.length > 0) {
-        replacement = newList(target.name);
-        replacement.items = uncheckedItems;
-        replacement.store = target.store;
-        replacement.formatPreference = target.formatPreference;
-        updated = [replacement, ...updated];
+        const existingActive = updated.find((l) => l.status === 'active' && l.name === target.name);
+        if (existingActive) {
+          const existingNames = new Set(existingActive.items.map((it) => it.name));
+          const merged = [...uncheckedItems.filter((it) => !existingNames.has(it.name)), ...existingActive.items];
+          updated = updated.map((l) => (l.id === existingActive.id ? { ...l, items: merged, updatedAt: now } : l));
+          replacement = updated.find((l) => l.id === existingActive.id);
+        } else {
+          replacement = newList(target.name);
+          replacement.items = uncheckedItems;
+          replacement.store = target.store;
+          replacement.formatPreference = target.formatPreference;
+          updated = [replacement, ...updated];
+        }
       } else {
         const stillActive = updated.filter((l) => l.status === 'active');
         if (stillActive.length === 0) {
@@ -473,8 +648,13 @@ export const useLists = (user) => {
 
   const adoptRemoteList = useCallback((remote) => {
     setLists((prev) => {
-      const without = prev.filter((l) => l.id !== remote.id);
-      return [remote, ...without];
+      // Don't let a joined list silently double up a name you already have
+      // active — the "Your Lists" view only shows one list per name.
+      const collides = prev.some((l) => (
+        l.status === 'active' && l.id !== remote.id && l.name.trim().toLowerCase() === remote.name.trim().toLowerCase()
+      ));
+      const incoming = collides ? { ...remote, name: `${remote.name} (shared)` } : remote;
+      return [incoming, ...prev.filter((l) => l.id !== incoming.id)];
     });
     setCurrentListId(remote.id);
   }, []);
@@ -598,6 +778,7 @@ export const useLists = (user) => {
     setLists((prev) => {
       const byId = new Map(prev.map((l) => [l.id, l]));
       remote.forEach((r) => {
+        if (dirtyDeleteIds.current.has(r.id)) return; // delete not yet confirmed — don't resurrect it
         const local = byId.get(r.id);
         if (!local) {
           byId.set(r.id, r);
@@ -673,5 +854,8 @@ export const useLists = (user) => {
     syncAisleOverrides,
     itemHistory,
     recordItemHistory,
+    organizeList,
+    categoryOrders,
+    recordCategoryOrder,
   };
 };
